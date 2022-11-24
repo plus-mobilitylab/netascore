@@ -14,20 +14,33 @@ For a full docker pipeline, there are no other prerequisites than a working dock
 
 If you don't use an official image, then you can build the image for yourself:
 
-    docker build -t bikeability .
+```bash
+docker build -t bikeability .
+```
 
 This builds a local docker image named `bikeability`.
 
 Now create a network (required only once per computer):
 
-    docker network create bikeability-net 
+```bash
+docker network create bikeability-net 
+```
 
 Start the postgis database and attach it to the network:
 
-    docker run --name bikeability-db --network=bikeability-net \
-                  -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
+```bash
+docker run --name bikeability-db --network=bikeability-net \
+        -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
+```
+
+```bash
+# Map TCP port 5432 in the container to port 5433 on the Docker host:
+docker run --name bikeability-db --network=bikeability-net -p 5433:5432 \
+        -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
+```
 
 Make sure that the database connection in your `settings.yml` is set up for docker:
+
 ```yml
 database:
     host: bikeability-db
@@ -54,14 +67,15 @@ docker run -t --network=bikeability-net \
 
 ## Only the database runs in docker
 
-If the the database runs in docker, then you have to configure your database to accept connections from the local machine:
+If the database runs in docker, then you have to configure your database to accept connections from the local machine:
 
 ```bash
 docker run --name bikeability-db --network=bikeability-net -p 5432:5432 \
-              -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
+        -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
 ```
 
 Your `database` section in the settings file should point to the local port which is mapped to the database on localhost:
+
 ```yml
 database:
   host: localhost
@@ -80,9 +94,8 @@ If the external database runs on another host, provide the necessary connection 
 
 If you have the database running on your local system, then the host needs the ip of the local system. Please note, that
 `127.0.0.1` will not work, because it would try to connect to the local container. If you are unable to obtain the ip of your
-machine, or you cannot establish a connection, use `gateway.docker.internal` as the host.
+machine, or you cannot establish a connection, use `gateway.docker.internal` as the host, e.g.:
 
-e.g.:
 ```yml
 database:
   host: gateway.docker.internal
@@ -103,7 +116,7 @@ docker volume create bikeability-storage
 docker create -t --network=bikeability-net --name bikeability-pipe \
         -v bikeability-storage:/usr/src/bikeability/data bikeability data/settings.yml
 
-docker copy data/. bikeability-pipe:/usr/src/bikeability/data
+docker cp data/. bikeability-pipe:/usr/src/bikeability/data
 
 docker start bikeability-pipe
 ```
@@ -130,7 +143,6 @@ By default, this file is provided within the docker container. To overwrite some
 - copy the file from this repository
 - modify the settings you need to modify
 - mount the settings file into the docker container when running it
-
 
 ```bash
 # linux and mac:
