@@ -1,0 +1,29 @@
+version: 1.0
+# this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
+database:
+  host: gateway.docker.internal
+  port: 5432
+  dbname: bikeability
+  on_existing: abort # skip, delete, abort
+  # user and password to be specified as ENV variables
+# -- end of optional db part --
+import:
+  type: osm
+  filename: austria-latest.osm.pbf
+optional:
+  dem:
+    filename: austria.tif # GeoTIFF
+    srid: 31287
+  noise:
+    filename: noise.gpkg # GeoPackage
+    # column_noise: noise # TODO: set from settings file
+weights:
+  -
+    profile_name: bike
+    filename: weights_bike.yml
+  -
+    profile_name: walk
+    filename: weights_walk.yml
+export:
+  type: geopackage
+  filename: gip_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes

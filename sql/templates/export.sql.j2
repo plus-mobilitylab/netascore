@@ -1,0 +1,34 @@
+-- ---------------------------------------------------------------------------------------------------------------------
+-- export
+-- ---------------------------------------------------------------------------------------------------------------------
+
+SET search_path =
+    {{ schema_meta_net | sqlsafe }},
+    public;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create tables "export_edge", "export_node"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS export_edge;
+CREATE TABLE export_edge AS (
+    SELECT *
+    FROM network_edge_export a
+        JOIN network_edge_attributes b USING (edge_id)
+        LEFT JOIN network_edge_index c USING (edge_id)
+);
+
+ALTER TABLE export_edge ADD PRIMARY KEY (edge_id);
+CREATE INDEX export_edge_geom_idx ON export_edge USING gist (geom);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS export_node;
+CREATE TABLE export_node AS (
+    SELECT *
+    FROM network_node a
+        JOIN network_node_attributes b USING (node_id)
+);
+
+ALTER TABLE export_node ADD PRIMARY KEY (node_id);
+CREATE INDEX export_node_geom_idx ON export_node USING gist (geom);

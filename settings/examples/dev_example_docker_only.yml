@@ -1,0 +1,14 @@
+version: 1.0
+# for execution within docker container and PostgresDB in Docker
+database:
+  host: bikeability-db
+  port: 5432
+  dbname: postgres
+  username: postgres 
+  passwrod: postgres
+  on_existing: abort # skip, delete, abort
+import:
+  type: gip
+  filename_A: A_routingexport_ogd_split
+  filename_B: B_gip_network_ogd
+

@@ -1,0 +1,366 @@
+-- ---------------------------------------------------------------------------------------------------------------------
+-- osm_network
+-- ---------------------------------------------------------------------------------------------------------------------
+
+SET search_path =
+    {{ schema_network | sqlsafe }},
+    {{ schema_data | sqlsafe }},
+    public;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- calculate network with highways, railways and aerialways
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_init;
+CREATE TABLE network_init AS ( -- 19 s, 2.162.218
+    SELECT osm_id,
+           ST_Transform(way, 32633)::geometry(LineString, 32633) AS geom,
+           highway, railway, aerialway, access, "addr:housename" AS addr_housename,
+           "addr:housenumber" AS addr_housenumber, "addr:interpolation" AS addr_interpolation, admin_level, amenity,
+           area, barrier, bicycle, boundary, brand, building, construction, covered, culvert, cutting, denomination,
+           disused, embankment, foot, "generator:source" AS generator_source, harbour, historic, horse, intermittent,
+           junction, landuse, layer, leisure, lock, man_made, military, motorcar, name, "natural", office, oneway, operator,
+           place, population, power, power_source, public_transport, ref, religion, route, service, shop, sport,
+           surface, tags, toll, tourism, "tower:type" AS tower_type, tracktype, water, way_area, wetland, width, wood, z_order,
+           CASE
+               WHEN (bridge = 'no' OR bridge IS NULL) AND tags -> 'bridge:movable' IS NOT NULL THEN tags -> 'bridge:movable'
+               WHEN (bridge = 'no' OR bridge IS NULL) AND tags -> 'bridge:structure' IS NOT NULL THEN tags -> 'bridge:structure'
+               WHEN (bridge = 'no' OR bridge IS NULL) AND man_made = 'bridge' THEN man_made
+               WHEN (bridge = 'no' OR bridge IS NULL) AND tags -> 'seamark:type' = 'bridge' THEN tags -> 'seamark:type'
+               WHEN bridge = 'no' THEN NULL
+               ELSE bridge
+           END AS bridge,
+           CASE
+               WHEN (tunnel = 'no' OR tunnel IS NULL) AND covered IN ('tunnel', 'arcade', 'building_passage') THEN covered
+               WHEN tunnel = 'no' THEN NULL
+               ELSE tunnel
+           END AS tunnel
+  FROM osm_line
+  WHERE osm_id >= 0
+    AND (highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
+                     'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link', 'living_street',
+                     'service', 'pedestrian', 'track', 'bus_guideway', 'escape', 'road', 'footway', 'bridleway',
+                     'steps', 'path', 'cycleway', 'construction', 'crossing', 'emergency_bay', 'platform') OR
+         railway IN ('construction', 'funicular', 'light_rail', 'monorail', 'narrow_gauge', 'rail', 'subway', 'tram',
+                     'turntable', 'traverser') OR
+         aerialway IN ('cable_car', 'gondola', 'mixed_lift', 'chair_lift', 'drag_lift', 't-bar', 'j-bar', 'platter'))
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- correct intersections
+-- ---------------------------------------------------------------------------------------------------------------------
+
+-- calculate start and end points for the whole network
+DROP TABLE IF EXISTS link_points;
+CREATE TABLE link_points AS ( -- 18 s, 2.162.218
+    SELECT osm_id,
+           geom,
+           bridge,
+           tunnel,
+           CASE WHEN tags -> 'conveying' = 'no' THEN NULL ELSE tags -> 'conveying' END AS escalator,
+           CASE WHEN tags -> 'indoor' = 'no' THEN NULL ELSE tags -> 'indoor' END AS indoor,
+           string_to_array(layer, ';') || string_to_array(tags -> 'level', ';') AS layer,
+           ST_StartPoint(geom) as geom_startpoint,
+           ST_EndPoint(geom) as geom_endpoint
+    FROM network_init
+);
+
+CREATE INDEX link_points_geom_idx ON link_points USING gist(geom); -- 11 s
+
+-- calculate intersections
+DROP TABLE IF EXISTS intersections_all;
+CREATE TABLE intersections_all AS ( -- 53 s, 1.673.203
+    SELECT ST_Intersection(a.geom, b.geom) AS geom,
+           a.osm_id          AS osm_id_1,
+           a.bridge          AS bridge_1,
+           a.tunnel          AS tunnel_1,
+           a.escalator       AS escalator_1,
+           a.indoor          AS indoor_1,
+           a.layer           AS layer_1,
+           a.geom_startpoint AS geom_startpoint_1,
+           a.geom_endpoint   AS geom_endpoint_1,
+           b.osm_id          AS osm_id_2,
+           b.bridge          AS bridge_2,
+           b.tunnel          AS tunnel_2,
+           b.escalator       AS escalator_2,
+           b.indoor          AS indoor_2,
+           b.layer           AS layer_2,
+           b.geom_startpoint AS geom_startpoint_2,
+           b.geom_endpoint   AS geom_endpoint_2
+    FROM link_points AS a,
+         link_points AS b
+    WHERE ST_Intersects(a.geom, b.geom)
+      AND NOT ST_Equals(a.geom_startpoint, b.geom_startpoint)
+      AND NOT ST_Equals(a.geom_startpoint, b.geom_endpoint)
+      AND NOT ST_Equals(a.geom_endpoint, b.geom_startpoint)
+      AND NOT ST_Equals(a.geom_endpoint, b.geom_endpoint)
+      AND a.osm_id < b.osm_id
+);
+
+-- turn geometry collections and multipoints to points
+INSERT INTO intersections_all -- 1 s, 189
+SELECT (ST_Dump(ST_CollectionExtract(geom, 1))).geom AS geom,
+       osm_id_1, bridge_1, tunnel_1, escalator_1, indoor_1, layer_1, geom_startpoint_1, geom_endpoint_1,
+       osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2
+FROM intersections_all
+WHERE ST_GeometryType(geom) = 'ST_GeometryCollection';
+
+INSERT INTO intersections_all -- 1 s, 110.743
+SELECT (ST_Dump(geom)).geom AS geom,
+       osm_id_1, bridge_1, tunnel_1, escalator_1, indoor_1, layer_1, geom_startpoint_1, geom_endpoint_1,
+       osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2
+FROM intersections_all
+WHERE ST_GeometryType(geom) = 'ST_MultiPoint';
+
+-- delete intersections of geometry types: geometry collection, multipoint, linestring and multilinestring
+DELETE FROM intersections_all -- 5 s, 54.314
+WHERE ST_GeometryType(geom) = 'ST_GeometryCollection'
+   OR ST_GeometryType(geom) = 'ST_LineString'
+   OR ST_GeometryType(geom) = 'ST_MultiLineString'
+   OR ST_GeometryType(geom) = 'ST_MultiPoint';
+
+-- delete intersections that are at the same point
+DROP TABLE IF EXISTS intersections;
+CREATE TABLE intersections AS ( -- 15 s, 1.654.581
+    -- TODO: DISTINCT ON might not work here
+    SELECT DISTINCT ON (geom) row_number() OVER (ORDER BY geom, osm_id_1, bridge_1, tunnel_1, escalator_1, indoor_1, layer_1, geom_startpoint_1, geom_endpoint_1, osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2) AS id, *
+    FROM intersections_all
+);
+
+-- correct intersections at bridges
+DELETE FROM intersections -- 2 s, 28.381
+WHERE id IN (
+    SELECT id
+    FROM intersections
+    WHERE ((bridge_1 IS NOT NULL OR bridge_2 IS NOT NULL) OR
+           (escalator_1 IS NOT NULL OR escalator_2 IS NOT NULL))
+      AND NOT ST_Intersects(geom, geom_startpoint_1)
+      AND NOT ST_Intersects(geom, geom_endpoint_1)
+      AND NOT ST_Intersects(geom, geom_startpoint_2)
+      AND NOT ST_Intersects(geom, geom_endpoint_2)
+);
+
+-- correct intersections at links with different layers that are not at the endpoints
+DELETE FROM intersections -- 2 s, 24.825
+WHERE id IN (
+    SELECT id
+    FROM intersections
+    WHERE ((layer_1 IS NULL AND layer_2 IS NOT NULL) OR
+           (layer_1 IS NOT NULL AND layer_2 IS NULL) OR
+           (layer_1 && layer_2 = false))
+      AND NOT ST_Intersects(geom, geom_startpoint_1)
+      AND NOT ST_Intersects(geom, geom_endpoint_1)
+      AND NOT ST_Intersects(geom, geom_startpoint_2)
+      AND NOT ST_Intersects(geom, geom_endpoint_2)
+
+);
+
+-- correct intersections between tunnels and non-indoor/non-tunnel links that are not at the endpoints
+DELETE FROM intersections -- 1 s, 114
+WHERE id IN (
+    SELECT id
+    FROM intersections
+    WHERE layer_1 IS NULL
+      AND layer_2 IS NULL
+      AND ((tunnel_1 IS NOT NULL AND tunnel_2 IS NULL AND indoor_2 IS NULL) OR
+           (tunnel_2 IS NOT NULL AND tunnel_1 IS NULL AND indoor_1 IS NULL))
+      AND NOT ST_Intersects(geom, geom_startpoint_1)
+      AND NOT ST_Intersects(geom, geom_endpoint_1)
+      AND NOT ST_Intersects(geom, geom_startpoint_2)
+      AND NOT ST_Intersects(geom, geom_endpoint_2)
+);
+
+-- delete intersections between links with different layers that are not at the ends of the links
+WITH first_layer AS ( -- 34 s, 27
+    SELECT a.id,
+           ST_Buffer(a.geom, 0.01) AS intersection_geom,
+           a.osm_id_1,
+           a.osm_id_2,
+           b.layer AS layer_1,
+           b.geom AS geom_1
+    FROM intersections a
+        JOIN network_init b ON (a.osm_id_1 = b.osm_id)
+),
+second_layer AS (
+    SELECT c.*, d.layer AS layer_2, d.geom AS geom_2
+    FROM first_layer c
+        JOIN network_init d ON (c.osm_id_2 = d.osm_id)
+),
+different_layers AS (
+    SELECT id, intersection_geom, geom_1, geom_2
+    FROM second_layer
+    WHERE layer_1 != layer_2
+)
+DELETE
+FROM intersections
+WHERE id IN (
+    SELECT id
+    FROM different_layers
+    WHERE NOT ST_Intersects(intersection_geom, ST_Startpoint(geom_1))
+      AND NOT ST_Intersects(intersection_geom, ST_Endpoint(geom_1))
+      AND NOT ST_Intersects(intersection_geom, ST_Startpoint(geom_2))
+      AND NOT ST_Intersects(intersection_geom, ST_Endpoint(geom_2))
+);
+
+-- calculate links that have to be split
+DROP TABLE IF EXISTS intersecting_links;
+CREATE TABLE intersecting_links AS ( -- 12 s, 1.573.644
+    WITH osm_ids AS (
+        SELECT osm_id_1 AS osm_id, geom
+        FROM intersections
+        UNION
+        SELECT osm_id_2 AS osm_id, geom
+        FROM intersections
+    )
+    SELECT osm_id, ST_Union(geom) AS intersection_geom
+    FROM osm_ids
+    GROUP BY osm_id
+);
+
+-- split links at intersections and add the rest of the links to new table. osm_id will not stay unique.
+CREATE TABLE network_corrected AS ( -- 32 s, 3.876.291
+    SELECT a.osm_id,
+           (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom::geometry(LineString, 32633) AS geom,
+           highway, railway, aerialway, access, addr_housename, addr_housenumber, addr_interpolation, admin_level,
+           amenity, area, barrier, bicycle, boundary, brand, building, construction, covered, culvert, cutting,
+           denomination, disused, embankment, foot, generator_source, harbour, historic, horse, intermittent, junction,
+           landuse, layer, leisure, lock, man_made, military, motorcar, name, "natural", office, oneway, operator,
+           place, population, power, power_source, public_transport, ref, religion, route, service, shop, sport,
+           surface, tags, toll, tourism, tower_type, tracktype, water, way_area, wetland, width, wood, z_order, bridge,
+           tunnel
+    FROM network_init a
+        JOIN intersecting_links b USING (osm_id)
+
+    UNION
+
+    SELECT *
+    FROM network_init c
+    WHERE NOT exists(SELECT FROM intersecting_links d WHERE c.osm_id = d.osm_id)
+);
+
+CREATE INDEX network_corrected_geom_idx ON network_corrected USING gist (geom); -- 16 s
+
+ALTER TABLE network_corrected ADD COLUMN id serial; -- 39 s
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- correct indoor links
+-- ---------------------------------------------------------------------------------------------------------------------
+
+-- calculate existing intersections (end points) at indoor links
+DROP TABLE IF EXISTS network_corrected_points;
+CREATE TABLE network_corrected_points AS ( -- 18 s, 7.752.582
+    WITH points AS (
+        SELECT id AS link_id, ST_StartPoint(geom) AS geom
+        FROM network_corrected
+
+        UNION ALL
+
+        SELECT id AS link_id, ST_EndPoint(geom) AS geom
+        FROM network_corrected
+    )
+    SELECT row_number() OVER () AS id, *
+    FROM points
+);
+
+CREATE INDEX network_corrected_points_geom_idx ON network_corrected_points USING gist (geom); -- 47 s
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS indoor_points;
+CREATE TABLE indoor_points AS ( -- 8 s, 14181
+    WITH indoor_links AS (
+        SELECT geom
+        FROM network_corrected
+        WHERE tags -> 'indoor' = 'yes'
+    ),
+    intersecting_points AS (
+        SELECT b.id
+        FROM indoor_links a,
+             network_corrected_points b
+        WHERE ST_Intersects(b.geom, a.geom)
+    ),
+    unioned_points AS (
+        SELECT id
+        FROM intersecting_points
+        GROUP BY id
+    )
+    SELECT b.*
+    FROM unioned_points a
+        JOIN network_corrected_points b USING (id)
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+-- delete edges with dangling ends for indoor edges
+SELECT delete_dangling_edges();
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- calculate final table with new id and native osm attributes only
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_corrected DROP COLUMN IF EXISTS id;
+
+DROP TABLE IF EXISTS network_tmp;
+CREATE TABLE network_tmp AS ( -- 17 s, 3.875.173
+    SELECT row_number() OVER (ORDER BY osm_id) AS edge_id,
+           osm_id, geom, highway, railway, aerialway, access, addr_housename, addr_housenumber, addr_interpolation,
+           admin_level, amenity, area, barrier, bicycle, boundary, brand, building, construction, covered, culvert,
+           cutting, denomination, disused, embankment, foot, generator_source, harbour, historic, horse, intermittent,
+           junction, landuse, layer, leisure, lock, man_made, military, motorcar, name, "natural", office, oneway,
+           operator, place, population, power, power_source, public_transport, ref, religion, route, service, shop,
+           sport, surface, tags, toll, tourism, tower_type, tracktype, water, way_area, wetland, width, wood, z_order,
+           bridge, tunnel
+    FROM network_corrected
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create tables "network_edge", "network_node"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_point;
+CREATE TABLE network_point AS ( -- 9 s
+    SELECT edge_id,
+           ST_StartPoint(geom)::geometry(Point, 32633) AS geom_startpoint,
+           ST_EndPoint(geom)::geometry(Point, 32633) AS geom_endpoint
+    FROM network_tmp
+);
+
+DROP TABLE IF EXISTS network_node;
+CREATE TABLE network_node AS ( -- 20 s, 3.215.892
+   WITH a AS (
+      SELECT DISTINCT geom_startpoint AS geom FROM network_point
+      UNION
+      SELECT DISTINCT geom_endpoint AS geom FROM network_point
+   )
+   SELECT row_number() OVER (ORDER BY geom)::integer AS node_id,
+          geom
+   FROM a
+   GROUP BY geom
+);
+
+ALTER TABLE network_node ADD PRIMARY KEY (node_id); -- 2 s
+CREATE INDEX network_node_geom_idx ON network_node USING gist(geom); -- 20 s
+
+DROP TABLE IF EXISTS network_edge;
+CREATE TABLE network_edge AS ( -- 1 m 13 s, 3.875.334
+    SELECT a.*,
+           c.node_id as from_node,
+           d.node_id as to_node,
+           ST_Length(a.geom) AS length
+    FROM network_tmp a
+        JOIN network_point b ON a.edge_id = b.edge_id
+        JOIN network_node c ON b.geom_startpoint = c.geom
+        JOIN network_node d ON b.geom_endpoint = d.geom
+);
+
+ALTER TABLE network_edge ADD PRIMARY KEY (edge_id); -- 3 s
+CREATE INDEX network_edge_geom_idx ON network_edge USING gist(geom); -- 21 s
+
+DROP TABLE network_point;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- drop tables
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS indoor_points, intersecting_links, intersections, intersections_all, link_points,
+                     network_corrected, network_corrected_points, network_init, network_tmp;
