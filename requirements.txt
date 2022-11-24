@@ -1,4 +1,4 @@
-gdal<3.6.0
+gdal==3.2.2
 igraph
 pandas
 Flask==2.0.3
