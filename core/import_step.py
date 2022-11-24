@@ -1,12 +1,11 @@
 import os
 import re
-
+import zipfile
+from osgeo import ogr
 from typing import List
 
 import toolbox.helper as h
-import zipfile
 from core.db_step import DbStep
-from osgeo import ogr
 from settings import DbSettings, InputType
 from toolbox.dbhelper import PostgresConnection
 

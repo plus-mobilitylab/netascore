@@ -1,6 +1,7 @@
-import os.path
-import toolbox.helper as h
+import os
 import yaml
+
+import toolbox.helper as h
 from settings import DbSettings
 from toolbox.dbhelper import PostgresConnection
 from typing import List
