@@ -89,10 +89,11 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     geometry_type = "-nlt GEOMETRY" if len(layers) > 1 else ""
 
     for layer in layers:
+        h.log(f"import layer \"{layer}\"")
         geometry_column = data_source.GetLayerByName(layer).GetGeometryColumn()
         where = f"-where \"GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
 
-        os.system(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {where} \"{path}\" {layer}")
+        os.system(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {where} \"{path}\" \"{layer}\"")
 
 
 def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:  # TODO: @CW: add error handling
