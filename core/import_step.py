@@ -75,9 +75,11 @@ def import_csv(connection_string: str, path: str, schema: str, table: str) -> No
     os.system(f"psql {connection_string} -c \"\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'\"")
 
 
-def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, srid: int = None, layers: List[str] = None, geometry_types: List[str] = None) -> None:  # TODO: @CW: add error handling
+def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None) -> None:  # TODO: @CW: add error handling
     """Takes in a path to a geopackage file and imports it to a database table."""
     data_source = ogr.Open(path)
+
+    attributes = [] if attributes is None else attributes
 
     geometry_types = [] if geometry_types is None else geometry_types
     geometry_types = ', '.join(f"'{geometry_type}'" for geometry_type in geometry_types)
@@ -91,9 +93,14 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     for layer in layers:
         h.log(f"import layer \"{layer}\"")
         geometry_column = data_source.GetLayerByName(layer).GetGeometryColumn()
+
+        attributes.append(geometry_column)
+        attributes = ','.join(attribute for attribute in attributes)
+
+        select = f"-select \"{attributes}\"" if attributes else ""
         where = f"-where \"GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
 
-        os.system(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {where} \"{path}\" \"{layer}\"")
+        os.system(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"")
 
 
 def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:  # TODO: @CW: add error handling
@@ -166,7 +173,7 @@ class GipImporter(DbStep):
         db.drop_table('gip_network', schema=schema)
         db.commit()
 
-        import_geopackage(db.connection_string_old, os.path.join(directory, os.path.splitext(settings['filename_B'])[0], 'gip_network_ogd.gpkg'), schema, table='gip_network', fid='link_id', layers=['gip_linknetz_ogd'])
+        import_geopackage(db.connection_string_old, os.path.join(directory, os.path.splitext(settings['filename_B'])[0], 'gip_network_ogd.gpkg'), schema, table='gip_network', fid='link_id', layers=['gip_linknetz_ogd'], attributes=['link_id'])
 
         db.execute('ALTER TABLE gip_network ALTER COLUMN geom TYPE geometry(LineString, 4326) USING ST_LineMerge(geom);')
         db.commit()
