@@ -86,10 +86,11 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     geometry_types = ', '.join(f"'{geometry_type}'" for geometry_type in geometry_types)
 
     layers = [layer.GetName() for layer in data_source] if layers is None else layers
+    layers_geometry_types = set(data_source.GetLayerByName(layer).GetGeomType() for layer in layers)
 
     fid = f"-lco FID={fid}" if fid else "-lco FID=fid"
     transform = f"-t_srs EPSG:{srid}" if srid else ""
-    geometry_type = "-nlt GEOMETRY" if len(layers) > 1 else ""
+    geometry_type = "-nlt GEOMETRY" if len(layers_geometry_types) > 1 else ""
 
     for layer in layers:
         h.log(f"import layer \"{layer}\"")
