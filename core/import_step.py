@@ -80,6 +80,7 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     data_source = ogr.Open(path)
 
     attributes = [] if attributes is None else attributes
+    attributes = ','.join(attribute for attribute in attributes)
 
     geometry_types = [] if geometry_types is None else geometry_types
     geometry_types = ', '.join(f"'{geometry_type}'" for geometry_type in geometry_types)
@@ -93,9 +94,6 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     for layer in layers:
         h.log(f"import layer \"{layer}\"")
         geometry_column = data_source.GetLayerByName(layer).GetGeometryColumn()
-
-        attributes.append(geometry_column)
-        attributes = ','.join(attribute for attribute in attributes)
 
         select = f"-select \"{attributes}\"" if attributes else ""
         where = f"-where \"GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
@@ -155,8 +153,10 @@ class GipImporter(DbStep):
         # create tables from files_A
         for file in files_A:
             h.logBeginTask(f"create table \"{file['table']}\"")
-            create_csv(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename']))
-            create_sql(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename']))
+            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], f"{os.path.splitext(file['filename'])[0]}.csv")):
+                create_csv(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename']))
+            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], f"{os.path.splitext(file['filename'])[0]}.sql")):
+                create_sql(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename']))
 
             db.drop_table(file['table'], schema=schema)
             db.execute_sql_from_file(f"{os.path.splitext(file['filename'])[0]}", os.path.join(directory, os.path.splitext(settings['filename_A'])[0]))
