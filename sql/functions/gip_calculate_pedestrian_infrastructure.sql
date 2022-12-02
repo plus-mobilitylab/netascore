@@ -22,7 +22,7 @@ BEGIN
                 indicator_values := array_append(indicator_values, 3);
             ELSEIF basetype_array[i] IN ('6', '13', '24', '25', '42') THEN
                 indicator_values := array_append(indicator_values, 4);
-            ELSEIF access_pedestrian AND basetype_array[i] = '1' THEN
+            ELSEIF access_pedestrian AND basetype_array[i] = '1' THEN -- TODO: access_pedestrian is true for both directions when there is only a sidewalk on one side of the road
                 indicator_values := array_append(indicator_values, 5);
             END IF;
         END LOOP;
