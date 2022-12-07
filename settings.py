@@ -6,6 +6,9 @@ class InputType(Enum):
     OSM = "OSM"
     GIP = "GIP"
 
+class GlobalSettings:
+    data_directory = "data"
+
 @dataclass
 class DbSettings:
     host: str

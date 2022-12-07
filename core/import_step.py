@@ -118,7 +118,7 @@ class GipImporter(DbStep):
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'  # TODO: @RW: is there a better way to get the "data" directory?
+        directory = self.global_settings.data_directory
 
         files_A = [
             {'filename': 'BikeHike.txt', 'table': 'gip_bikehike', 'columns': ['use_id']},
@@ -194,7 +194,7 @@ class OsmImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')

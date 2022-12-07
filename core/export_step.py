@@ -20,7 +20,7 @@ class GeopackageExporter(DbStep):
         h.log(f"using the following settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')

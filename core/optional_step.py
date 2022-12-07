@@ -18,7 +18,7 @@ class DemImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -42,7 +42,7 @@ class NoiseImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -66,7 +66,7 @@ class BuildingImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -90,7 +90,7 @@ class CrossingImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -114,7 +114,7 @@ class FacilityImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -138,7 +138,7 @@ class GreennessImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -162,7 +162,7 @@ class WaterImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = 'data'
+        directory = self.global_settings.data_directory
 
         # open database connection
         h.info('open database connection')
