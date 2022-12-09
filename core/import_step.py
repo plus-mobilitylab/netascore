@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 import zipfile
 from osgeo import ogr
 from typing import List
@@ -72,7 +73,7 @@ def create_sql(file_txt: str) -> None:
 
 def import_csv(connection_string: str, path: str, schema: str, table: str) -> None:  # TODO: @CW: add error handling
     """Takes in a path to a csv file and imports it to a database table."""
-    os.system(f"psql {connection_string} -c \"\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'\"")
+    subprocess.run(['psql', connection_string, '-c', f"\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'"])
 
 
 def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None) -> None:  # TODO: @CW: add error handling
@@ -99,14 +100,14 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
         select = f"-select \"{attributes}\"" if attributes else ""
         where = f"-where \"GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
 
-        os.system(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"")
+        subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", shell=True)
 
 
 def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:  # TODO: @CW: add error handling
     """Takes in a path to an osm pbf file and imports it to database tables."""
     prefix = f"--prefix {prefix}" if prefix else ""
 
-    os.system(f"osm2pgsql --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"")
+    subprocess.run(f"osm2pgsql --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"", shell=True)
 
 
 class GipImporter(DbStep):

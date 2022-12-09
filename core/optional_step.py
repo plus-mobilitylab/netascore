@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import toolbox.helper as h
 from core import import_step
@@ -9,7 +10,7 @@ from toolbox.dbhelper import PostgresConnection
 
 def import_raster(connection_string: str, path: str, schema: str, table: str, srid: int = 0) -> None:  # TODO: @CW: add error handling
     """Takes in a path to a geotiff raster file and imports it to a database raster table."""
-    os.system(f"raster2pgsql -s {srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet")
+    subprocess.run(f"raster2pgsql -s {srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", shell=True)
 
 
 class DemImporter(DbStep):

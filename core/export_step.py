@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import toolbox.helper as h
 from core.db_step import DbStep
@@ -11,7 +12,7 @@ def export_geopackage(connection_string: str, path: str, schema: str, table: str
     geometry_type = f"-nlt {geometry_type}" if geometry_type else ""
     update = "-update" if update else ""
 
-    os.system(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} -progress -sql \"SELECT * FROM {schema}.{table}\"")
+    subprocess.run(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} -progress -sql \"SELECT * FROM {schema}.{table}\"", shell=True)
 
 
 class GeopackageExporter(DbStep):
