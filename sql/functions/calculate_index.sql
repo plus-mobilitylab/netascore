@@ -27,14 +27,14 @@ RETURNS numeric AS $$
 		index numeric;
 	    count integer;
 	BEGIN
-		-- TODO-rw: Gewichte anpassen: pavement/gradient
+		-- TODO: Gewichte anpassen: pavement/gradient
 	    IF pavement IN ('gravel', 'soft', 'cobble') AND pavement_weight IS NOT NULL AND
 	       gradient_bicycle IN (-4,-3, 3, 4) AND gradient_bicycle_weight IS NOT NULL THEN
 			pavement_weight := pavement_weight * 16;
 			gradient_bicycle_weight := gradient_bicycle_weight * 16;
 		END IF;
 
-		-- Index anpassen: pedestrian_infrastructure/road_category
+		-- TODO: Index anpassen: pedestrian_infrastructure/road_category
 		/*
 		IF pedestrian_infrastructure IN ('sidewalk') AND pedestrian_infrastructure_weight IS NOT NULL AND
 		   road_category_pedestrian IN ('secondary', 'primary') AND road_category_weight IS NOT NULL THEN
@@ -282,7 +282,7 @@ RETURNS numeric AS $$
 			IF crossings IS NOT NULL AND crossings_weight IS NOT NULL AND road_category_pedestrian IS NOT NULL THEN
 				indicator :=
 				    CASE
-						WHEN crossings = 0 AND road_category_pedestrian IN ('primary', 'secondary') THEN 1
+						WHEN crossings = 0 AND road_category_pedestrian IN ('primary', 'secondary') OR road_category_pedestrian IS NULL THEN 1
 						WHEN crossings = 0 AND road_category_pedestrian IN ('residential') THEN 0.5
 						ELSE 0
 					END;
