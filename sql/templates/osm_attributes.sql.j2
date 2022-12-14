@@ -710,14 +710,14 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS number_lanes_tf;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           CASE -- TODO: may need improvement
+           CASE
                WHEN (tags -> 'lanes:forward') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes:forward')::numeric
-               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN (tags -> 'lanes')::numeric
+               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN (tags -> 'lanes')::numeric -- TODO: may need improvement
                WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes')::numeric * 0.5
            END::numeric AS number_lanes_ft,
-           CASE -- TODO: may need improvement
+           CASE
                WHEN (tags -> 'lanes:backward') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes:backward')::numeric
-               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN 0::numeric
+               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN 0::numeric -- TODO: may need improvement
                WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes')::numeric * 0.5
            END::numeric AS number_lanes_tf
     FROM network_edge_attributes a

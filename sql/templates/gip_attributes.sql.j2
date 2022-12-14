@@ -578,7 +578,7 @@ CREATE TABLE water_intersection AS ( -- 29 s
     SELECT b.edge_id
     FROM {{ table_water | sqlsafe }} a
         JOIN network_buffer_30 b ON ST_Intersects(a.geom, b.geom)
-        JOIN network_edge c ON b.edge_id = c.link_id
+        JOIN network_edge c ON b.edge_id = c.edge_id
     WHERE ST_GeometryType(a.geom) = 'ST_LineString' AND
           ST_Length(ST_Intersection(a.geom, b.geom)) / c.length BETWEEN 0.8 AND 1.6
 

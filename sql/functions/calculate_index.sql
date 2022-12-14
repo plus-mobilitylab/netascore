@@ -279,7 +279,7 @@ RETURNS numeric AS $$
                 count := count + 1;
             END IF;
 
-			IF crossings IS NOT NULL AND crossings_weight IS NOT NULL AND road_category_pedestrian IS NOT NULL THEN
+			IF crossings IS NOT NULL AND crossings_weight IS NOT NULL THEN
 				indicator :=
 				    CASE
 						WHEN crossings = 0 AND road_category_pedestrian IN ('primary', 'secondary') OR road_category_pedestrian IS NULL THEN 1
