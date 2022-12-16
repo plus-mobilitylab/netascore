@@ -11,30 +11,32 @@ Please write the following points:
 
 This project uses the following technologies:
 - python 3
-- PostGIS Database
-- Docker
-- TODO
+- PostgreSQL with PostGIS extension
+- Docker (optional)
+- psql
+- ogr2ogr
+- osm2pgsql
+- raster2pgsql
 
 ## Workflow
 
-The workflow is specified in an input file (so-called settings file) in `.yml` format.
+The workflow is specified in a settings file in YAML (`.yml`) format.
 The settings file contains information about:
-- information how to connect to the database
-- what data to import
-- how to import the data
+- how to connect to the database
 - which parameters to use in the process
+- what data and attributes to import
 - how and where to export the results
 
-The settings file itself does not contain geodata, it merely points to the location on your disk where to find the data.
+The settings file itself does not contain geodata, it merely points to the files to be used.
 The format of the settings file is specified in ![settings-spec.md](settings-spec.md).
 
-The system consists of a PostGis DB and a python script that is executed.
-The database can be 
+The system relies on a PostgreSQL database and a Python script that is executed.
+The database can be
 - on the local machine
-- on the local machine in a docker container (scripts and information on how to run the db in a docker container are included in this project)
+- on the local machine in a Docker container (scripts and information on how to run the db in a docker container are included in this project)
 - on a remote machine
 
-The python script can either be executed directly, or run in a docker container. For the docker specific part see [docker.md](docker.md).
+The python script can either be executed directly, or run in a Docker container. For the Docker specific part see [docker.md](docker.md).
 
 Internally, the process consists of the following steps:
 
@@ -113,34 +115,46 @@ In this step the tables `edge` and `node` are exported, as defined in the settin
 
 ## How to run the project
 
-This sections describes how to run the project directly on your machine. For information on how to run it in a docker environment see [docker.md](docker.md).
+This sections describes how to run the project directly on your machine. For information on how to run it in a Docker environment see [docker.md](docker.md).
 
-Make sure that you have a local postgis database running and specified the correct database credentials in the settings file.
+Make sure that you have a local PostgreSQL database running and specified the correct database credentials in the settings file.
 
-Install the python dependencies for this project with:
+Copy the input and optional datasets, the settings file and all weights files to a folder named "data" in the root of the repository.
+
+Install the software dependencies:
+
+- PostgreSQL with PostGIS extension
+- psql
+- ogr2ogr
+- osm2pgsql
+- raster2pgsql
+
+Install the Python dependencies for this project with:
 
     RUN pip install -r requirements.txt
 
-Then run the pipeline by providing the settings file to the script:
+Then run the pipeline by providing the filename of the settings file to the script:
 
     generate_index.py your-settings-file.yml
 
-The processing of the files can take several minutes up to several hours - depending on the size of the geodata.
+The processing of the files can take several minutes up to several hours - depending on the size of the geodata and the hardware used.
 
-Example settings files that can be used and adapted to your needs are in the `settings/examples` folder.
+Example settings files that can be used and adapted to your needs can be found in the `settings/examples` folder.
 
 If you want to re-run the pipeline, but skip certain steps, use the `--skip` flag with a list of steps you want to skip:
-`import`, `network`, `attributes`, `optional`, `index`, `export`
+`import`, `network`, `attributes`, `optional`, `index`, `export` (the steps are explained in detail below)
 
 e.g.
 
     generate_index.py your-settings-file.yml --skip import network attributes
 
+If you want to get more detailed log outputs, set the `--loglevel` flag to one of the following levels: 
+`1` = MajorInfo, `2` = Info (default), `3` = Detailed, `4` = Debug
 
-## Comparison of running the pipeline in docker and directly on the machine
+## Comparison of running the pipeline in Docker and directly on the machine
 
-One advantage of running everything in docker is that you do not have to install the dependencies on your machine. Only docker is required.
-On the other hand, running the pipeline in docker is potentially slower on mac and windows than running it directly on the machine.
+One advantage of running everything in Docker is that you do not have to install the dependencies on your machine. Only docker is required.
+On the other hand, running the pipeline in Docker is potentially slower on macOS and Windows than running it directly on the machine.
 
 If you run the pipeline directly on the machine, you have to make sure that all dependencies are met and the correct python version is used (you can use a virtual environment for that).
 
@@ -162,18 +176,21 @@ TODO: how do you handle contributions? Should people send in pull requests?
 
 TODO: what are the projects limitations and shortcomings
 
-- bugs
+- Results depend on input data quality
+- GeoPackages are to be provided in required format
 
 ## Credits
 
 TODO
-- university which provided the project and some historical details about it
-- developers
-- sponsors (credits go out to trafficon for ...)
+- university which provided the project and some historical details about it: University of Salzburg, Department of Geoinformatics
+- developers: Dana Kaziyeva, Petra Stutz, Martin, Christian, Robin
+- sponsors (credits go out to trafficon for ...): City of Salzburg, FFG
+  - We are thankful for funding in different research projects: FFG, City of Salzburg
 - used tutorials or helpful websites?
 - misc/other helpers?
+- open source providing "funded by trafficon"
 - 
 
 ## License
 
-This project is published with the XYZ license. For details please see [LICENSE](LICENSE)
+This project is published with the MIT license. For details please see [LICENSE](LICENSE)
