@@ -24,11 +24,11 @@ The workflow is specified in a settings file in YAML (`.yml`) format.
 The settings file contains information about:
 - how to connect to the database
 - which parameters to use in the process
-- what data and attributes to import
+- what datasets to import
 - how and where to export the results
 
 The settings file itself does not contain geodata, it merely points to the files to be used.
-The format of the settings file is specified in ![settings-spec.md](settings-spec.md).
+The format of the settings file is specified in ![settings.md](settings-spec.md).
 
 The system relies on a PostgreSQL database and a Python script that is executed.
 The database can be
@@ -91,10 +91,10 @@ In this step the final network dataset is created, resulting in the database tab
 
 ### 4. attributes_step
 
-In this step necessary attributes for routing applications and the index calculation are derived from the final network dataset and imported optional datasets, resulting in the database tables: `network_edge_attributes`, `network_node_attributes`, `network_edge_export`.
-- Attributes are derived: `access_*`, `bride`, `tunnel`
-- Indicators for the index calculation are derived in predefined value domains, so that the resulting values are comparable independently of the source dataset.
-- Indicators that can not be derived, because of missing datasets or attributes, are set to null.
+In this step necessary [attributes / indicators](attributes.md) for routing applications and the index calculation are derived from the final network dataset and optional datasets, resulting in the database tables: `network_edge_attributes`, `network_node_attributes`, `network_edge_export`.
+- Attributes are derived: `access_*`, `bridge`, `tunnel`
+- Indicators for the index calculation are derived into predefined value domains so that the resulting values are comparable regardless of the source dataset.
+- Indicators that can not be derived, because of missing datasets or attributes, are set to NULL.
 - The table `network_edge_export` is created with a standardized table scheme independently of the source dataset.
 
 ### 5. index_step
@@ -111,7 +111,6 @@ In this step the tables `edge` and `node` are exported, as defined in the settin
 
 `geopackage`
 - The tables `edge` and `node` are exported to a geopackage with identically named layers.
-
 
 ## How to run the project
 
@@ -170,7 +169,6 @@ TODO:
 - future possibilities
 
 TODO: how do you handle contributions? Should people send in pull requests?
-
 
 ## Limitations
 

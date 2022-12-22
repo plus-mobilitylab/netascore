@@ -53,17 +53,17 @@ are supported:
 ### `filename`
 
 The file containing the geodata.
-TODO: Please provide the user with information about the formats
-- pbf - pbf.gz?? etc
-- gip - are there certain formats/programs that work?
+
+- OSM data can be imported in the PBF format, which can be downloaded here: https://download.geofabrik.de
+- GIP data can be imported from the IDF export, which can be downloaded here: https://www.data.gv.at/katalog/dataset/3fefc838-791d-4dde-975b-a4131a54e7c5
 
 ### `on_existing`
 
 If the import steps discovers a database with already existing data it acts according to this setting.
 The possible values are:
 
-- skip: (default: skip the import)
-- delete: delete existing data and run the import
+- skip (default): skip the import
+- delete: delete existing data and run the import again
 - abort: abort program execution with an error
 
 ### `Example import section`
@@ -78,34 +78,49 @@ import:
 
 ## Section `optional`
 
-This is the most flexible section and specifies data that can be optionally imported for
-better quality results of the index.
+This is the most flexible section and specifies data that can be optionally imported for better quality results of the index.
 The following optional data can be imported:
 
-- dem
-- noise
-- building
-- crossing
-- facility
-- greenness
-- water
+- dem (GeoTIFF)
+- noise (GeoPackage: Polygon, MultiPolygon)
+- osm (PBF)
+
+- building (GeoPackage: Polygon)
+- crossing (GeoPackage: Point, LineString)
+- facility (GeoPackage: Point, Polygon)
+- greenness (GeoPackage: Polygon)
+- water (GeoPackage: LineString, Polygon)
 
 ### Subsection `dem`
 
 - `filename`: name of the file to be imported
 - `srid`:  spatial reference system identifier (SRID) of the dataset
 
-TODO: please describe what dem is does and how it contributes to the quality of the result.
+The DEM (digital elevation model) is used to add elevation values to the network nodes and to calculate the gradient of a road segment.
+For Austria the 10 m x 10 m DEM can be downloaded here: https://www.data.gv.at/katalog/dataset/b5de6975-417b-4320-afdb-eb2a9e2a1dbf
 
 ### Subsection `noise`
 
-TODO: please describe what noise data is, where to get it and how it contributes to
-the quality of the result
+- `filename`: name of the file to be imported
+
+The noise dataset contains the mapping of noise levels in decibels.
+For Austrian states the noise datasets can be downloaded here: https://www.data.gv.at/katalog/dataset/b5de6975-417b-4320-afdb-eb2a9e2a1dbf
+
+### Subsection `osm`
+
+- `filename`: name of the file to be imported
+
+An OSM dataset can be used to derive the following optional datasets: `building`, `crossing`, `facility`, `greeness`, `water`
+
+### Subsection `building`, `crossing`, `facility`, `greeness`, `water`
+
+- `filename`: name of the file to be imported
+
+If these datasets are not directly derived from an OSM dataset, they can be imported from other data sources.
 
 ## Section `weights`
 
-TODO: please specify what weights are and how they influence the imports.
-
+The weights are used to determine the importance of the individual indicators. Different use cases have different weights.
 We included weights for biking as well as walking. You can create custom profiles or modify existing ones.
 Ideally, you do not need to change anything here. Just copy the section from the examples, or use this code:
 
