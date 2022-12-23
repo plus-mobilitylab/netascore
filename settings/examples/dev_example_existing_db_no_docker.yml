@@ -9,6 +9,4 @@ database:
   on_existing: abort # skip, delete, abort
 import:
   type: gip
-  filename_A: A_routingexport_ogd_split
-  filename_B: B_gip_network_ogd
-
+  filename_A: A_routingexport_ogd_split.zip
