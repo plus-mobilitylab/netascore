@@ -212,7 +212,7 @@ CREATE TABLE access_bicycle AS ( -- 9 s, 3.875.334
            END AS bicycle,
            CASE
                WHEN highway IS NULL THEN NULL
-               WHEN highway = ANY ('{bus_guideway,crossing,cycleway,emergency_bay,escape,footway,motorway,motorway_link,'
+               WHEN highway = ANY ('{bus_guideway,crossing,emergency_bay,escape,footway,motorway,motorway_link,'
                    'pedestrian,platform,steps}') THEN 'no'
                ELSE 'yes'
            END AS highway
