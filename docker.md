@@ -8,6 +8,25 @@ You need two components:
 
 NOTE: passwords and usernames are only used for simplicity reasons. Please use secure usernames and passwords in production!
 
+# Use the docker image provided on Docker Hub
+
+There is no need to build the docker image yourself - you may simply get the latest version of the image using
+
+```bash
+docker pull plusmobilitylab/netascore:latest
+```
+
+To run the workflow with an existing postgres database, simply follow these steps:
+
+- create a directory named `data` and place all geofiles inside
+- add weights files and settings file to this directory (see example files provided in the code repository)
+- adjust settings to your needs in the `settings.yml` file
+- finally, execute the workflow using:
+
+```bash
+docker run -v <dir_to_data_directory>:/usr/src/bikeability/data plusmobilitylab/netascore data/settings.yml
+```
+
 # All components run in docker
 
 For a full docker pipeline, there are no other prerequisites than a working docker installation.
