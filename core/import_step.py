@@ -124,13 +124,11 @@ class GipImporter(DbStep):
         files_A = [
             {'filename': 'BikeHike.txt', 'table': 'gip_bikehike', 'columns': ['use_id']},
             {'filename': 'Link.txt', 'table': 'gip_link', 'columns': ['link_id']},
+            {'filename': 'LinkCoordinate.txt', 'table': 'gip_linkcoordinate', 'columns': ['link_id', 'count']},
             {'filename': 'LinkUse.txt', 'table': 'gip_linkuse', 'columns': ['use_id']},
             {'filename': 'Link2ReferenceObject.txt', 'table': 'gip_link2referenceobject', 'columns': ['idseq']},
             {'filename': 'Node.txt', 'table': 'gip_node', 'columns': ['node_id']},
             {'filename': 'ReferenceObject.txt', 'table': 'gip_referenceobject', 'columns': ['refobj_id']},
-        ]
-        files_B = [
-            {'filename': 'gip_network_ogd.gpkg'}
         ]
 
         # open database connection
@@ -145,11 +143,6 @@ class GipImporter(DbStep):
             for file in files_A:
                 if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename'])):
                     zf.extract(file['filename'], os.path.join(directory, os.path.splitext(settings['filename_A'])[0]))
-
-        with zipfile.ZipFile(os.path.join(directory, settings['filename_B']), 'r') as zf:
-            for file in files_B:
-                if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename_B'])[0], file['filename'])):
-                    zf.extract(file['filename'], os.path.join(directory, os.path.splitext(settings['filename_B'])[0]))
         h.logEndTask()
 
         # create tables from files_A
@@ -169,17 +162,6 @@ class GipImporter(DbStep):
             db.add_primary_key(file['table'], file['columns'], schema=schema)
             db.commit()
             h.logEndTask()
-
-        # create tables from files_B
-        h.logBeginTask('create table "gip_network"')
-        db.drop_table('gip_network', schema=schema)
-        db.commit()
-
-        import_geopackage(db.connection_string_old, os.path.join(directory, os.path.splitext(settings['filename_B'])[0], 'gip_network_ogd.gpkg'), schema, table='gip_network', fid='link_id', layers=['gip_linknetz_ogd'], attributes=['link_id'])
-
-        db.execute('ALTER TABLE gip_network ALTER COLUMN geom TYPE geometry(LineString, 4326) USING ST_LineMerge(geom);')
-        db.commit()
-        h.logEndTask()
 
         # close database connection
         h.log('closing database connection')

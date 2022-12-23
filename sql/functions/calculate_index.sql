@@ -35,12 +35,10 @@ RETURNS numeric AS $$
 		END IF;
 
 		-- TODO: Index anpassen: pedestrian_infrastructure/road_category
-		/*
 		IF pedestrian_infrastructure IN ('sidewalk') AND pedestrian_infrastructure_weight IS NOT NULL AND
-		   road_category_pedestrian IN ('secondary', 'primary') AND road_category_weight IS NOT NULL THEN
+		   road_category_pedestrian IN ('secondary', 'primary') AND road_category_pedestrian_weight IS NOT NULL THEN
 		    RETURN 0.8::numeric;
         END IF;
-		*/
 
 		weights_sum := 0;
 		weights_sum :=

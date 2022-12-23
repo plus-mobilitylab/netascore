@@ -964,7 +964,7 @@ DROP TABLE water_intersection;
 DROP TABLE IF EXISTS noise_intersection;
 CREATE TABLE noise_intersection AS ( -- 14 m 29 s
     SELECT b.edge_id,
-           a.noise,
+           a.{{ column_noise | sqlsafe }} AS noise,
            ST_Intersection(a.geom, b.geom) AS geom
     FROM {{ table_noise | sqlsafe }} a,
          network_edge b
