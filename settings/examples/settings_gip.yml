@@ -10,11 +10,7 @@ database:
 import:
   type: gip
   filename_A: A_routingexport_ogd_split.zip # triggers unzip + db import (following standard file structure of GIP files)
-  filename_B: B_gip_network_ogd.zip # triggers unzip + db import (following standard file structure of GIP files)
 optional:
-  dem:
-    filename: austria.tif # GeoTIFF
-    srid: 31287
   noise:
     filename: noise.gpkg # GeoPackage
     # column_noise: noise # TODO: set from settings file
