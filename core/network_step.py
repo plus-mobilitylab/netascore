@@ -27,7 +27,7 @@ class GipNetworkStep(DbStep):
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
             }
-            db.execute_template_sql_from_file("gip_network", params)  # TODO: @RW: using autocommit=True: ok here or better not?
+            db.execute_template_sql_from_file("gip_network", params)
             db.commit()
         h.logEndTask()
 

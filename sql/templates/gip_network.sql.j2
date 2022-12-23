@@ -8,17 +8,41 @@ SET search_path =
     public;
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- create tables "gip_link_tmp", "gip_linkuse_tmp", "gip_node_tmp"
+-- create tables "gip_network_tmp", "gip_link_tmp", "gip_linkuse_tmp", "gip_node_tmp"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip_network_tmp;
+CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
+    WITH count AS (
+        SELECT a.link_id, 1 AS "order", NULL AS count, b.x, b.y
+        FROM gip_link a JOIN gip_node b ON a.from_node = b.node_id
+
+        UNION ALL
+
+        SELECT link_id, 2 AS "order", count, x, y
+        FROM gip_linkcoordinate
+
+        UNION ALL
+
+        SELECT a.link_id, 3 AS "order", NULL AS count, b.x, b.y
+        FROM gip_link a JOIN gip_node b ON a.to_node = b.node_id
+    )
+    SELECT link_id,
+           ST_SetSRID(ST_MakeLine(ST_MakePoint(x, y) ORDER BY "order", count), 4326)::geometry(LineString, 4326) AS geom
+    FROM count
+    GROUP BY link_id
+);
+
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS gip_link_tmp;
-CREATE TABLE gip_link_tmp AS ( -- 17 s, 1.885.895
+CREATE TABLE gip_link_tmp AS ( -- 14 s, 1.894.917
     SELECT a.link_id,
            ST_Transform(a.geom, 32633)::geometry(LineString, 32633) AS geom,
            b.name1, b.from_node, b.to_node, b.speed_tow_car, b.speed_bkw_car, b.speed_tow_truck, b.speed_bkw_truck,
            b.maxspeed_tow_car, b.maxspeed_bkw_car, b.maxspeed_tow_truck, b.maxspeed_bkw_truck, b.access_tow,
            b.access_bkw, b.funcroadclass, b.lanes_tow, b.lanes_bkw, b.formofway, b.width, b.oneway, b.streetcat
-    FROM gip_network a
+    FROM gip_network_tmp a
         JOIN gip_link b USING (link_id)
     WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian
       AND b.formofway <> 7 -- Parkgarage
@@ -27,7 +51,7 @@ CREATE TABLE gip_link_tmp AS ( -- 17 s, 1.885.895
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS gip_linkuse_tmp;
-CREATE TABLE gip_linkuse_tmp AS ( -- 15 s, 2.260.208
+CREATE TABLE gip_linkuse_tmp AS ( -- 17 s, 2.306.250
     SELECT b.*,
            ST_LineSubstring(ST_OffsetCurve(a.geom, b.offset_), b.from_percent / 100, b.to_percent / 100) AS geom,
            c.bikeenvironment, c.bikesignedtow, c.bikesignedbkw, c.bikefeaturetow, c.bikefeaturebkw
@@ -39,9 +63,10 @@ CREATE TABLE gip_linkuse_tmp AS ( -- 15 s, 2.260.208
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS gip_node_tmp;
-CREATE TABLE gip_node_tmp AS ( -- 3 s, 1.641.882
+CREATE TABLE gip_node_tmp AS ( -- 3 s, 1.651.999
     SELECT node_id,
-           ST_Transform(ST_SetSRID(ST_MakePoint(x, y), 4326), 32633)::geometry(Point, 32633) AS geom
+           ST_Transform(ST_SetSRID(ST_MakePoint(x, y), 4326), 32633)::geometry(Point, 32633) AS geom,
+           z::numeric AS elevation
     FROM gip_node
 );
 
@@ -50,7 +75,7 @@ CREATE TABLE gip_node_tmp AS ( -- 3 s, 1.641.882
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS network_edge;
-CREATE TABLE network_edge AS ( -- 19 s, 1.885.895
+CREATE TABLE network_edge AS ( -- 20 s, 1.894.917
     WITH gip_linkuse_tmp_agg AS (
         SELECT link_id,
                array_to_string(array_agg(use_id), ';', '*') AS use_id,
@@ -86,7 +111,7 @@ CREATE INDEX network_edge_geom_idx ON network_edge USING gist(geom); -- 8 s
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS network_node;
-CREATE TABLE network_node AS ( -- 5 s, 1.595.844
+CREATE TABLE network_node AS ( -- 6 s, 1.601.817
     SELECT *
     FROM gip_node_tmp
     WHERE node_id IN (SELECT from_node AS node_id FROM network_edge UNION
@@ -100,4 +125,4 @@ CREATE INDEX network_node_geom_idx ON network_node USING gist(geom); -- 7 s
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS gip_link_tmp, gip_linkuse_tmp, gip_node_tmp;
+DROP TABLE IF EXISTS gip_network_tmp, gip_link_tmp, gip_linkuse_tmp, gip_node_tmp;

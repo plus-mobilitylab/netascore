@@ -274,36 +274,6 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "gradient"
 -- ---------------------------------------------------------------------------------------------------------------------
-{% if table_dem %}
-DROP TABLE IF EXISTS network_node_transform;
-CREATE TABLE network_node_transform AS ( -- 4 s
-    SELECT node_id,
-           ST_Transform(geom, (SELECT srid FROM raster_columns WHERE concat_ws('.', r_table_schema, r_table_name) = '{{ schema_data | sqlsafe }}.{{ table_dem | sqlsafe }}')) AS geom
-    FROM network_node
-);
-
-ALTER TABLE network_node_transform ADD PRIMARY KEY (node_id); -- 1 s
-CREATE INDEX network_node_transform_geom_idx ON network_node_transform USING gist(geom); -- 7 s
-
--- ---------------------------------------------------------------------------------------------------------------------
-
-ALTER TABLE network_node_attributes DROP COLUMN IF EXISTS elevation;
-
-DROP TABLE IF EXISTS network_node_attributes_tmp;
-CREATE TABLE network_node_attributes_tmp AS ( -- 6 m 30 s
-    SELECT a.*,
-           round(ST_Value(c.rast, b.geom)::numeric, 2)::numeric AS elevation
-    FROM network_node_attributes a
-        LEFT JOIN network_node_transform b USING (node_id)
-        LEFT JOIN {{ table_dem | sqlsafe }} c ON ST_Intersects(b.geom, c.rast)
-);
-
-DROP TABLE network_node_attributes;
-ALTER TABLE network_node_attributes_tmp RENAME TO network_node_attributes;
-
-DROP TABLE network_node_transform;
-
--- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS gradient;
 CREATE TABLE gradient AS ( -- 6 s
@@ -311,8 +281,8 @@ CREATE TABLE gradient AS ( -- 6 s
            round((((d.elevation - c.elevation) / a.length) * 100)::numeric, 2) AS gradient
     FROM network_edge a
         JOIN network_edge_attributes b USING (edge_id)
-        JOIN network_node_attributes c ON a.from_node = c.node_id
-        JOIN network_node_attributes d ON a.to_node = d.node_id
+        JOIN network_node c ON a.from_node = c.node_id
+        JOIN network_node d ON a.to_node = d.node_id
     WHERE NOT b.bridge AND NOT b.tunnel
 );
 
@@ -351,7 +321,7 @@ DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 DROP TABLE gradient, gradient_class;
-{% endif %}
+
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "number_lanes"
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -364,7 +334,7 @@ CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
         CASE
             WHEN b.lanes_tow > 0 THEN b.lanes_tow
-            ELSE 1
+            ELSE 1 -- TODO: -1 in GIP means not applicable
         END::numeric AS number_lanes_ft,
         CASE
             WHEN b.lanes_bkw > 0 THEN b.lanes_bkw
@@ -614,7 +584,7 @@ DROP TABLE water_intersection;
 DROP TABLE IF EXISTS noise_intersection;
 CREATE TABLE noise_intersection AS ( -- 6 m 48 s
     SELECT b.edge_id,
-           a.{{ column_noise | sqlsafe }}, -- TODO: SQL-injection?
+           a.{{ column_noise | sqlsafe }} AS noise,
            ST_Intersection(a.geom, b.geom) AS geom
     FROM {{ table_noise | sqlsafe }} a,
          network_edge b
@@ -687,9 +657,6 @@ ALTER TABLE network_edge_attributes
 ALTER TABLE network_edge_attributes ADD PRIMARY KEY (edge_id);
 
 -- ---------------------------------------------------------------------------------------------------------------------
-
-ALTER TABLE network_node_attributes
-    ADD COLUMN IF NOT EXISTS elevation numeric;
 
 ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 
