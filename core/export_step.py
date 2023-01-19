@@ -7,12 +7,13 @@ from settings import DbSettings
 from toolbox.dbhelper import PostgresConnection
 
 
-def export_geopackage(connection_string: str, path: str, schema: str, table: str, layer: str, fid: str, geometry_type: str = None, update: bool = False) -> None:  # TODO: @CW: add error handling
+def export_geopackage(connection_string: str, path: str, schema: str, table: str, layer: str, fid: str, geometry_type: str = None, update: bool = False) -> None: 
     """Takes in a database table and exports it to a geopackage layer."""
     geometry_type = f"-nlt {geometry_type}" if geometry_type else ""
     update = "-update" if update else ""
 
-    subprocess.run(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} -progress -sql \"SELECT * FROM {schema}.{table}\"", shell=True)
+    subprocess.run(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} -progress -sql \"SELECT * FROM {schema}.{table}\"", 
+        shell=True, check=True)
 
 
 class GeopackageExporter(DbStep):

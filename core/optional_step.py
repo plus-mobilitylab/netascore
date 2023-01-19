@@ -8,9 +8,10 @@ from settings import DbSettings
 from toolbox.dbhelper import PostgresConnection
 
 
-def import_raster(connection_string: str, path: str, schema: str, table: str, srid: int = 0) -> None:  # TODO: @CW: add error handling
+def import_raster(connection_string: str, path: str, schema: str, table: str, srid: int = 0) -> None:
     """Takes in a path to a geotiff raster file and imports it to a database raster table."""
-    subprocess.run(f"raster2pgsql -s {srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", shell=True)
+    subprocess.run(f"raster2pgsql -s {srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", 
+        shell=True, check=True)
 
 
 class DemImporter(DbStep):

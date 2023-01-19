@@ -73,9 +73,10 @@ def create_sql(file_txt: str) -> None:
     file_sql.close()
 
 
-def import_csv(connection_string: str, path: str, schema: str, table: str) -> None:  # TODO: @CW: add error handling
+def import_csv(connection_string: str, path: str, schema: str, table: str) -> None:
     """Takes in a path to a csv file and imports it to a database table."""
-    subprocess.run(['psql', connection_string, '-c', f"\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'"])
+    subprocess.run(['psql', connection_string, '-c', f"\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'"],
+        check=True)
 
 
 def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None) -> None:  # TODO: @CW: add error handling
@@ -102,10 +103,11 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
         select = f"-select \"{attributes}\"" if attributes else ""
         where = f"-where \"GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
 
-        subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", shell=True)
+        subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", 
+            shell=True, check=True)
 
 
-def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:  # TODO: @CW: add error handling
+def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:
     """Takes in a path to an osm pbf file and imports it to database tables."""
     prefix = f"--prefix {prefix}" if prefix else ""
 
