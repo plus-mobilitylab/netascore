@@ -1,6 +1,8 @@
 import os
 import re
 import subprocess
+from urllib.error import HTTPError
+import urllib.request
 import zipfile
 from osgeo import ogr
 from typing import List
@@ -107,7 +109,8 @@ def import_osm(connection_string: str, path: str, path_style: str, schema: str, 
     """Takes in a path to an osm pbf file and imports it to database tables."""
     prefix = f"--prefix {prefix}" if prefix else ""
 
-    subprocess.run(f"osm2pgsql --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"", shell=True)
+    subprocess.run(f"osm2pgsql --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"", 
+        shell=True, check=True)
 
 
 class GipImporter(DbStep):
@@ -172,9 +175,41 @@ class OsmImporter(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
 
+    def _load_osm_from_bbox(self, bbox: str):
+        q_template: str = """
+            [timeout:900][maxsize:1073741824];
+            nwr(__bbox__);
+            out;"""
+        q_str = q_template.replace("__bbox__", bbox)
+        h.debugLog(f"prepared OSM overpass API query: \n'{q_str}")
+
+        h.logBeginTask("Starting OSM data download...")
+        curEndpointIndex = 0
+        success = False
+        while curEndpointIndex < len(self.global_settings.overpass_api_endpoints) and not success:
+            success = False
+            try:
+                file_name, headers = urllib.request.urlretrieve(
+                    self.global_settings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
+                    os.path.join(self.global_settings.data_directory, self.global_settings.osm_download_fname))
+            except HTTPError as e:
+                h.log(f"HTTPError while trying to download OSM data from {self.global_settings.overpass_api_endpoints[curEndpointIndex]}: Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
+                curEndpointIndex+=1
+            except BaseException as e:
+                h.log(f"An unexpected ERROR occured during OSM data download from {self.global_settings.overpass_api_endpoints[curEndpointIndex]}: {e.args}")
+                curEndpointIndex+=1
+            else:
+                success = True
+                h.log(f"Response headers from API call to {self.global_settings.overpass_api_endpoints[curEndpointIndex]}: {headers}", h.LOG_LEVEL_4_DEBUG)
+                h.log(f"OSM Download from {self.global_settings.overpass_api_endpoints[curEndpointIndex]} succeeded.")
+        if not success:
+            raise Exception("OSM data download was not successful. Terminating.")
+        h.logEndTask()
+
     def run_step(self, settings: dict):
         h.info('importing osm')
         h.log(f"using settings: {str(settings)}")
+        use_overpass_api: bool = False
 
         schema = self.db_settings.entities.data_schema
         directory = self.global_settings.data_directory
@@ -183,6 +218,21 @@ class OsmImporter(DbStep):
         h.info('open database connection')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.init_extensions_and_schema(schema)
+
+        # if needed, download OSM data
+        if not h.has_keys(settings, ['filename']):
+            h.info("no OSM file provided. Checking for Overpass API settings instead...")
+            if not h.has_any_key(settings, ['place_name', 'bbox']):
+                raise Exception("neither 'aoi_name' nor 'bbox' parameter specified for OSM download. Terminating.")
+            use_overpass_api = True
+            # start OSM import through overpass API
+            # import from bounding box
+            if h.has_keys(settings, ['bbox']):
+                self._load_osm_from_bbox(settings['bbox'])
+            # import from place name
+            if h.has_keys(settings, ['place_name']):
+                raise NotImplementedError("OSM import from place name is not yet supported.")
+        
 
         # import osm file
         h.logBeginTask('import osm file')
@@ -195,7 +245,10 @@ class OsmImporter(DbStep):
         db.drop_table("osm_ways", schema=schema)
         db.commit()
 
-        import_osm(db.connection_string, os.path.join(directory, settings['filename']), os.path.join('resources', 'default.style'), schema, prefix='osm')  # 12 m 35 s
+        filename = self.global_settings.osm_download_fname
+        if not use_overpass_api:
+            filename = settings['filename']
+        import_osm(db.connection_string, os.path.join(directory, filename), os.path.join('resources', 'default.style'), schema, prefix='osm')  # 12 m 35 s
 
         db.drop_table("osm_nodes", schema=schema)
         db.drop_table("osm_rels", schema=schema)

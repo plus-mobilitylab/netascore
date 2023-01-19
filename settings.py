@@ -10,6 +10,14 @@ class InputType(Enum):
 
 class GlobalSettings:
     data_directory = "data"
+    osm_download_fname = "osm_download.xml"
+    overpass_api_endpoints = [
+        "https://overpass-api.de/api/interpreter",
+        "https://z.overpass-api.de/api/interpreter",
+        "https://lz4.overpass-api.de/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter"
+    ]
 
 
 @dataclass

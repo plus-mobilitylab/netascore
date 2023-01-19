@@ -1,6 +1,8 @@
 from functools import reduce
 import atexit
 from time import perf_counter as clock
+import sys
+from typing import List
 
 ### LOGGING ###
 
@@ -107,3 +109,23 @@ def overrideParams(orig: dict, override: dict) -> dict:
         else:
             log(f" -> key '{key}' does not exist. Skipping.")
     return result
+
+
+def require_keys(settings: dict, required_keys: List[str], error_message: str = "A required settings key was not provided. Terminating."):
+    if not has_keys(settings, required_keys, loglevel=1):
+        majorInfo(error_message)
+        sys.exit(1)
+
+def has_keys(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
+    for key in keys:
+        if key not in settings:
+            log(f"key '{key}' not provided.", loglevel)
+            return False
+    return True
+
+def has_any_key(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
+    for key in keys:
+        if key in settings:
+            return True
+    log(f"None of the following keys were provided: {keys}", loglevel)
+    return False

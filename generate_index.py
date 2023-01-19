@@ -32,14 +32,6 @@ if args.loglevel:
 h.info(f'loading {settings_stream.name}')
 h.info(f'skip steps: {str(skip_steps)}')
 
-
-def require_keys(settings: dict, required_keys: List[str], error_message: str):
-    for key in required_keys:
-        if key not in settings:
-            h.majorInfo(error_message, key)
-            sys.exit(1)
-
-
 def require_allowed_value(setting_value: str, setting_name: str, allowed: List[str]):
     for value in allowed:
         if value == setting_value:
@@ -62,16 +54,16 @@ with settings_stream:
 
     # check if all required sections are present first before taking any actions
     if 'import' not in skip_steps:
-        require_keys(settings, ['import'], 'error: section missing:')
+        h.require_keys(settings, ['import'], 'error: section missing:')
     if 'export' not in skip_steps:
-        require_keys(settings, ['export'], 'error: section missing:')
+        h.require_keys(settings, ['export'], 'error: section missing:')
     if 'index' not in skip_steps:
-        require_keys(settings, ['weights'], 'error: section missing:')
+        h.require_keys(settings, ['weights'], 'error: section missing:')
 
     if 'import' not in skip_steps:
         h.majorInfo(' === importing ===')
         import_settings: dict = settings['import']
-        require_keys(import_settings, ['type'], 'error: import section is missing:')
+        h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         importer: DbStep = create_importer(db_settings, import_settings['type'])
         importer.run_step(import_settings)
@@ -88,7 +80,7 @@ with settings_stream:
         # TODO: add error handling for import_settings
         # TODO: code repetition
         import_settings: dict = settings['import']
-        require_keys(import_settings, ['type'], 'error: import section is missing:')
+        h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         network_step: DbStep = create_network_step(db_settings, import_settings['type'])
         network_step.run_step(import_settings)
@@ -99,7 +91,7 @@ with settings_stream:
         # TODO: add error handling for import_settings
         # TODO: code repetition
         import_settings: dict = settings['import']
-        require_keys(import_settings, ['type'], 'error: import section is missing:')
+        h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         attributes_step: DbStep = create_attributes_step(db_settings, import_settings['type'])
         attributes_step.run_step(import_settings)
@@ -113,7 +105,7 @@ with settings_stream:
     if 'export' not in skip_steps:
         h.majorInfo(' === exporting ===')
         export_settings: dict = settings['export']
-        require_keys(export_settings, ['type'], 'error: export section is missing:')
+        h.require_keys(export_settings, ['type'], 'error: export section is missing:')
         exporter: DbStep = create_exporter(db_settings, export_settings['type'])
         exporter.run_step(export_settings)
     else:
