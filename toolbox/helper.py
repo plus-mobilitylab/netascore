@@ -3,6 +3,7 @@ import atexit
 from time import perf_counter as clock
 import sys
 from typing import List
+from datetime import datetime as dt
 
 ### LOGGING ###
 
@@ -62,21 +63,24 @@ def logBeginTask(s, level = LOG_LEVEL_2_INFO):
     taskS = s
     print()
     print(line)
-    print(">>> ", s, "")
+    print(">>> at", dt.now().strftime('%H:%M:%S'), ">>> ", s, "")
     startT = clock()
 
 def logEndTask():
     global taskS, startT
+    if taskS is None:
+        return
     print(">>> ", taskS, "completed.")
     print(lineT)
     print(lineTime, "took", secondsToStr(clock()-startT, detailed=True), lineTime)
     print(line)
     print()
+    taskS = None
 
 def endlog():
     end = clock()
     elapsed = end-start
-    log(f"Program terminating after {secondsToStr(elapsed)} (hr:min:sec).")
+    info(f"Program terminating after {secondsToStr(elapsed)} (hr:min:sec) at {dt.now().strftime('%H:%M:%S')}.")
 
 def now():
     return secondsToStr(clock())
