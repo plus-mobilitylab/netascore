@@ -79,7 +79,7 @@ def import_csv(connection_string: str, path: str, schema: str, table: str) -> No
         check=True)
 
 
-def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None) -> None:  # TODO: @CW: add error handling
+def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, target_srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None) -> None:  # TODO: @CW: add error handling
     """Takes in a path to a geopackage file and imports it to a database table."""
     data_source = ogr.Open(path)
 
@@ -93,7 +93,7 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     layers_geometry_types = set(data_source.GetLayerByName(layer).GetGeomType() for layer in layers)
 
     fid = f"-lco FID={fid}" if fid else "-lco FID=fid"
-    transform = f"-t_srs EPSG:{srid}" if srid else ""
+    transform = f"-t_srs EPSG:{target_srid}" if target_srid else ""
     geometry_type = "-nlt GEOMETRY" if len(layers_geometry_types) > 1 else ""
 
     for layer in layers:
@@ -195,10 +195,13 @@ class OsmImporter(DbStep):
                     self.global_settings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
                     os.path.join(self.global_settings.data_directory, self.global_settings.osm_download_fname))
             except HTTPError as e:
-                h.log(f"HTTPError while trying to download OSM data from {self.global_settings.overpass_api_endpoints[curEndpointIndex]}: Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
+                h.log(f"HTTPError while trying to download OSM data from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
                 curEndpointIndex+=1
+            except KeyboardInterrupt:
+                h.majorInfo(f"OSM download from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}' interrupted by user. Terminating.")
+                exit()
             except BaseException as e:
-                h.log(f"An unexpected ERROR occured during OSM data download from {self.global_settings.overpass_api_endpoints[curEndpointIndex]}: {e.args}")
+                h.log(f"An unexpected ERROR occured during OSM data download from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
                 curEndpointIndex+=1
             else:
                 success = True
