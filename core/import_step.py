@@ -75,7 +75,9 @@ def create_sql(file_txt: str) -> None:
 
 def import_csv(connection_string: str, path: str, schema: str, table: str) -> None:
     """Takes in a path to a csv file and imports it to a database table."""
-    subprocess.run(['psql', connection_string, '-c', f"\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'"],
+    h.log(f"Importing CSV '{path}' into database: '{schema}.{table}'")
+    # INFO: for psql in Windows, connection_string MUST be the LAST parameter - otherwise, further arguments are ignored
+    subprocess.run(['psql', '-c', f"\\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'", connection_string],
         check=True)
 
 
