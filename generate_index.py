@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description='TODO: add description')
 parser.add_argument('settings_file', type=argparse.FileType('r'),
                     help='TODO: write detailed description here')
 parser.add_argument('--skip', nargs='+', choices=['import', 'optional', 'network', 'attributes', 'index', 'export'],
-                    help='skip one or more of these steps')
+                    help='skip one or more of these steps - e.g. "--skip import optional"')
 parser.add_argument('--loglevel', nargs=1, choices=["1", "2", "3", "4"],
                     help="Sets the level of debug outputs on the console: 1=MajorInfo, 2=Info, 3=Detailed, 4=Debug")
 
