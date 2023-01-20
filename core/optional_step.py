@@ -56,7 +56,7 @@ class NoiseImporter(DbStep):
         h.logBeginTask('import noise')
         if db.handle_conflicting_output_tables(['noise'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='noise', srid=self.global_settings.target_srid, geometry_types=['POLYGON', 'MULTIPOLYGON'])
+                table='noise', target_srid=self.global_settings.target_srid, geometry_types=['POLYGON', 'MULTIPOLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -81,7 +81,7 @@ class BuildingImporter(DbStep):
         h.logBeginTask('import building')
         if db.handle_conflicting_output_tables(['building'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='building', srid=self.global_settings.target_srid, geometry_types=['POLYGON'])
+                table='building', target_srid=self.global_settings.target_srid, geometry_types=['POLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -106,7 +106,7 @@ class CrossingImporter(DbStep):
         h.logBeginTask('import crossing')
         if db.handle_conflicting_output_tables(['crossing'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='crossing', srid=self.global_settings.target_srid, geometry_types=['POINT', 'LINESTRING'])
+                table='crossing', target_srid=self.global_settings.target_srid, geometry_types=['POINT', 'LINESTRING'])
         h.logEndTask()
 
         # close database connection
@@ -131,7 +131,7 @@ class FacilityImporter(DbStep):
         h.logBeginTask('import facility')
         if db.handle_conflicting_output_tables(['facility'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='facility', srid=self.global_settings.target_srid, geometry_types=['POINT', 'POLYGON'])
+                table='facility', target_srid=self.global_settings.target_srid, geometry_types=['POINT', 'POLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -156,7 +156,7 @@ class GreennessImporter(DbStep):
         h.logBeginTask('import greenness')
         if db.handle_conflicting_output_tables(['greenness'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='greenness', srid=self.global_settings.target_srid, geometry_types=['POLYGON'])
+                table='greenness', target_srid=self.global_settings.target_srid, geometry_types=['POLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -181,7 +181,7 @@ class WaterImporter(DbStep):
         h.logBeginTask('import water')
         if db.handle_conflicting_output_tables(['water'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='water', srid=self.global_settings.target_srid, geometry_types=['LINESTRING', 'POLYGON'])
+                table='water', target_srid=self.global_settings.target_srid, geometry_types=['LINESTRING', 'POLYGON'])
         h.logEndTask()
 
         # close database connection
