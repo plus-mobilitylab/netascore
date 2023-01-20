@@ -264,13 +264,13 @@ class OsmImporter(DbStep):
         if db.handle_conflicting_output_tables(['building'], schema):
             db.execute('''
                 CREATE TABLE building AS ( -- 16 s
-                    SELECT ST_Transform(way, 32633)::geometry(Polygon, 32633) AS geom
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
                     FROM osm_polygon
                     WHERE building IS NOT NULL
                 );
     
                 CREATE INDEX building_geom_idx ON building USING gist (geom); -- 22 s
-            ''')
+            ''', {'target_srid':self.global_settings.target_srid})
             db.commit()
         h.logEndTask()
 
@@ -279,13 +279,13 @@ class OsmImporter(DbStep):
         if db.handle_conflicting_output_tables(['crossing'], schema):
             db.execute('''
                 CREATE TABLE crossing AS ( -- 4 s
-                    SELECT ST_Transform(way, 32633)::geometry(Point, 32633) AS geom FROM osm_point WHERE highway IN ('crossing') UNION ALL
-                    SELECT ST_Transform(way, 32633)::geometry(LineString, 32633) AS geom FROM osm_line WHERE highway IN ('crossing') UNION ALL
-                    SELECT ST_Transform(way, 32633)::geometry(Polygon, 32633) AS geom FROM osm_polygon WHERE highway IN ('crossing')
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom FROM osm_point WHERE highway IN ('crossing') UNION ALL
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(LineString, %(target_srid)s) AS geom FROM osm_line WHERE highway IN ('crossing') UNION ALL
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom FROM osm_polygon WHERE highway IN ('crossing')
                 );
     
                 CREATE INDEX crossing_geom_idx ON crossing USING gist (geom); -- 1 s
-            ''')
+            ''', {'target_srid':self.global_settings.target_srid})
             db.commit()
         h.logEndTask()
 
@@ -294,7 +294,7 @@ class OsmImporter(DbStep):
         if db.handle_conflicting_output_tables(['facility'], schema):
             db.execute('''
                 CREATE TABLE facility AS ( -- 3 s
-                    SELECT ST_Transform(way, 32633)::geometry(Point, 32633) AS geom
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom
                     FROM osm_point
                     WHERE amenity IN ('arts_centre', 'artwork', 'attraction', 'bar', 'biergarten', 'cafe', 'castle', 'cinema', 'museum',
                                       'park', 'pub', 'restaurant', 'swimming_pool', 'theatre', 'viewpoint') -- entertainment
@@ -307,7 +307,7 @@ class OsmImporter(DbStep):
     
                     UNION ALL
     
-                    SELECT ST_Transform(way, 32633)::geometry(Polygon, 32633) AS geom
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
                     FROM osm_polygon
                     WHERE amenity IN ('arts_centre', 'artwork', 'attraction', 'bar', 'biergarten', 'cafe', 'castle', 'cinema', 'museum',
                                       'park', 'pub', 'restaurant', 'swimming_pool', 'theatre', 'viewpoint') -- entertainment
@@ -320,7 +320,7 @@ class OsmImporter(DbStep):
                 );
     
                 CREATE INDEX facility_geom_idx ON facility USING gist (geom); -- 1 s
-            ''')
+            ''', {'target_srid':self.global_settings.target_srid})
             db.commit()
         h.logEndTask()
 
@@ -329,7 +329,7 @@ class OsmImporter(DbStep):
         if db.handle_conflicting_output_tables(['greenness'], schema):
             db.execute('''
                 CREATE TABLE greenness AS ( -- 14 s
-                    SELECT ST_Transform(way, 32633)::geometry(Polygon, 32633) AS geom
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
                     FROM osm_polygon
                     WHERE landuse IN ('forest', 'grass', 'meadow', 'village_green', 'recreation_ground', 'vineyard', 'flowerbed', 'farmland', 'heath', 'nature_reseve', 'park', 'greenfield')
                        OR leisure IN ('garden', 'golf_course', 'park')
@@ -337,7 +337,7 @@ class OsmImporter(DbStep):
                 );
     
                 CREATE INDEX greenness_geom_idx ON greenness USING gist (geom); -- 4 s
-            ''')
+            ''', {'target_srid':self.global_settings.target_srid})
             db.commit()
         h.logEndTask()
 
@@ -346,12 +346,12 @@ class OsmImporter(DbStep):
         if db.handle_conflicting_output_tables(['water'], schema):
             db.execute('''
                 CREATE TABLE water AS ( -- 10 s
-                    SELECT ST_Transform(way, 32633)::geometry(LineString, 32633) AS geom FROM osm_line WHERE (waterway IS NOT NULL OR "natural" = 'water') AND tunnel IS NULL UNION ALL
-                    SELECT ST_Transform(way, 32633)::geometry(Polygon, 32633) AS geom FROM osm_polygon WHERE (waterway IS NOT NULL OR "natural" = 'water') AND tunnel IS NULL
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(LineString, %(target_srid)s) AS geom FROM osm_line WHERE (waterway IS NOT NULL OR "natural" = 'water') AND tunnel IS NULL UNION ALL
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom FROM osm_polygon WHERE (waterway IS NOT NULL OR "natural" = 'water') AND tunnel IS NULL
                 );
     
                 CREATE INDEX water_geom_idx ON water USING gist (geom); -- 1 s
-            ''')
+            ''', {'target_srid':self.global_settings.target_srid})
             db.commit()
         h.logEndTask()
 

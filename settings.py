@@ -18,6 +18,7 @@ class GlobalSettings:
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         "https://overpass.kumi.systems/api/interpreter"
     ]
+    target_srid = 32633
 
 
 @dataclass

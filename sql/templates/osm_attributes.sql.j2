@@ -410,7 +410,7 @@ DROP TABLE pedestrian_infrastructure;
 
 DROP TABLE IF EXISTS route;
 CREATE TABLE route AS ( -- 4 s
-    SELECT osm_id, name, ST_Transform(way, 32633)::geometry(LineString, 32633) AS geom,
+    SELECT osm_id, name, ST_Transform(way, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
            CASE
                WHEN tags -> 'network' = 'icn' THEN 'international'
                WHEN tags -> 'network' = 'ncn' THEN 'national'

@@ -14,7 +14,7 @@ SET search_path =
 DROP TABLE IF EXISTS network_init;
 CREATE TABLE network_init AS ( -- 19 s, 2.162.218
     SELECT osm_id,
-           ST_Transform(way, 32633)::geometry(LineString, 32633) AS geom,
+           ST_Transform(way, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
            highway, railway, aerialway, access, "addr:housename" AS addr_housename,
            "addr:housenumber" AS addr_housenumber, "addr:interpolation" AS addr_interpolation, admin_level, amenity,
            area, barrier, bicycle, boundary, brand, building, construction, covered, culvert, cutting, denomination,
@@ -220,7 +220,7 @@ CREATE TABLE intersecting_links AS ( -- 12 s, 1.573.644
 -- split links at intersections and add the rest of the links to new table. osm_id will not stay unique.
 CREATE TABLE network_corrected AS ( -- 32 s, 3.876.291
     SELECT a.osm_id,
-           (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom::geometry(LineString, 32633) AS geom,
+           (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom::geometry(LineString, {{target_srid}}) AS geom,
            highway, railway, aerialway, access, addr_housename, addr_housenumber, addr_interpolation, admin_level,
            amenity, area, barrier, bicycle, boundary, brand, building, construction, covered, culvert, cutting,
            denomination, disused, embankment, foot, generator_source, harbour, historic, horse, intermittent, junction,
@@ -320,8 +320,8 @@ CREATE TABLE network_tmp AS ( -- 17 s, 3.875.173
 DROP TABLE IF EXISTS network_point;
 CREATE TABLE network_point AS ( -- 9 s
     SELECT edge_id,
-           ST_StartPoint(geom)::geometry(Point, 32633) AS geom_startpoint,
-           ST_EndPoint(geom)::geometry(Point, 32633) AS geom_endpoint
+           ST_StartPoint(geom)::geometry(Point, {{target_srid}}) AS geom_startpoint,
+           ST_EndPoint(geom)::geometry(Point, {{target_srid}}) AS geom_endpoint
     FROM network_tmp
 );
 

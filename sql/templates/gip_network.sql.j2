@@ -38,7 +38,7 @@ CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
 DROP TABLE IF EXISTS gip_link_tmp;
 CREATE TABLE gip_link_tmp AS ( -- 14 s, 1.894.917
     SELECT a.link_id,
-           ST_Transform(a.geom, 32633)::geometry(LineString, 32633) AS geom,
+           ST_Transform(a.geom, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
            b.name1, b.from_node, b.to_node, b.speed_tow_car, b.speed_bkw_car, b.speed_tow_truck, b.speed_bkw_truck,
            b.maxspeed_tow_car, b.maxspeed_bkw_car, b.maxspeed_tow_truck, b.maxspeed_bkw_truck, b.access_tow,
            b.access_bkw, b.funcroadclass, b.lanes_tow, b.lanes_bkw, b.formofway, b.width, b.oneway, b.streetcat
@@ -65,7 +65,7 @@ CREATE TABLE gip_linkuse_tmp AS ( -- 17 s, 2.306.250
 DROP TABLE IF EXISTS gip_node_tmp;
 CREATE TABLE gip_node_tmp AS ( -- 3 s, 1.651.999
     SELECT node_id,
-           ST_Transform(ST_SetSRID(ST_MakePoint(x, y), 4326), 32633)::geometry(Point, 32633) AS geom,
+           ST_Transform(ST_SetSRID(ST_MakePoint(x, y), 4326), {{target_srid}})::geometry(Point, {{target_srid}}) AS geom,
            z::numeric AS elevation
     FROM gip_node
 );

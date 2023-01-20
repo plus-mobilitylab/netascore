@@ -26,6 +26,7 @@ class GipNetworkStep(DbStep):
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
+                'target_srid': self.global_settings.target_srid
             }
             db.execute_template_sql_from_file("gip_network", params)
             db.commit()
@@ -63,6 +64,7 @@ class OsmNetworkStep(DbStep):
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
+                'target_srid': self.global_settings.target_srid
             }
             db.execute_template_sql_from_file("osm_network", params)
             db.commit()
