@@ -8,15 +8,15 @@ from settings import DbSettings
 from toolbox.dbhelper import PostgresConnection
 
 
-def import_raster(connection_string: str, path: str, schema: str, table: str, srid: int = 0) -> None:
+def import_raster(connection_string: str, path: str, schema: str, table: str, input_srid: int = 0) -> None:
     """Takes in a path to a geotiff raster file and imports it to a database raster table."""
-    subprocess.run(f"raster2pgsql -s {srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", 
+    subprocess.run(f"raster2pgsql -s {input_srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", 
         shell=True, check=True)
 
 
 class DemImporter(DbStep):
     def run_step(self, settings: dict):
-        h.info('importing dem')
+        h.info('importing dem:')
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
@@ -28,9 +28,10 @@ class DemImporter(DbStep):
         db.init_extensions_and_schema(schema)
 
         # import DEM
-        h.logBeginTask('import dem')
+        h.logBeginTask('import dem raster')
         if db.handle_conflicting_output_tables(['dem'], schema):
-            import_raster(db.connection_string, os.path.join(directory, settings['filename']), schema, table='dem', srid=settings['srid'])  # 4 m 34 s
+            # raster is imported without reprojection - during the attributes step, the network will be temporarily reprojected to DEM srid.
+            import_raster(db.connection_string, os.path.join(directory, settings['filename']), schema, table='dem', input_srid=settings['srid'])  # 4 m 34 s
         h.logEndTask()
 
         # close database connection
