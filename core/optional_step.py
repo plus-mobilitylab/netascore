@@ -4,7 +4,7 @@ import subprocess
 import toolbox.helper as h
 from core import import_step
 from core.db_step import DbStep
-from settings import DbSettings
+from settings import DbSettings, GlobalSettings
 from toolbox.dbhelper import PostgresConnection
 
 
@@ -20,7 +20,7 @@ class DemImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -45,7 +45,7 @@ class NoiseImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -56,7 +56,7 @@ class NoiseImporter(DbStep):
         h.logBeginTask('import noise')
         if db.handle_conflicting_output_tables(['noise'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='noise', target_srid=self.global_settings.target_srid, geometry_types=['POLYGON', 'MULTIPOLYGON'])
+                table='noise', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -70,7 +70,7 @@ class BuildingImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -81,7 +81,7 @@ class BuildingImporter(DbStep):
         h.logBeginTask('import building')
         if db.handle_conflicting_output_tables(['building'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='building', target_srid=self.global_settings.target_srid, geometry_types=['POLYGON'])
+                table='building', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -95,7 +95,7 @@ class CrossingImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -106,7 +106,7 @@ class CrossingImporter(DbStep):
         h.logBeginTask('import crossing')
         if db.handle_conflicting_output_tables(['crossing'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='crossing', target_srid=self.global_settings.target_srid, geometry_types=['POINT', 'LINESTRING'])
+                table='crossing', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'LINESTRING'])
         h.logEndTask()
 
         # close database connection
@@ -120,7 +120,7 @@ class FacilityImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -131,7 +131,7 @@ class FacilityImporter(DbStep):
         h.logBeginTask('import facility')
         if db.handle_conflicting_output_tables(['facility'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='facility', target_srid=self.global_settings.target_srid, geometry_types=['POINT', 'POLYGON'])
+                table='facility', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'POLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -145,7 +145,7 @@ class GreennessImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -156,7 +156,7 @@ class GreennessImporter(DbStep):
         h.logBeginTask('import greenness')
         if db.handle_conflicting_output_tables(['greenness'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='greenness', target_srid=self.global_settings.target_srid, geometry_types=['POLYGON'])
+                table='greenness', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -170,7 +170,7 @@ class WaterImporter(DbStep):
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -181,7 +181,7 @@ class WaterImporter(DbStep):
         h.logBeginTask('import water')
         if db.handle_conflicting_output_tables(['water'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='water', target_srid=self.global_settings.target_srid, geometry_types=['LINESTRING', 'POLYGON'])
+                table='water', target_srid=GlobalSettings.get_target_srid(), geometry_types=['LINESTRING', 'POLYGON'])
         h.logEndTask()
 
         # close database connection

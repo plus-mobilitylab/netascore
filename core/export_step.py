@@ -3,7 +3,7 @@ import subprocess
 
 import toolbox.helper as h
 from core.db_step import DbStep
-from settings import DbSettings
+from settings import DbSettings, GlobalSettings
 from toolbox.dbhelper import PostgresConnection
 
 
@@ -22,7 +22,7 @@ class GeopackageExporter(DbStep):
         h.log(f"using the following settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')

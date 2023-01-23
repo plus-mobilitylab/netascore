@@ -55,8 +55,8 @@ with settings_stream:
     if h.has_keys(settings, ['global']):
         global_settings: dict = settings['global']
         if h.has_keys(global_settings, ['target_srid']):
-            GlobalSettings.target_srid = global_settings['target_srid']
-            h.info(f"Set the target SRID to {GlobalSettings.target_srid}")
+            GlobalSettings.custom_srid = global_settings['target_srid']
+            h.info(f"Set the target SRID to {GlobalSettings.get_target_srid()}")
         if h.has_keys(global_settings, ['case_id']):
             GlobalSettings.case_id = global_settings['case_id']
     

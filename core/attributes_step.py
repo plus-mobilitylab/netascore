@@ -1,6 +1,6 @@
 import toolbox.helper as h
 from core.db_step import DbStep
-from settings import DbSettings, InputType
+from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
 
 
@@ -91,7 +91,7 @@ class OsmAttributesStep(DbStep):
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
-                'target_srid': self.global_settings.target_srid
+                'target_srid': GlobalSettings.get_target_srid()
             }
             db.execute_template_sql_from_file("osm_attributes", params)
             db.commit()

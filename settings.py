@@ -18,7 +18,11 @@ class GlobalSettings:
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         "https://overpass.kumi.systems/api/interpreter"
     ]
-    target_srid = 32633
+    default_srid: int = 32633
+    custom_srid = None
+    def get_target_srid()->int:
+        return GlobalSettings.custom_srid or GlobalSettings.default_srid
+
     case_id = "default_net"
 
 
