@@ -9,7 +9,7 @@ from typing import List
 
 import toolbox.helper as h
 from core.db_step import DbStep
-from settings import DbSettings, InputType
+from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
 
 
@@ -126,7 +126,7 @@ class GipImporter(DbStep):
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         files_A = [
             {'filename': 'BikeHike.txt', 'table': 'gip_bikehike', 'columns': ['use_id']},
@@ -179,13 +179,165 @@ class OsmImporter(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
 
+    def _get_srid_for_AOI(self, data_con:PostgresConnection, aoi_name: str, aoi_table: str = "aoi", aoi_schema: str = "data", save_to_aoi_table: bool = True) -> int:
+        data_con.execute_sql_from_file("determine_utmzone", "sql/functions")
+        srid = data_con.query_one(f"SELECT srid FROM {aoi_schema}.{aoi_table} WHERE name=%s", (aoi_name,))[0]
+        if srid is None:
+            srid = data_con.query_one(f"SELECT utmzone(ST_Centroid(geom)) FROM {aoi_schema}.{aoi_table} WHERE name=%s", (aoi_name,))[0]
+            h.log(f"determined SRID based on AOI centroid: EPSG:{srid}")
+            if save_to_aoi_table:
+                self._save_srid_for_AOI(srid, data_con, aoi_name, aoi_table, aoi_schema)
+        else:
+            h.log(f"fetched SRID from AOI table: EPSG:{srid}")
+        return srid
+    
+    def _save_srid_for_AOI(self, srid: int, data_con:PostgresConnection, aoi_name: str, aoi_table: str = "aoi", aoi_schema: str = "data"):
+        data_con.ex(f"UPDATE {aoi_schema}.{aoi_table} SET srid=%s WHERE name=%s", (srid, aoi_name,))
+        data_con.commit()
+
+    def _load_osm_from_placename(self, db: PostgresConnection, data_schema: str, data_directory: str, settings: dict):
+        # local imports, as we only use these here (makes it optional dependency for stand-alone use)    
+        import requests as rq
+        import osm2geojson as o2g
+        # prepare DB: create schema and setup extensions
+        db.create_schema(data_schema)
+        # first, set target schema
+        db.schema = data_schema
+        aoi_table = self.db_settings.entities.table_aoi
+        aoi_name = GlobalSettings.case_id
+        on_existing = settings['on_existing']
+        # create AOI table if it not already exists
+        db.ex(f"""CREATE TABLE IF NOT EXISTS {aoi_table} (
+            id    serial NOT NULL PRIMARY KEY,
+            name  varchar(40) NOT NULL CHECK (name <> '') UNIQUE,
+            geom  geometry,
+            srid  integer
+        );""")
+
+        # check whether an AOI with the given name already exists
+        excnt = db.query_one("SELECT COUNT(*) FROM " + aoi_table + " WHERE name = %s;", (aoi_name,))[0]
+        if excnt > 0:
+            h.info(f"found {excnt} entry in existing AOI table with the given AOI name '{aoi_name}'")
+            # if exists, use param switch or ask whether to use an existing AOI or overwrite it
+            if  on_existing == 'delete':
+                h.info("...you specified to overwrite the existing AOI entry.")
+                # delete existing AOI from AOI table
+                db.ex("DELETE FROM " + data_schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
+                # continue script execution
+            elif on_existing == 'skip':
+                h.info("...you chose to re-use the existing AOI entry. Skipping AOI download.")
+                return
+            else:
+                raise Exception("An AOI with the given id already exists. Please resolve the conflict manually or provide a different option for the import setting 'on_exists': [skip/delete/abort]")
+        else:
+            h.info("AOI name '" + aoi_name + "' is not in use -> continuing with AOI download...")
+        
+        # download AOI
+        # first: create AOI query string
+        o_add_filter = ""
+        if h.has_keys(settings, ['admin_level']):
+            o_add_filter += "[admin_level='" + str(settings['admin_level']) + "']" 
+        if h.has_keys(settings, ['zip_code']):
+            o_add_filter += "[\"admin_centre:postal_code\"='" + str(settings['zip_code']) + "']"
+        overpass_aoi_api_string = f"""
+            area
+            [name='{settings['place_name']}'][boundary='administrative']{o_add_filter};
+            rel(pivot);
+            out body;
+            >;
+            out skel qt;
+        """
+        h.debugLog(f"AOI query string: {overpass_aoi_api_string}")
+        # download AOI geom and add to aoi table
+        h.logBeginTask("Downloading AOI...")
+        curEndpointIndex = 0
+        success = False
+        while curEndpointIndex < len(GlobalSettings.overpass_api_endpoints) and not success:
+            try:
+                aoi_response = rq.get(GlobalSettings.overpass_api_endpoints[curEndpointIndex], params={'data': overpass_aoi_api_string}, timeout=5)
+                aoi_response.raise_for_status()
+            except HTTPError as e:
+                h.log(f"HTTPError while trying to download OSM AOI from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
+                curEndpointIndex+=1
+            except KeyboardInterrupt:
+                h.majorInfo(f"OSM AOI download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}' interrupted by user. Terminating.")
+                exit()
+            except BaseException as e:
+                h.majorInfo(f"An unexpected ERROR occured during OSM AOI download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
+                curEndpointIndex+=1
+            else:
+                success = True
+                h.log(f"Response headers from API call to {GlobalSettings.overpass_api_endpoints[curEndpointIndex]}: {aoi_response.headers}", h.LOG_LEVEL_4_DEBUG)
+                h.log(f"OSM AOI Download from {GlobalSettings.overpass_api_endpoints[curEndpointIndex]} succeeded.")
+        if not success:
+            raise Exception("OSM data download was not successful. Terminating.")
+        h.logEndTask()
+
+        aoi_geoJson = o2g.xml2geojson(aoi_response.text)
+        num_ft = len(aoi_geoJson['features'])
+        if num_ft < 1:
+            h.majorInfo("ERROR: no matching feature found. Please try again with different AOI query settings.")
+            raise Exception("AOI not found. Please check your query settings or use a bounding box instead (parameter 'bbox' in 'import' section of settings file).")
+        # by default, use the first result (in case there were more results returned)
+        fid = 0 
+        if num_ft > 1:
+            h.info(f"Found {num_ft} matching features:")
+            i = 0
+            for ft in aoi_geoJson['features']:
+                i+=1
+                if "tags" in ft["properties"]:
+                    print("->", str(i), "--- Type:", ft["type"], "ZIP-Code:", ft["properties"]["tags"]["admin_centre:postal_code"] if "admin_centre:postal_code" in ft["properties"]["tags"] else "-", 
+                        "Admin level:", ft["properties"]["tags"]["admin_level"] if "admin_level" in ft["properties"]["tags"] else "-", "Wikipedia:", ft["properties"]["tags"]["wikipedia"] if "wikipedia" in ft["properties"]["tags"] else "-")
+                else:
+                    print("->", str(i), "--- Type:", ft["type"])
+            if h.has_keys(settings, ['interactive']) and settings['interactive']:
+                # let user choose which result to use if more than one AOI was found
+                fid = int(input("Which one do you want to use? [1.." + str(i) + "] for your choice, other number to abort:\t"))
+                if not fid in range(i+1) or fid < 1:
+                    print("You chose to abort the process. Will now exit.")
+                    exit("User cancelled processing during AOI choice")
+                print("You chose to continue with AOI #", fid)
+                fid -= 1 # back to 0-based index value
+            else:
+                print("Using the first search result. If you want to use a different AOI, either provide more query parameters or add 'interactive: True' to the import settings for an interactive choice.")
+        
+        h.logBeginTask("importing AOI to db table...")
+        aoi_geoJson = aoi_geoJson['features'][fid]
+        h.debugLog("geoJson: " + str(aoi_geoJson))
+        db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s, ST_SetSRID(ST_GeomFromGeoJSON(%s::text),4326));", (aoi_name, str(aoi_geoJson["geometry"])))
+        db.commit()
+        h.logEndTask()
+
+        # now, data download can be prepared
+        # determine SRID if not specified manually
+        srid = GlobalSettings.custom_srid
+        if srid is None:
+            srid = self._get_srid_for_AOI(db, aoi_name, aoi_table, data_schema)
+            GlobalSettings.default_srid = srid
+        else:
+            # save cusom SRID to AOI table
+            self._save_srid_for_AOI(srid, db, aoi_name, aoi_table, data_schema)
+
+        # get BBox for network coverage (larger than chosen AOI -> prevent edge effects)
+        buffer = 500
+        if h.has_keys(settings, ['buffer']):
+            buffer = settings['buffer']
+        bbox = db.query_one("WITH a as (SELECT ST_Transform(ST_setSRID(ST_EXPAND(box2d(ST_Transform(geom, %s)),%s),%s), 4326) as bbox FROM " + 
+                                    aoi_table + """ WHERE name=%s) 
+                                    SELECT ST_YMIN(bbox), ST_XMIN(bbox), ST_YMAX(bbox), ST_XMAX(bbox) FROM a;""", 
+                                    (srid, buffer, srid, aoi_name,)
+                                )
+        h.debugLog(f"Determined Bounding box: {bbox}")
+        # load OSM data from bounding box
+        self._load_osm_from_bbox(str(bbox)[1:-1], settings)
+
     def _load_osm_from_bbox(self, bbox: str, settings: dict):
         q_template: str = """
             [timeout:900][maxsize:1073741824];
             nwr(__bbox__);
             out;"""
-        net_file = f"{self.global_settings.osm_download_prefix}_{self.global_settings.case_id}.xml"
-        if os.path.isfile(os.path.join(self.global_settings.data_directory, net_file)):
+        net_file = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
+        if os.path.isfile(os.path.join(GlobalSettings.data_directory, net_file)):
             if not h.has_keys(settings, ['on_existing']):
                 raise Exception("Target file for OSM download already exists. Please add a value for 'on_existing' to the import settings. [skip/abort/delete]")
             if settings['on_existing'] == 'skip':
@@ -201,25 +353,25 @@ class OsmImporter(DbStep):
         h.logBeginTask("Starting OSM data download...")
         curEndpointIndex = 0
         success = False
-        while curEndpointIndex < len(self.global_settings.overpass_api_endpoints) and not success:
+        while curEndpointIndex < len(GlobalSettings.overpass_api_endpoints) and not success:
             success = False
             try:
                 file_name, headers = urllib.request.urlretrieve(
-                    self.global_settings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
-                    os.path.join(self.global_settings.data_directory, net_file))
+                    GlobalSettings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
+                    os.path.join(GlobalSettings.data_directory, net_file))
             except HTTPError as e:
-                h.log(f"HTTPError while trying to download OSM data from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
+                h.log(f"HTTPError while trying to download OSM data from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
                 curEndpointIndex+=1
             except KeyboardInterrupt:
-                h.majorInfo(f"OSM download from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}' interrupted by user. Terminating.")
+                h.majorInfo(f"OSM download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}' interrupted by user. Terminating.")
                 exit()
             except BaseException as e:
-                h.log(f"An unexpected ERROR occured during OSM data download from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
+                h.log(f"An unexpected ERROR occured during OSM data download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
                 curEndpointIndex+=1
             else:
                 success = True
-                h.log(f"Response headers from API call to {self.global_settings.overpass_api_endpoints[curEndpointIndex]}: {headers}", h.LOG_LEVEL_4_DEBUG)
-                h.log(f"OSM Download from {self.global_settings.overpass_api_endpoints[curEndpointIndex]} succeeded.")
+                h.log(f"Response headers from API call to {GlobalSettings.overpass_api_endpoints[curEndpointIndex]}: {headers}", h.LOG_LEVEL_4_DEBUG)
+                h.log(f"OSM Download from {GlobalSettings.overpass_api_endpoints[curEndpointIndex]} succeeded.")
         if not success:
             raise Exception("OSM data download was not successful. Terminating.")
         h.logEndTask()
@@ -230,7 +382,7 @@ class OsmImporter(DbStep):
         use_overpass_api: bool = False
 
         schema = self.db_settings.entities.data_schema
-        directory = self.global_settings.data_directory
+        directory = GlobalSettings.data_directory
 
         # open database connection
         h.info('open database connection')
@@ -249,8 +401,7 @@ class OsmImporter(DbStep):
                 self._load_osm_from_bbox(settings['bbox'], settings)
             # import from place name
             elif h.has_keys(settings, ['place_name']):
-                raise NotImplementedError("OSM import from place name is not yet supported.")
-        
+                self._load_osm_from_placename(db, schema, directory, settings)
 
         # import osm file
         h.logBeginTask('import osm file')
@@ -263,7 +414,7 @@ class OsmImporter(DbStep):
         db.drop_table("osm_ways", schema=schema)
         db.commit()
 
-        filename = f"{self.global_settings.osm_download_prefix}_{self.global_settings.case_id}.xml"
+        filename = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
         if not use_overpass_api:
             filename = settings['filename']
         import_osm(db.connection_string, os.path.join(directory, filename), os.path.join('resources', 'default.style'), schema, prefix='osm')  # 12 m 35 s
@@ -286,7 +437,7 @@ class OsmImporter(DbStep):
                 );
     
                 CREATE INDEX building_geom_idx ON building USING gist (geom); -- 22 s
-            ''', {'target_srid':self.global_settings.target_srid})
+            ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
         h.logEndTask()
 
@@ -301,7 +452,7 @@ class OsmImporter(DbStep):
                 );
     
                 CREATE INDEX crossing_geom_idx ON crossing USING gist (geom); -- 1 s
-            ''', {'target_srid':self.global_settings.target_srid})
+            ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
         h.logEndTask()
 
@@ -336,7 +487,7 @@ class OsmImporter(DbStep):
                 );
     
                 CREATE INDEX facility_geom_idx ON facility USING gist (geom); -- 1 s
-            ''', {'target_srid':self.global_settings.target_srid})
+            ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
         h.logEndTask()
 
@@ -353,7 +504,7 @@ class OsmImporter(DbStep):
                 );
     
                 CREATE INDEX greenness_geom_idx ON greenness USING gist (geom); -- 4 s
-            ''', {'target_srid':self.global_settings.target_srid})
+            ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
         h.logEndTask()
 
@@ -367,7 +518,7 @@ class OsmImporter(DbStep):
                 );
     
                 CREATE INDEX water_geom_idx ON water USING gist (geom); -- 1 s
-            ''', {'target_srid':self.global_settings.target_srid})
+            ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
         h.logEndTask()
 
