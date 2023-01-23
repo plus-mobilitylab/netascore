@@ -10,7 +10,7 @@ class InputType(Enum):
 
 class GlobalSettings:
     data_directory = "data"
-    osm_download_fname = "osm_download.xml"
+    osm_download_prefix = "osm_download"
     overpass_api_endpoints = [
         "https://overpass-api.de/api/interpreter",
         "https://z.overpass-api.de/api/interpreter",
@@ -19,6 +19,7 @@ class GlobalSettings:
         "https://overpass.kumi.systems/api/interpreter"
     ]
     target_srid = 32633
+    case_id = "default_net"
 
 
 @dataclass
@@ -31,7 +32,7 @@ class DbSettings:
     on_existing: str
 
     def __post_init__(self):
-        self.entities: DbEntitySettings = DbEntitySettings()
+        self.entities: DbEntitySettings = DbEntitySettings(GlobalSettings.case_id)
 
     @staticmethod
     def from_dict(settings_template: dict):
@@ -58,9 +59,9 @@ class DbSettings:
 
 class DbEntitySettings:
 
-    def __init__(self, case_name: str = "default_net"):
+    def __init__(self, case_name: str):
         self.case_name: str = case_name
-        self.global_schema_prefix: str = "bikewalkindex_"
+        self.global_schema_prefix: str = "netascore_"
         self.schema_prefix: str = "case_"
         self.data_schema_suffix: str = "data"
         self.table_net: str = "network"

@@ -195,7 +195,7 @@ class OsmImporter(DbStep):
             try:
                 file_name, headers = urllib.request.urlretrieve(
                     self.global_settings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
-                    os.path.join(self.global_settings.data_directory, self.global_settings.osm_download_fname))
+                    os.path.join(self.global_settings.data_directory, f"{self.global_settings.osm_download_prefix}_{self.global_settings.case_id}.xml"))
             except HTTPError as e:
                 h.log(f"HTTPError while trying to download OSM data from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
                 curEndpointIndex+=1
@@ -252,7 +252,7 @@ class OsmImporter(DbStep):
         db.drop_table("osm_ways", schema=schema)
         db.commit()
 
-        filename = self.global_settings.osm_download_fname
+        filename = f"{self.global_settings.osm_download_prefix}_{self.global_settings.case_id}.xml"
         if not use_overpass_api:
             filename = settings['filename']
         import_osm(db.connection_string, os.path.join(directory, filename), os.path.join('resources', 'default.style'), schema, prefix='osm')  # 12 m 35 s

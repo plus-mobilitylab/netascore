@@ -50,6 +50,16 @@ def require_on_existing_setting(settings: dict):
 
 with settings_stream:
     settings: dict = yaml.safe_load(settings_stream)
+
+    # process global settings if given
+    if h.has_keys(settings, ['global']):
+        global_settings: dict = settings['global']
+        if h.has_keys(global_settings, ['target_srid']):
+            GlobalSettings.target_srid = global_settings['target_srid']
+            h.info(f"Set the target SRID to {GlobalSettings.target_srid}")
+        if h.has_keys(global_settings, ['case_id']):
+            GlobalSettings.case_id = global_settings['case_id']
+    
     db_settings: DbSettings = DbSettings.from_dict(settings.get('database'))
 
     # check if all required sections are present first before taking any actions
@@ -59,13 +69,6 @@ with settings_stream:
         h.require_keys(settings, ['export'], 'error: section missing:')
     if 'index' not in skip_steps:
         h.require_keys(settings, ['weights'], 'error: section missing:')
-    
-    # process global settings if given
-    if h.has_keys(settings, ['global']):
-        global_settings: dict = settings['global']
-        if h.has_keys(global_settings, ['target_srid']):
-            GlobalSettings.target_srid = global_settings['target_srid']
-            h.info(f"Set the target SRID to {GlobalSettings.target_srid}")
 
     # execute processing steps
     if 'import' not in skip_steps:
