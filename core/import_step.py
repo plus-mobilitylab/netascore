@@ -179,11 +179,22 @@ class OsmImporter(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
 
-    def _load_osm_from_bbox(self, bbox: str):
+    def _load_osm_from_bbox(self, bbox: str, settings: dict):
         q_template: str = """
             [timeout:900][maxsize:1073741824];
             nwr(__bbox__);
             out;"""
+        net_file = f"{self.global_settings.osm_download_prefix}_{self.global_settings.case_id}.xml"
+        if os.path.isfile(os.path.join(self.global_settings.data_directory, net_file)):
+            if not h.has_keys(settings, ['on_existing']):
+                raise Exception("Target file for OSM download already exists. Please add a value for 'on_existing' to the import settings. [skip/abort/delete]")
+            if settings['on_existing'] == 'skip':
+                h.info("Target file for OSM download already exists. Skipping download (re-using existing file). You can change this behavior by adding a value for 'on_existing' to the import settings. [skip/abort/delete]")
+                return
+            if settings['on_existing'] != 'delete':
+                raise Exception("Target file for OSM download already exists. Aborting. Please resolve the conflict manually or specify a different value for 'on_existing' in the import settings. [skip/abort/delete]")     
+            else:
+                h.info("Target file for OSM download already exists. Deleting existing file and proceeding with download. You can change this behavior by adding a value for 'on_existing' to the import settings. [skip/abort/delete]")
         q_str = q_template.replace("__bbox__", bbox)
         h.debugLog(f"prepared OSM overpass API query: \n'{q_str}")
 
@@ -195,7 +206,7 @@ class OsmImporter(DbStep):
             try:
                 file_name, headers = urllib.request.urlretrieve(
                     self.global_settings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
-                    os.path.join(self.global_settings.data_directory, f"{self.global_settings.osm_download_prefix}_{self.global_settings.case_id}.xml"))
+                    os.path.join(self.global_settings.data_directory, net_file))
             except HTTPError as e:
                 h.log(f"HTTPError while trying to download OSM data from '{self.global_settings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
                 curEndpointIndex+=1
@@ -235,9 +246,9 @@ class OsmImporter(DbStep):
             # start OSM import through overpass API
             # import from bounding box
             if h.has_keys(settings, ['bbox']):
-                self._load_osm_from_bbox(settings['bbox'])
+                self._load_osm_from_bbox(settings['bbox'], settings)
             # import from place name
-            if h.has_keys(settings, ['place_name']):
+            elif h.has_keys(settings, ['place_name']):
                 raise NotImplementedError("OSM import from place name is not yet supported.")
         
 
