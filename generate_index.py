@@ -11,7 +11,7 @@ from core.import_step import create_importer
 from core.index_step import generate_index, load_weights
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
-from settings import DbSettings
+from settings import DbSettings, GlobalSettings
 
 parser = argparse.ArgumentParser(description='TODO: add description')
 parser.add_argument('settings_file', type=argparse.FileType('r'),
@@ -59,7 +59,15 @@ with settings_stream:
         h.require_keys(settings, ['export'], 'error: section missing:')
     if 'index' not in skip_steps:
         h.require_keys(settings, ['weights'], 'error: section missing:')
+    
+    # process global settings if given
+    if h.has_keys(settings, ['global']):
+        global_settings: dict = settings['global']
+        if h.has_keys(global_settings, ['target_srid']):
+            GlobalSettings.target_srid = global_settings['target_srid']
+            h.info(f"Set the target SRID to {GlobalSettings.target_srid}")
 
+    # execute processing steps
     if 'import' not in skip_steps:
         h.majorInfo(' === importing ===')
         import_settings: dict = settings['import']
