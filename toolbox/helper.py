@@ -80,6 +80,7 @@ def logEndTask():
 def endlog():
     end = clock()
     elapsed = end-start
+    info("Thank you for using NetAScore!")
     info(f"Program terminating after {secondsToStr(elapsed)} (hr:min:sec) at {dt.now().strftime('%H:%M:%S')}.")
 
 def now():
