@@ -1,6 +1,6 @@
 FROM python:3.8 AS buildstage
 
-WORKDIR /usr/src/bikeability
+WORKDIR /usr/src/netascore
 
 # COPY generate_index.py .
 COPY *.py ./

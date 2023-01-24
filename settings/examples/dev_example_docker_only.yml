@@ -1,7 +1,7 @@
 version: 1.0
 # for execution within docker container and PostgresDB in Docker
 database:
-  host: bikeability-db
+  host: netascore-db
   port: 5432
   dbname: postgres
   username: postgres 

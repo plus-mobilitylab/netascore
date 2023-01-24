@@ -24,7 +24,7 @@ To run the workflow with an existing postgres database, simply follow these step
 - finally, execute the workflow using:
 
 ```bash
-docker run -v <dir_to_data_directory>:/usr/src/bikeability/data plusmobilitylab/netascore data/settings.yml
+docker run -v <dir_to_data_directory>:/usr/src/netascore/data plusmobilitylab/netascore data/settings.yml
 ```
 
 # All components run in docker
@@ -75,13 +75,13 @@ mounted into the bikeability container:
 ```bash
 # linux and mac:
 docker run -t --network=bikeability-net \
-        -v $(pwd)/data:/usr/src/bikeability/data bikeability data/settings.yml
+        -v $(pwd)/data:/usr/src/netascore/data bikeability data/settings.yml
 ```
 
 ```shell
 # windows:
 docker run -t --network=bikeability-net \
-        -v %cd%/data:/usr/src/bikeability/data bikeability data/settings.yml
+        -v %cd%/data:/usr/src/netascore/data bikeability data/settings.yml
 ``` 
 
 ## Only the database runs in docker
@@ -133,9 +133,9 @@ If you experience performance problems, either run the python script directly, o
 docker volume create bikeability-storage
 
 docker create -t --network=bikeability-net --name bikeability-pipe \
-        -v bikeability-storage:/usr/src/bikeability/data bikeability data/settings.yml
+        -v bikeability-storage:/usr/src/netascore/data bikeability data/settings.yml
 
-docker cp data/. bikeability-pipe:/usr/src/bikeability/data
+docker cp data/. bikeability-pipe:/usr/src/netascore/data
 
 docker start bikeability-pipe
 ```
@@ -151,8 +151,8 @@ This command will show the logs of the container and will follow the logs. You c
 To copy the resulting files back to your local system, you can use the following command:
 
 ```bash
-docker copy bikeability-pipe:/usr/src/bikeability/data/YOUR_GEO_RESULT_FILE1.gpkg .
-docker copy bikeability-pipe:/usr/src/bikeability/data/YOUR_GEO_RESULT_FILE2.gpkg .
+docker copy bikeability-pipe:/usr/src/netascore/data/YOUR_GEO_RESULT_FILE1.gpkg .
+docker copy bikeability-pipe:/usr/src/netascore/data/YOUR_GEO_RESULT_FILE2.gpkg .
 ```
 
 # Overwrite `default.style`
@@ -166,13 +166,13 @@ By default, this file is provided within the docker container. To overwrite some
 ```bash
 # linux and mac:
 docker run -t --network=bikeability-net \
-        -v $(pwd)/default.style:/usr/src/bikeability/resources/default.style \
-        -v $(pwd)/data:/usr/src/bikeability/data bikeability data/settings.yml
+        -v $(pwd)/default.style:/usr/src/netascore/resources/default.style \
+        -v $(pwd)/data:/usr/src/netascore/data bikeability data/settings.yml
 ```
 
 ```shell
 # windows:
 docker run -t --network=bikeability-net \
-        -v %cd%/default.style:/usr/src/bikeability/resources/default.style \
-        -v %cd%/data:/usr/src/bikeability/data bikeability data/settings.yml
+        -v %cd%/default.style:/usr/src/netascore/resources/default.style \
+        -v %cd%/data:/usr/src/netascore/data bikeability data/settings.yml
 ``` 

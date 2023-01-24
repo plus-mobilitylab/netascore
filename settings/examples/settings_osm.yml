@@ -3,7 +3,7 @@ version: 1.0
 database:
   host: gateway.docker.internal
   port: 5432
-  dbname: bikeability
+  dbname: netascore
   on_existing: abort # skip, delete, abort
   # user and password to be specified as ENV variables
 # -- end of optional db part --

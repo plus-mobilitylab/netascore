@@ -40,7 +40,7 @@ class DbSettings:
 
     @staticmethod
     def from_dict(settings_template: dict):
-        host = settings_template.get('host', 'bikeability-db')
+        host = settings_template.get('host', 'netascore-db')
         port = settings_template.get('port', 5432)
         dbname = settings_template.get('dbname', 'postgres')
         username = settings_template.get('username', '')
