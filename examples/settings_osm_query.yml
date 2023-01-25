@@ -1,0 +1,38 @@
+version: 1.0
+
+# global settings that are relevant across individual processing steps
+global:
+  #target_srid: 32633 # NOTE: currently, only metric unit systems (e.g. UTM) supported
+  case_id: salzburg # unique id (name) - useful if working with different datasets / areas of interest
+
+# this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
+database:
+  on_existing: delete # skip, delete, abort
+  # for production environments, user and password should be specified as ENV variables instead
+  password: postgres
+  username: postgres
+  host: netascore-db
+  port: 5432
+  dbname: postgres
+# -- end of optional db part --
+
+import:
+  type: osm
+  on_existing: delete
+  place_name: Salzburg
+  #other currently supported query parameters: admin_level, zip_code
+  #alternative for querying using bounding box (please also specify 'srid' in 'global_settings' in that case):
+  #bbox: 47.7957,13.0117,47.8410,13.0748
+  interactive: False # if true, allows for interactive choice in case multiple results were returned for given AOI query (otherwise first is used)
+  buffer: 1000
+
+weights:
+  -
+    profile_name: bike
+    filename: weights_bike.yml
+  -
+    profile_name: walk
+    filename: weights_walk.yml
+export:
+  type: geopackage
+  filename: netascore_<case_id>.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
