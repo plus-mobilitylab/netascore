@@ -2,6 +2,7 @@ version: "3"
 
 services:
   netascore:
+    image: plusmobilitylab/netascore:latest
     build: .
     stdin_open: true # docker run -i
     tty: true        # docker run -t
