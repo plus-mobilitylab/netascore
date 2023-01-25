@@ -32,17 +32,21 @@ class GeopackageExporter(DbStep):
         h.log('set search path')
         db.schema = schema
 
+        filename: str = settings['filename']
+        filename = filename.replace("<case_id>", GlobalSettings.case_id)
+        filename = filename.replace("<srid>", str(GlobalSettings.get_target_srid()))
+        
         # delete file if exists
-        if os.path.exists(os.path.join(directory, settings['filename'])):
-            os.remove(os.path.join(directory, settings['filename']))
+        if os.path.exists(os.path.join(directory, filename)):
+            os.remove(os.path.join(directory, filename))
 
         # export layers "edge" and "node"
         h.logBeginTask('export layer "edge"')
-        export_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, table='export_edge', layer='edge', fid='edge_id', geometry_type='LINESTRING')
+        export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table='export_edge', layer='edge', fid='edge_id', geometry_type='LINESTRING')
         h.logEndTask()
 
         h.logBeginTask('export layer "node"')
-        export_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, table='export_node', layer='node', fid='node_id', geometry_type='POINT', update=True)
+        export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table='export_node', layer='node', fid='node_id', geometry_type='POINT', update=True)
         h.logEndTask()
 
         # close database connection
