@@ -8,6 +8,7 @@ COPY core core/
 COPY resources resources/
 COPY sql sql/
 COPY toolbox toolbox/
+COPY examples examples/
 # COPY settings settings/
 COPY requirements.txt .
 
