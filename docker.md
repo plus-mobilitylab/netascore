@@ -1,16 +1,50 @@
-# Running the project in docker containers
+# Running NetAScore in Docker
 
-This section describes how to run all components or only parts in docker.
-You need two components:
+In this file, we describe how to run all components or only parts in Docker.
+There are two components involved:
 
-1. a postgis database (you can use any standard image)
-2. the bikeability script (or docker image)
+1. NetAScore (Python source or docker image)
+2. a PostGIS-enabled database (which is also provided as docker image)
 
-NOTE: passwords and usernames are only used for simplicity reasons. Please use secure usernames and passwords in production!
+## Quickstart
 
-# Use the docker image provided on Docker Hub
+NetAScore comes with a `docker compose` configuration in `docker-compose.yml` and a demo configuration, so you can simply run an example workflow by following these two steps (if you don't have Docker installed yet, please [install the Docker Engine](https://docs.docker.com/engine/install/) first):
 
-There is no need to build the docker image yourself - you may simply get the latest version of the image using
+- download the `docker-compose.yml` file from the `examples` directory ([file link](https://raw.githubusercontent.com/plusmobilitylab/netascore/main/examples/settings_osm.yml)) to an empty directory
+- from within this directory, execute the following command from a terminal:
+  `docker compose run netascore`
+
+NetAScore first loads an area of interest from Overpass Turbo API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node.
+
+## Run NetAScore for your own area of interest
+
+The easiest way to run a network assessment for your own area of interest is by adapting the given example in `examples/settings_osm_query.yml`:
+
+- create a new **subdirectory** named **`data`** (if you already ran the quickstart example, you can just use the `data` directory created)
+- download the **settings template** [from here](https://raw.githubusercontent.com/plusmobilitylab/netascore/main/examples/settings_osm.yml) or copy it from `examples/settings_osm_query.yml`
+- add the **weight profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `weights_bike.yml` and `weights_walk.yml` from the `examples` folder.
+- **edit** your newly created **settings file** `settings_osm_query.yml` - e.g. to download data for the City of London:
+  - provide a **`case_id`**  in `global` section (only alphanumeric characters are allowed; this will be added e.g. to the output file name) - e.g. `case_id: london`
+  - specify a **`place_name`** that is used to query data from OSM - e.g. `place_name: City of London`
+- **run NetAScore** by executing the following line inside the main directory (parent of `data`):
+  `docker compose run netascore data/settings_osm_query.yml`
+  (here, the last argument represents the settings file to use)
+
+## Add more detail
+
+The example settings use OpenStreetMap data as the only input. While this gives a good first estimate of *bikeability* and *walkability*, utilizing additional input datasets can further improve the quality of results. NetAScore supports additional datasets such as *DEM* (digital elevation model) and *noise* (e.g. traffic noise corridors). Please refer to [settings](settings.md) documentation for details.
+
+To add optional input data sets, follow these steps:
+
+- acquire the file(s) for your area of interest - availability of DEM, noise map, etc. may largely depend on the area of interest
+- add the file(s) to the `data` subdirectory (where the settings file and weights profiles are located)
+- edit the settings file to add the new datasets and store it inside the `data` folder
+- execute NetAScore from the parent directory:
+  `docker compose run netascore data/<your_settings_file>.yml` (where `<your_settings_file>` refers to the file name you chose for the edited settings file)
+
+## Manual use of the Docker image
+
+If you want to use the NetAScore Docker image without docker compose or in a custom setting, you may simply get the latest version of the NetAScore image using:
 
 ```bash
 docker pull plusmobilitylab/netascore:latest
@@ -20,76 +54,83 @@ To run the workflow with an existing postgres database, simply follow these step
 
 - create a directory named `data` and place all geofiles inside
 - add weights files and settings file to this directory (see example files provided in the code repository)
-- adjust settings to your needs in the `settings.yml` file
+- adjust settings to your needs in the `settings.yml` file - see the [settings documentation](settings.md) for reference
 - finally, execute the workflow using:
 
 ```bash
-docker run -v <dir_to_data_directory>:/usr/src/netascore/data plusmobilitylab/netascore data/settings.yml
+docker run -i -t -v <dir_to_data_directory>:/usr/src/netascore/data plusmobilitylab/netascore data/settings.yml
 ```
 
-# All components run in docker
+# Build the Docker image from source
 
-For a full docker pipeline, there are no other prerequisites than a working docker installation.
+The easiest way to build and launch NetAScore is by using docker compose. The `docker-compose.yml` inside the main code directory is configured accordingly. Therefore, the only command you need to execute should be:
 
-If you don't use an official image, then you can build the image for yourself:
+`docker compose build`
+
+Then, once you are sure that all input datasets, settings and weights files are properly placed inside the `data` subdirectory, execute NetAScore:
+
+`docker compose run netascore data/<your_settings_file>.yml`
+
+## The manual, stepwise approach
+
+You can build the Docker image yourself from source using the following command from within the main code directory:
+
+`docker build -t netascore .`
+
+This builds a local docker image named `netascore`.
+
+To manually create a network for communication between NetAScore and the PostgreSQL database running in Docker execute the following (required only once per computer):
+
+`docker network create netascore-net`
+
+Then, to run the workflow, first start the PostgreSQL database and attach it to the network:
 
 ```bash
-docker build -t bikeability .
-```
-
-This builds a local docker image named `bikeability`.
-
-Now create a network (required only once per computer):
-
-```bash
-docker network create bikeability-net 
-```
-
-Start the postgis database and attach it to the network:
-
-```bash
-docker run --name bikeability-db --network=bikeability-net \
+docker run --name netascore-db --network=netascore-net \
         -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
 ```
 
 ```bash
 # Map TCP port 5432 in the container to port 5433 on the Docker host:
-docker run --name bikeability-db --network=bikeability-net -p 5433:5432 \
+docker run --name netascore-db --network=netascore-net -p 5433:5432 \
         -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
 ```
 
-Make sure that the database connection in your `settings.yml` is set up for docker:
+Make sure that the database connection in your `settings.yml` is set up to use the Docker network:
 
 ```yml
 database:
-    host: bikeability-db
+    host: netascore-db
     port: 5432
     dbname: postgres
     username: postgres
     password: postgres
 ```
 
-Make sure that you have all needed geofiles and settings and weight files in one subdirectory, because this directory is
-mounted into the bikeability container:
+Make sure that you have all necessary geofiles, settings and weight files in the `data` subdirectory, because this directory is mounted into the netascore container:
 
 ```bash
 # linux and mac:
-docker run -t --network=bikeability-net \
-        -v $(pwd)/data:/usr/src/netascore/data bikeability data/settings.yml
+docker run -i -t --network=netascore-net \
+        -v $(pwd)/data:/usr/src/netascore/data netascore data/settings.yml
 ```
 
 ```shell
 # windows:
-docker run -t --network=bikeability-net \
-        -v %cd%/data:/usr/src/netascore/data bikeability data/settings.yml
-``` 
+docker run -i -t --network=netascore-net \
+        -v %cd%/data:/usr/src/netascore/data netascore data/settings.yml
+```
+
+
+
+# Advanced configuration
 
 ## Only the database runs in docker
 
 If the database runs in docker, then you have to configure your database to accept connections from the local machine:
 
 ```bash
-docker run --name bikeability-db --network=bikeability-net -p 5432:5432 \
+docker run --name netascore-db --network=netascore-net -p 5432:5432 \
         -e POSTGRES_PASSWORD=postgres -d postgis/postgis:13-3.2
 ```
 
@@ -108,11 +149,7 @@ Now you can use the python script as described in the [README.md](README.md).
 
 ## Only the script runs in docker
 
-If the script runs inside the docker container, it needs access to the database outside of the docker ecosystem.
-If the external database runs on another host, provide the necessary connection information in the `database` section.
-
-If you have the database running on your local system, then the host needs the ip of the local system. Please note, that
-`127.0.0.1` will not work, because it would try to connect to the local container. If you are unable to obtain the ip of your
+If the script runs inside the docker container, it needs access to the database outside of the docker ecosystem. If the external database runs on another host, provide the necessary connection information in the `database` section. If you have the database running on your local system, then the host needs the IP address or hostname of the local system. Please note that `127.0.0.1` or `localhost` will not work, because it would try to connect to the container's localhost. If you are unable to obtain the ip of your
 machine, or you cannot establish a connection, use `gateway.docker.internal` as the host, e.g.:
 
 ```yml
@@ -124,26 +161,26 @@ database:
   password: postgres
 ```
 
-## Limitations
+## Performance improvement
 
-When using bikeability in a docker image on mac or windows, the performance of the pipeline is low and can take 3-5 times longer when using bikeability in a docker container due to slow docker volume mounts.
-If you experience performance problems, either run the python script directly, or copy the files into the container:
+When using NetAScore in a docker image on mac or windows, overall performance of the pipeline can be 3-5 times slower compared to executing NetAScore in local Python or in Docker on Linux. This is caused by slow docker volume mounts and might be an issue for computations on large input files. 
+To resolve this issue, you can either execute the python script on your machine (outside Docker) or copy the files into a volume using the following steps:
 
 ```bash
-docker volume create bikeability-storage
+docker volume create netascore-storage
 
-docker create -t --network=bikeability-net --name bikeability-pipe \
-        -v bikeability-storage:/usr/src/netascore/data bikeability data/settings.yml
+docker create -t --network=netascore-net --name netascore-pipe \
+        -v netascore-storage:/usr/src/netascore/data netascore data/settings.yml
 
-docker cp data/. bikeability-pipe:/usr/src/netascore/data
+docker cp data/. netascore-pipe:/usr/src/netascore/data
 
-docker start bikeability-pipe
+docker start netascore-pipe
 ```
 
 To monitor the progress (logs), run:
 
 ```bash
-docker logs -f bikeability-pipe
+docker logs -f netascore-pipe
 ```
 
 This command will show the logs of the container and will follow the logs. You can stop the command with `ctrl+c`.
@@ -151,28 +188,28 @@ This command will show the logs of the container and will follow the logs. You c
 To copy the resulting files back to your local system, you can use the following command:
 
 ```bash
-docker copy bikeability-pipe:/usr/src/netascore/data/YOUR_GEO_RESULT_FILE1.gpkg .
-docker copy bikeability-pipe:/usr/src/netascore/data/YOUR_GEO_RESULT_FILE2.gpkg .
+docker copy netascore-pipe:/usr/src/netascore/data/YOUR_RESULT_FILE1.gpkg .
+docker copy netascore-pipe:/usr/src/netascore/data/YOUR_RESULT_FILE2.gpkg .
 ```
 
-# Overwrite `default.style`
+## Overwrite `default.style` for OSM import to database
 
-By default, this file is provided within the docker container. To overwrite some settings perform the following steps:
+For importing OpenStreetMap data into the database, NetAScore uses [osm2pgsql](https://osm2pgsql.org/). Import settings for this commandline utility are provided in a `default.style` file. By default, NetAScore provides this file within its Docker container. In order to customize `default.style` settings you may perform the following steps:
 
-- copy the file from this repository
-- modify the settings you need to modify
+- copy the file from this repository (`resources/default.style`)
+- adapt the settings according to your needs
 - mount the settings file into the docker container when running it
 
 ```bash
 # linux and mac:
-docker run -t --network=bikeability-net \
+docker run -i -t --network=netascore-net \
         -v $(pwd)/default.style:/usr/src/netascore/resources/default.style \
-        -v $(pwd)/data:/usr/src/netascore/data bikeability data/settings.yml
+        -v $(pwd)/data:/usr/src/netascore/data netascore data/settings.yml
 ```
 
 ```shell
 # windows:
-docker run -t --network=bikeability-net \
+docker run -i -t --network=netascore-net \
         -v %cd%/default.style:/usr/src/netascore/resources/default.style \
-        -v %cd%/data:/usr/src/netascore/data bikeability data/settings.yml
-``` 
+        -v %cd%/data:/usr/src/netascore/data netascore data/settings.yml
+```
