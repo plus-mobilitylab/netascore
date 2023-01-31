@@ -5,7 +5,7 @@ database:
   port: 5432              # port of existing PostgreSQL server on localhost
   dbname: postgres        # target database
   username: postgres      # local postgres user
-  passwrod: postgres
+  password: postgres
   on_existing: abort # skip, delete, abort
 import:
   type: gip

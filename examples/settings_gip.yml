@@ -16,6 +16,7 @@ optional:
     # column_noise: noise # TODO: set from settings file
   osm:
     filename: austria-latest.osm.pbf # required mainly for walkability indicators
+    # NOTE: if an OSM file is provided, the layers 'building', 'crossing', 'facility', 'greennesss' and 'water' are extracted from OSM
   # building:
     # filename: building.gpkg # GeoPackage
   # crossing:
