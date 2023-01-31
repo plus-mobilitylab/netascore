@@ -1,6 +1,7 @@
 import argparse
 import sys
 import yaml
+import re
 from typing import List
 
 import toolbox.helper as h
@@ -55,10 +56,10 @@ with settings_stream:
     if h.has_keys(settings, ['global']):
         global_settings: dict = settings['global']
         if h.has_keys(global_settings, ['target_srid']):
-            GlobalSettings.custom_srid = global_settings['target_srid']
+            GlobalSettings.custom_srid = re.sub("[^0-9]", "", global_settings['target_srid'])
             h.info(f"Set the target SRID to {GlobalSettings.get_target_srid()}")
         if h.has_keys(global_settings, ['case_id']):
-            GlobalSettings.case_id = global_settings['case_id']
+            GlobalSettings.case_id = re.sub("[^a-zA-Z0-9_]", "", global_settings['case_id'])
     
     db_settings: DbSettings = DbSettings.from_dict(settings.get('database'))
 
