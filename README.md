@@ -22,11 +22,13 @@ Docker will download the NetAScore image and PostgreSQL database image, setup th
 
 NetAScore first loads an area of interest by place name from Overpass Turbo API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node. These values represent the assessed suitability of a segment for cycling (*bikeability*) and walking (*walkability*).
 
-#### How it looks like:
+#### What the results look like:
 
-Stay tuned, we'll shortly add a visualisation of the results for the Salzburg case...
+Currently, NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. Then in layer preferences define a symbology that visualizes one of the computed index values - e.g. `index_bike_ft` for *bikeability* (`_ft`: bikeability in forward-direction of each segment).
 
-TODO: add visualization
+This is an exemplary visualization of *bikeability* for Salzburg, Austria:
+
+![Bikeability result for Salzburg, Austria](https://user-images.githubusercontent.com/24413180/216041815-9e2457e5-ce2f-48b3-9df4-5c33f805de38.png)
 
 #### How to proceed?
 
