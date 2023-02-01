@@ -10,7 +10,7 @@ To get a better impression of what this toolset and workflow provides, you can q
 
 ### Easy quickstart: ready-made Docker image
 
-The easiest way to get satarted is running the ready-made Docker image. All you need for this to succeed is a [Docker installation](https://docs.docker.com/engine/install/) and internet connection. Then, follow these two steps:
+The easiest way to get started is running the ready-made Docker image. All you need for this to succeed is a [Docker installation](https://docs.docker.com/engine/install/) and internet connection. Then, follow these two steps:
 
 - download the `docker-compose.yml` file from the `examples` ([file link](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/docker-compose.yml)) to an empty directory
 - from within this directory, execute the following command from a terminal:
