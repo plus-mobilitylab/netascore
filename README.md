@@ -231,13 +231,13 @@ TODO: what are the projects limitations and shortcomings
 
 ## Credits
 
-NetAScore is developed by the MobilityLab at the Department of Geoinformatics (Z_GIS), University of Salzburg, Austria.
+NetAScore is developed by the [Mobility Lab](https://mobilitylab.zgis.at/) at the Department of Geoinformatics (Z_GIS), University of Salzburg, Austria.
 
 The main developers are: Dana Kaziyeva, Martin Loidl, Petra Stutz, Robin Wendel and Christian Werner.
 
 As NetAScore relies on great OpenSource software, we want to thank all contributors to these projects - especially PostgreSQL with PostGIS and OSGeo4W.
 
-We want to thank TraffiCon GmbH and Triply GmbH for contracted research and development. Research on the concepts of *bikeability* and *walkability* as well as the development of the NetAScore software was made possible by SINUS (BMK, FFG No. 874070), POSITIM (BMK, FFG No. 873353) and On-Demand II (BMK & BMAW, FFG No. 880996).
+We want to thank [TraffiCon GmbH](https://www.trafficon.eu/) and [Triply GmbH](https://triply.net/) for contracted research and development. Research on the concepts of *bikeability* and *walkability* as well as the development of the NetAScore software was made possible by [SINUS](https://projekte.ffg.at/projekt/3325243) (BMK, FFG No. 874070), [POSITIM](https://projekte.ffg.at/projekt/3298537) (BMK, FFG No. 873353) and On-Demand II (BMK & BMAW, FFG No. 880996).
 
 ## License
 
