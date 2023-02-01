@@ -10,7 +10,7 @@ There are two components involved:
 
 NetAScore comes with a `docker compose` configuration in `docker-compose.yml` and a demo configuration, so you can simply run an example workflow by following these two steps (if you don't have Docker installed yet, please [install the Docker Engine](https://docs.docker.com/engine/install/) first):
 
-- download the `docker-compose.yml` file from the `examples` directory ([file link](https://raw.githubusercontent.com/plusmobilitylab/netascore/main/examples/settings_osm.yml)) to an empty directory
+- download the `docker-compose.yml` file from the `examples` directory ([file link](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/docker-compose.yml)) to an empty directory
 - from within this directory, execute the following command from a terminal:
   `docker compose run netascore`
 
@@ -21,7 +21,7 @@ NetAScore first loads an area of interest from Overpass Turbo API, then download
 The easiest way to run a network assessment for your own area of interest is by adapting the given example in `examples/settings_osm_query.yml`:
 
 - create a new **subdirectory** named **`data`** (if you already ran the quickstart example, you can just use the `data` directory created)
-- download the **settings template** [from here](https://raw.githubusercontent.com/plusmobilitylab/netascore/main/examples/settings_osm.yml) or copy it from `examples/settings_osm_query.yml`
+- download the **settings template** [from here](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/settings_osm_query.yml) or copy it from `examples/settings_osm_query.yml`
 - add the **weight profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `weights_bike.yml` and `weights_walk.yml` from the `examples` folder.
 - **edit** your newly created **settings file** `settings_osm_query.yml` - e.g. to download data for the City of London:
   - provide a **`case_id`**  in `global` section (only alphanumeric characters are allowed; this will be added e.g. to the output file name) - e.g. `case_id: london`
