@@ -6,6 +6,9 @@ services:
     build: .
     stdin_open: true # docker run -i
     tty: true        # docker run -t
+    environment:
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
     volumes:
     - ./data:/usr/src/netascore/data
     command: "examples/settings_osm_query.yml"
