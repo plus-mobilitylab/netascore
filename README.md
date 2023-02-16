@@ -4,7 +4,7 @@ NetAScore provides a toolset and automated workflow for computing ***bikeability
 
 For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'**, can be used if you work on an area of interest within Austria. 
 
-## How to get started?
+## How to get started?/
 
 To get a better impression of what this toolset and workflow provides, you can quickly start with processing a sample area.
 
@@ -32,7 +32,7 @@ This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
 #### How to proceed?
 
-Most likely, you want to execute an analysis for a sepcific area of your interest - please see the [instructions in Docker.md](docker.md) for how to achieve this with just changing one line in the settings file.
+Most likely, you want to execute an analysis for a specific area of your interest - please see the [instructions in Docker.md](docker.md) for how to achieve this with just changing one line in the settings file.
 
 ### Running NetAScore locally (without Docker)
 
