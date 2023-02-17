@@ -32,7 +32,7 @@ This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
 #### How to proceed?
 
-Most likely, you want to execute an analysis for a sepcific area of your interest - please see the [instructions in Docker.md](docker.md) for how to achieve this with just changing one line in the settings file.
+Most likely, you want to execute an analysis for a specific area of your interest - please see the [instructions in Docker.md](docker.md) for how to achieve this with just changing one line in the settings file.
 
 ### Running NetAScore locally (without Docker)
 
