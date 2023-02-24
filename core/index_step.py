@@ -54,9 +54,8 @@ def generate_index(db_settings: DbSettings, weights: List[Weight]):
             weights = w.weights['weights']
             h.info('calculate index_' + profile_name)
             params = {
-                'schema_meta_net': db_settings.entities.network_schema,
-                'column_index_ft': 'index_' + profile_name + '_ft',
-                'column_index_tf': 'index_' + profile_name + '_tf'
+                'schema_network': schema,
+                'profile_name': profile_name
             }
             params.update(weights)
             db.execute_template_sql_from_file("index", params)
@@ -66,7 +65,7 @@ def generate_index(db_settings: DbSettings, weights: List[Weight]):
     h.logBeginTask('create tables "export_network_edge" and "export_network_node"')
     if db.handle_conflicting_output_tables(['export_network_edge', "export_network_node"]):
         params = {
-            'schema_meta_net': schema
+            'schema_network': schema
         }
         db.execute_template_sql_from_file("export", params)
     h.logEndTask()
