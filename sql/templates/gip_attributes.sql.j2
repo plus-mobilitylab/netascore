@@ -95,6 +95,23 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 DROP TABLE bridge, tunnel;
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- calculate attribute "stairs"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS stairs;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           CASE WHEN formofway IN (18) OR funcroadclass IN (46, 47) THEN true ELSE false END::boolean AS stairs -- 18: Stiege; 46: Rolltreppe; 47: Aufzug
+    FROM network_edge_attributes a
+        LEFT JOIN network_edge b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "bicycle_infrastructure"
 -- ---------------------------------------------------------------------------------------------------------------------
 
@@ -630,6 +647,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS access_pedestrian_bkw boolean,
     ADD COLUMN IF NOT EXISTS bridge boolean,
     ADD COLUMN IF NOT EXISTS tunnel boolean,
+    ADD COLUMN IF NOT EXISTS stairs boolean,
     ADD COLUMN IF NOT EXISTS bicycle_infrastructure_ft varchar,
     ADD COLUMN IF NOT EXISTS bicycle_infrastructure_tf varchar,
     ADD COLUMN IF NOT EXISTS pedestrian_infrastructure_ft varchar,
