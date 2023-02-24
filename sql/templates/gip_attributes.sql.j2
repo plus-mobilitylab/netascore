@@ -684,7 +684,7 @@ ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 
 DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS ( -- 13 s, 1.885.895
-    SELECT edge_id, link_id AS gip_id, from_node, to_node, geom
+    SELECT edge_id, link_id AS gip_id, from_node, to_node, geom, length
     FROM network_edge
 );
 
