@@ -79,9 +79,9 @@ CREATE TABLE network_edge_index_tmp AS (
             b.water, {{ water }},
             b.noise, {{ noise }}
         ) tf
-    WHERE b.access_car_tow OR b.access_car_bkw OR
-          b.access_bicycle_tow OR b.access_bicycle_bkw OR
-          b.access_pedestrian_tow OR b.access_pedestrian_bkw
+    WHERE b.access_car_ft OR b.access_car_tf OR
+          b.access_bicycle_ft OR b.access_bicycle_tf OR
+          b.access_pedestrian_ft OR b.access_pedestrian_tf
 );
 
 DROP TABLE network_edge_index;

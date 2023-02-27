@@ -62,7 +62,7 @@ def generate_index(db_settings: DbSettings, weights: List[Weight]):
     h.logEndTask()
 
     # create tables "edges" and "nodes"
-    h.logBeginTask('create tables "export_network_edge" and "export_network_node"')
+    h.logBeginTask('create tables "export_edge" and "export_node"')
     if db.handle_conflicting_output_tables(['export_network_edge', "export_network_node"]):
         params = {
             'schema_network': schema

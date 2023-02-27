@@ -29,22 +29,22 @@ CREATE TABLE network_node_attributes AS ( -- 2 s, 1.595.844
 -- calculate attributes "access_car", "access_bicycle", "access_pedestrian"
 -- ---------------------------------------------------------------------------------------------------------------------
 
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_bkw;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_bkw;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_bkw;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_tf;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           get_bit(b.access_tow::bit(8), 5)::boolean AS access_car_tow,
-           get_bit(b.access_bkw::bit(8), 5)::boolean AS access_car_bkw,
-           get_bit(b.access_tow::bit(8), 6)::boolean AS access_bicycle_tow,
-           get_bit(b.access_bkw::bit(8), 6)::boolean AS access_bicycle_bkw,
-           get_bit(b.access_tow::bit(8), 7)::boolean AS access_pedestrian_tow,
-           get_bit(b.access_bkw::bit(8), 7)::boolean AS access_pedestrian_bkw
+           get_bit(b.access_tow::bit(8), 5)::boolean AS access_car_ft,
+           get_bit(b.access_bkw::bit(8), 5)::boolean AS access_car_tf,
+           get_bit(b.access_tow::bit(8), 6)::boolean AS access_bicycle_ft,
+           get_bit(b.access_bkw::bit(8), 6)::boolean AS access_bicycle_tf,
+           get_bit(b.access_tow::bit(8), 7)::boolean AS access_pedestrian_ft,
+           get_bit(b.access_bkw::bit(8), 7)::boolean AS access_pedestrian_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -140,8 +140,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS pedestrian_infrastruct
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturetow, b.formofway, a.access_pedestrian_tow) AS pedestrian_infrastructure_ft,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturebkw, b.formofway, a.access_pedestrian_bkw) AS pedestrian_infrastructure_tf
+           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturetow, b.formofway, a.access_pedestrian_ft) AS pedestrian_infrastructure_ft,
+           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturebkw, b.formofway, a.access_pedestrian_tf) AS pedestrian_infrastructure_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -212,7 +212,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS road_category;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_road_category(a.access_car_tow, a.access_car_bkw, a.access_bicycle_tow, a.access_bicycle_bkw, b.funcroadclass, b.streetcat, b.basetype, b.bikefeaturetow, b.bikefeaturebkw) AS road_category
+           calculate_road_category(a.access_car_ft, a.access_car_tf, a.access_bicycle_ft, a.access_bicycle_tf, b.funcroadclass, b.streetcat, b.basetype, b.bikefeaturetow, b.bikefeaturebkw) AS road_category
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -639,12 +639,12 @@ DROP TABLE noise_intersection, noise_sum;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 ALTER TABLE network_edge_attributes
-    ADD COLUMN IF NOT EXISTS access_car_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_car_bkw boolean,
-    ADD COLUMN IF NOT EXISTS access_bicycle_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_bicycle_bkw boolean,
-    ADD COLUMN IF NOT EXISTS access_pedestrian_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_pedestrian_bkw boolean,
+    ADD COLUMN IF NOT EXISTS access_car_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_car_tf boolean,
+    ADD COLUMN IF NOT EXISTS access_bicycle_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_bicycle_tf boolean,
+    ADD COLUMN IF NOT EXISTS access_pedestrian_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_pedestrian_tf boolean,
     ADD COLUMN IF NOT EXISTS bridge boolean,
     ADD COLUMN IF NOT EXISTS tunnel boolean,
     ADD COLUMN IF NOT EXISTS stairs boolean,
