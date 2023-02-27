@@ -45,7 +45,7 @@ BEGIN
     -- TODO: Index anpassen: pedestrian_infrastructure/road_category
     IF pedestrian_infrastructure IN ('sidewalk') AND pedestrian_infrastructure_weight IS NOT NULL AND
        road_category_pedestrian IN ('secondary', 'primary') AND road_category_pedestrian_weight IS NOT NULL THEN
-        index := 0.8;
+        index := 0.2;
         RETURN;
     END IF;
 
@@ -99,13 +99,13 @@ BEGIN
         IF bicycle_infrastructure IS NOT NULL AND bicycle_infrastructure_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN bicycle_infrastructure = 'bicycle_way' THEN 0
-                    WHEN bicycle_infrastructure = 'mixed_way' THEN 0.1
-                    WHEN bicycle_infrastructure = 'bicycle_lane' THEN 0.25
-                    WHEN bicycle_infrastructure = 'bus_lane' THEN 0.25
+                    WHEN bicycle_infrastructure = 'bicycle_way' THEN 1
+                    WHEN bicycle_infrastructure = 'mixed_way' THEN 0.9
+                    WHEN bicycle_infrastructure = 'bicycle_lane' THEN 0.75
+                    WHEN bicycle_infrastructure = 'bus_lane' THEN 0.75
                     WHEN bicycle_infrastructure = 'shared_lane' THEN 0.5
-                    WHEN bicycle_infrastructure = 'undefined' THEN 0.8
-                    WHEN bicycle_infrastructure = 'no' THEN 1
+                    WHEN bicycle_infrastructure = 'undefined' THEN 0.2
+                    WHEN bicycle_infrastructure = 'no' THEN 0
                 END;
             weight := bicycle_infrastructure_weight / weights_sum;
             index := index + indicator * weight;
@@ -115,12 +115,12 @@ BEGIN
         IF pedestrian_infrastructure IS NOT NULL AND pedestrian_infrastructure_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN pedestrian_infrastructure = 'pedestrian_area' THEN 0
-                    WHEN pedestrian_infrastructure = 'pedestrian_way' THEN 0
-                    WHEN pedestrian_infrastructure = 'mixed_way' THEN 0.15
-                    WHEN pedestrian_infrastructure = 'stairs' THEN 0.3
+                    WHEN pedestrian_infrastructure = 'pedestrian_area' THEN 1
+                    WHEN pedestrian_infrastructure = 'pedestrian_way' THEN 1
+                    WHEN pedestrian_infrastructure = 'mixed_way' THEN 0.85
+                    WHEN pedestrian_infrastructure = 'stairs' THEN 0.7
                     WHEN pedestrian_infrastructure = 'sidewalk' THEN 0.5
-                    WHEN pedestrian_infrastructure = 'no' 	THEN 1
+                    WHEN pedestrian_infrastructure = 'no' 	THEN 0
                 END;
             weight := pedestrian_infrastructure_weight / weights_sum;
             index := index + indicator * weight;
@@ -130,12 +130,12 @@ BEGIN
         IF designated_route IS NOT NULL AND designated_route_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN designated_route = 'international' THEN 0
-                    WHEN designated_route = 'national' THEN 0.1
-                    WHEN designated_route = 'regional' THEN 0.15
-                    WHEN designated_route = 'local' THEN 0.2
-                    WHEN designated_route = 'unknown' THEN 0.2
-                    WHEN designated_route = 'no' THEN 1
+                    WHEN designated_route = 'international' THEN 1
+                    WHEN designated_route = 'national' THEN 0.9
+                    WHEN designated_route = 'regional' THEN 0.85
+                    WHEN designated_route = 'local' THEN 0.8
+                    WHEN designated_route = 'unknown' THEN 0.8
+                    WHEN designated_route = 'no' THEN 0
                 END;
             weight := designated_route_weight / weights_sum;
             index := index + indicator * weight;
@@ -145,13 +145,13 @@ BEGIN
         IF road_category_bicycle IS NOT NULL AND road_category_bicycle_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN road_category_bicycle = 'primary' THEN 1
-                    WHEN road_category_bicycle = 'secondary' THEN 0.8
-                    WHEN road_category_bicycle = 'residential' THEN 0.2
-                    WHEN road_category_bicycle = 'service' THEN 0.15
-                    WHEN road_category_bicycle = 'calmed' THEN 0.1
-                    WHEN road_category_bicycle = 'no_mit' THEN 0
-                    WHEN road_category_bicycle = 'path' THEN 1
+                    WHEN road_category_bicycle = 'primary' THEN 0
+                    WHEN road_category_bicycle = 'secondary' THEN 0.2
+                    WHEN road_category_bicycle = 'residential' THEN 0.8
+                    WHEN road_category_bicycle = 'service' THEN 0.85
+                    WHEN road_category_bicycle = 'calmed' THEN 0.9
+                    WHEN road_category_bicycle = 'no_mit' THEN 1
+                    WHEN road_category_bicycle = 'path' THEN 0
                 END;
             weight := road_category_bicycle_weight / weights_sum;
             index := index + indicator * weight;
@@ -161,13 +161,13 @@ BEGIN
         IF road_category_pedestrian IS NOT NULL AND road_category_pedestrian_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN road_category_pedestrian = 'primary' THEN 1
-                    WHEN road_category_pedestrian = 'secondary' THEN 0.8
-                    WHEN road_category_pedestrian = 'residential' THEN 0.2
-                    WHEN road_category_pedestrian = 'service' THEN 0.15
-                    WHEN road_category_pedestrian = 'calmed' THEN 0.1
-                    WHEN road_category_pedestrian = 'no_mit' THEN 0
-                    WHEN road_category_pedestrian = 'path' THEN 0
+                    WHEN road_category_pedestrian = 'primary' THEN 0
+                    WHEN road_category_pedestrian = 'secondary' THEN 0.2
+                    WHEN road_category_pedestrian = 'residential' THEN 0.8
+                    WHEN road_category_pedestrian = 'service' THEN 0.85
+                    WHEN road_category_pedestrian = 'calmed' THEN 0.9
+                    WHEN road_category_pedestrian = 'no_mit' THEN 1
+                    WHEN road_category_pedestrian = 'path' THEN 1
                 END;
             weight := road_category_pedestrian_weight / weights_sum;
             index := index + indicator * weight;
@@ -177,14 +177,14 @@ BEGIN
         IF max_speed_bicycle IS NOT NULL AND max_speed_bicycle_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN max_speed_bicycle >= 100 THEN 1
-                    WHEN max_speed_bicycle >= 80 THEN 0.8
-                    WHEN max_speed_bicycle >= 70 THEN 0.7
-                    WHEN max_speed_bicycle >= 60 THEN 0.6
-                    WHEN max_speed_bicycle >= 50 THEN 0.4
-                    WHEN max_speed_bicycle >= 30 THEN 0.15
-                    WHEN max_speed_bicycle > 0 THEN 0.1
-                    WHEN max_speed_bicycle = 0 THEN 0
+                    WHEN max_speed_bicycle >= 100 THEN 0
+                    WHEN max_speed_bicycle >= 80 THEN 0.2
+                    WHEN max_speed_bicycle >= 70 THEN 0.3
+                    WHEN max_speed_bicycle >= 60 THEN 0.4
+                    WHEN max_speed_bicycle >= 50 THEN 0.6
+                    WHEN max_speed_bicycle >= 30 THEN 0.85
+                    WHEN max_speed_bicycle > 0 THEN 0.9
+                    WHEN max_speed_bicycle = 0 THEN 1
                 END;
             weight := max_speed_bicycle_weight / weights_sum;
             index := index + indicator * weight;
@@ -194,14 +194,14 @@ BEGIN
         IF max_speed_pedestrian IS NOT NULL AND max_speed_pedestrian_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN max_speed_pedestrian >= 100 THEN 1
-                    WHEN max_speed_pedestrian >= 80 THEN 0.8
-                    WHEN max_speed_pedestrian >= 70 THEN 0.7
-                    WHEN max_speed_pedestrian >= 60 THEN 0.6
-                    WHEN max_speed_pedestrian >= 50 THEN 0.4
-                    WHEN max_speed_pedestrian >= 30 THEN 0.15
-                    WHEN max_speed_pedestrian > 0 THEN 0.1
-                    WHEN max_speed_pedestrian = 0 THEN 0
+                    WHEN max_speed_pedestrian >= 100 THEN 0
+                    WHEN max_speed_pedestrian >= 80 THEN 0.2
+                    WHEN max_speed_pedestrian >= 70 THEN 0.3
+                    WHEN max_speed_pedestrian >= 60 THEN 0.4
+                    WHEN max_speed_pedestrian >= 50 THEN 0.6
+                    WHEN max_speed_pedestrian >= 30 THEN 0.85
+                    WHEN max_speed_pedestrian > 0 THEN 0.9
+                    WHEN max_speed_pedestrian = 0 THEN 1
                 END;
             weight := max_speed_pedestrian_weight / weights_sum;
             index := index + indicator * weight;
@@ -211,8 +211,8 @@ BEGIN
         IF parking IS NOT NULL AND parking_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN parking = 'yes' THEN 1
-                    WHEN parking = 'no' THEN 0
+                    WHEN parking = 'yes' THEN 0
+                    WHEN parking = 'no' THEN 1
                 END;
             weight := parking_weight / weights_sum;
             index := index + indicator * weight;
@@ -222,10 +222,10 @@ BEGIN
         IF pavement IS NOT NULL AND pavement_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN pavement = 'asphalt' THEN 0
-                    WHEN pavement = 'gravel' THEN 0.25
-                    WHEN pavement = 'soft' THEN 0.6
-                    WHEN pavement = 'cobble' THEN 1
+                    WHEN pavement = 'asphalt' THEN 1
+                    WHEN pavement = 'gravel' THEN 0.75
+                    WHEN pavement = 'soft' THEN 0.4
+                    WHEN pavement = 'cobble' THEN 0
                 END;
             weight := pavement_weight / weights_sum;
             index := index + indicator * weight;
@@ -235,11 +235,11 @@ BEGIN
         IF width IS NOT NULL AND width_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN width > 5 THEN 0
-                    WHEN width > 4 THEN 0.1
-                    WHEN width > 3 THEN 0.15
+                    WHEN width > 5 THEN 1
+                    WHEN width > 4 THEN 0.9
+                    WHEN width > 3 THEN 0.85
                     WHEN width > 2 THEN 0.5
-                    WHEN width >= 0 THEN 1
+                    WHEN width >= 0 THEN 0
                 END;
             weight := width_weight / weights_sum;
             index := index + indicator * weight;
@@ -249,15 +249,15 @@ BEGIN
         IF gradient_bicycle IS NOT NULL AND gradient_bicycle_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN gradient_bicycle = 4 THEN 1
-                    WHEN gradient_bicycle = 3 THEN 0.75
-                    WHEN gradient_bicycle = 2 THEN 0.6
+                    WHEN gradient_bicycle = 4 THEN 0
+                    WHEN gradient_bicycle = 3 THEN 0.25
+                    WHEN gradient_bicycle = 2 THEN 0.4
                     WHEN gradient_bicycle = 1 THEN 0.5
-                    WHEN gradient_bicycle = 0 THEN 0.1
-                    WHEN gradient_bicycle = -1 THEN 0
-                    WHEN gradient_bicycle = -2 THEN 0.05
-                    WHEN gradient_bicycle = -3 THEN 0.65
-                    WHEN gradient_bicycle = -4 THEN 1
+                    WHEN gradient_bicycle = 0 THEN 0.9
+                    WHEN gradient_bicycle = -1 THEN 1
+                    WHEN gradient_bicycle = -2 THEN 0.95
+                    WHEN gradient_bicycle = -3 THEN 0.35
+                    WHEN gradient_bicycle = -4 THEN 0
                 END;
             weight := gradient_bicycle_weight / weights_sum;
             index := index + indicator * weight;
@@ -267,15 +267,15 @@ BEGIN
         IF gradient_pedestrian IS NOT NULL AND gradient_pedestrian_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN gradient_pedestrian = 4 THEN 0.75
+                    WHEN gradient_pedestrian = 4 THEN 0.25
                     WHEN gradient_pedestrian = 3 THEN 0.5
-                    WHEN gradient_pedestrian = 2 THEN 0.3
-                    WHEN gradient_pedestrian = 1 THEN 0
-                    WHEN gradient_pedestrian = 0 THEN 0
-                    WHEN gradient_pedestrian = -1 THEN 0
-                    WHEN gradient_pedestrian = -2 THEN 0.3
+                    WHEN gradient_pedestrian = 2 THEN 0.7
+                    WHEN gradient_pedestrian = 1 THEN 1
+                    WHEN gradient_pedestrian = 0 THEN 1
+                    WHEN gradient_pedestrian = -1 THEN 1
+                    WHEN gradient_pedestrian = -2 THEN 0.7
                     WHEN gradient_pedestrian = -3 THEN 0.5
-                    WHEN gradient_pedestrian = -4 THEN 0.75
+                    WHEN gradient_pedestrian = -4 THEN 0.25
                 END;
             weight := gradient_pedestrian_weight / weights_sum;
             index := index + indicator * weight;
@@ -285,11 +285,11 @@ BEGIN
         IF number_lanes IS NOT NULL AND number_lanes_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN number_lanes > 4 THEN 1
-                    WHEN number_lanes > 3 THEN 0.9
-                    WHEN number_lanes > 2 THEN 0.8
+                    WHEN number_lanes > 4 THEN 0
+                    WHEN number_lanes > 3 THEN 0.1
+                    WHEN number_lanes > 2 THEN 0.2
                     WHEN number_lanes > 1 THEN 0.5
-                    WHEN number_lanes >= 0 THEN 0
+                    WHEN number_lanes >= 0 THEN 1
                 END;
             weight := number_lanes_weight / weights_sum;
             index := index + indicator * weight;
@@ -299,8 +299,8 @@ BEGIN
         IF facilities IS NOT NULL AND facilities_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN facilities > 0 THEN 0
-                    WHEN facilities = 0 THEN 1
+                    WHEN facilities > 0 THEN 1
+                    WHEN facilities = 0 THEN 0
                 END;
             weight := facilities_weight / weights_sum;
             index := index + indicator * weight;
@@ -310,9 +310,9 @@ BEGIN
         IF crossings IS NOT NULL AND crossings_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN crossings = 0 AND road_category_pedestrian IN ('primary', 'secondary') OR road_category_pedestrian IS NULL THEN 1
+                    WHEN crossings = 0 AND road_category_pedestrian IN ('primary', 'secondary') OR road_category_pedestrian IS NULL THEN 0
                     WHEN crossings = 0 AND road_category_pedestrian IN ('residential') THEN 0.5
-                    ELSE 0
+                    ELSE 1
                 END;
             weight := crossings_weight / weights_sum;
             index := index + indicator * weight;
@@ -322,12 +322,12 @@ BEGIN
         IF buildings IS NOT NULL AND buildings_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN buildings >= 80 THEN 1
-                    WHEN buildings > 60 THEN 0.8
-                    WHEN buildings > 40 THEN 0.6
-                    WHEN buildings > 20 THEN 0.4
-                    WHEN buildings > 0 THEN 0.2
-                    WHEN buildings = 0 THEN 0
+                    WHEN buildings >= 80 THEN 0
+                    WHEN buildings > 60 THEN 0.2
+                    WHEN buildings > 40 THEN 0.4
+                    WHEN buildings > 20 THEN 0.6
+                    WHEN buildings > 0 THEN 0.8
+                    WHEN buildings = 0 THEN 1
                 END;
             weight := buildings_weight / weights_sum;
             index := index + indicator * weight;
@@ -337,11 +337,11 @@ BEGIN
         IF greenness IS NOT NULL AND greenness_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN greenness > 75 THEN 0
-                    WHEN greenness > 50 THEN 0.1
-                    WHEN greenness > 25 THEN 0.2
-                    WHEN greenness > 0 THEN 0.3
-                    WHEN greenness = 0 THEN 1
+                    WHEN greenness > 75 THEN 1
+                    WHEN greenness > 50 THEN 0.9
+                    WHEN greenness > 25 THEN 0.8
+                    WHEN greenness > 0 THEN 0.7
+                    WHEN greenness = 0 THEN 0
                 END;
             weight := greenness_weight / weights_sum;
             index := index + indicator * weight;
@@ -351,8 +351,8 @@ BEGIN
         IF water IS NOT NULL AND water_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN water THEN 0
-                    ELSE 1
+                    WHEN water THEN 1
+                    ELSE 0
                 END;
             weight := water_weight / weights_sum;
             index := index + indicator * weight;
@@ -362,10 +362,10 @@ BEGIN
         IF noise IS NOT NULL AND noise_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN noise > 70 THEN 1
-                    WHEN noise > 55 THEN 0.4
-                    WHEN noise > 10 THEN 0.2
-                    WHEN noise >= 0 THEN 0
+                    WHEN noise > 70 THEN 0
+                    WHEN noise > 55 THEN 0.6
+                    WHEN noise > 10 THEN 0.8
+                    WHEN noise >= 0 THEN 1
                 END;
             weight := noise_weight / weights_sum;
             index := index + indicator * weight;
@@ -379,7 +379,7 @@ BEGIN
     index_explanation := (
         WITH indicator_weights AS (
             SELECT unnest(indicator_weights) AS indicator_weight
-            ORDER BY (unnest(indicator_weights)).weight DESC
+            ORDER BY (unnest(indicator_weights)).weight DESC, (unnest(indicator_weights)).indicator
             -- LIMIT 1
         )
         SELECT json_object_agg((indicator_weight).indicator, round((indicator_weight).weight, 4))
