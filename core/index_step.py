@@ -63,12 +63,17 @@ def generate_index(db_settings: DbSettings, weights: List[Weight]):
 
     # create tables "edges" and "nodes"
     h.logBeginTask('create tables "export_edge" and "export_node"')
-    if db.handle_conflicting_output_tables(['export_network_edge', "export_network_node"]):
+    if db.handle_conflicting_output_tables(['export_edge', "export_node"]):
         params = {
             'schema_network': schema
         }
         db.execute_template_sql_from_file("export", params)
     h.logEndTask()
+
+    # check for null columns
+    rows = db.query_all("SELECT attname FROM pg_stats WHERE schemaname = %s AND tablename = %s AND null_frac = 1;", (schema, 'export_edge'))
+    if rows:
+        h.majorInfo(f"WARNING: The following columns contain only NULL values: {', '.join(str(row[0]) for row in rows)}")
 
     # close database connection
     h.log('close database connection')
