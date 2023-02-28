@@ -20,6 +20,8 @@ CREATE TABLE export_edge AS (
 
 ALTER TABLE export_edge ADD PRIMARY KEY (edge_id);
 CREATE INDEX export_edge_geom_idx ON export_edge USING gist (geom);
+CREATE INDEX export_edge_from_node_idx ON export_edge (from_node);
+CREATE INDEX export_edge_to_node_idx ON export_edge (to_node);
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
