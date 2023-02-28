@@ -75,6 +75,59 @@ def generate_index(db_settings: DbSettings, weights: List[Weight]):
     if rows:
         h.majorInfo(f"WARNING: The following columns contain only NULL values: {', '.join(str(row[0]) for row in rows)}")
 
+    # create views for routing
+    # db.execute('''
+    #     CREATE OR REPLACE VIEW network_car AS (
+    #         SELECT edge_id AS id,
+    #                from_node AS source,
+    #                to_node AS target,
+    #                CASE WHEN access_car_ft = false THEN -1 -- no access
+    #                     ELSE length::numeric
+    #                END AS cost,
+    #                CASE WHEN access_car_tf = false THEN -1 -- no access
+    #                     ELSE length::numeric
+    #                END AS reverse_cost
+    #         FROM export_edge
+    #         WHERE access_car_ft OR access_car_tf
+    #     );
+    #
+    #     CREATE OR REPLACE VIEW network_bike AS (
+    #         SELECT edge_id AS id,
+    #                from_node AS source,
+    #                to_node AS target,
+    #                ((CASE WHEN NOT access_bicycle_ft AND NOT access_pedestrian_ft THEN -1 -- no access
+    #                       WHEN NOT access_bicycle_ft AND access_pedestrian_ft THEN 3 -- pedestrian access
+    #                       WHEN bridge THEN 3 -- bridge
+    #                       ELSE 1 - index_bike_ft
+    #                  END + 1) * (5 - 1) - (5 - 2)) * length::numeric AS cost,
+    #                ((CASE WHEN NOT access_bicycle_tf AND NOT access_pedestrian_tf THEN -1 -- no access
+    #                       WHEN NOT access_bicycle_tf AND access_pedestrian_tf THEN 3 -- pedestrian access
+    #                       WHEN bridge THEN 3 -- bridge
+    #                       ELSE 1 - index_bike_tf
+    #                  END + 1) * (5 - 1) - (5 - 2)) * length::numeric AS reverse_cost
+    #         FROM export_edge
+    #         WHERE access_bicycle_ft OR access_bicycle_tf OR
+    #               access_pedestrian_ft OR access_pedestrian_tf
+    #     );
+    #
+    #     CREATE OR REPLACE VIEW network_walk AS (
+    #         SELECT edge_id AS id,
+    #                from_node AS source,
+    #                to_node AS target,
+    #                ((CASE WHEN NOT access_pedestrian_ft THEN -1 -- no access
+    #                       WHEN bridge THEN 0.6 -- bridge
+    #                       ELSE index_walk_ft
+    #                  END + 1) * (5 - 1) - (5 - 2)) * length::numeric AS cost,
+    #                ((CASE WHEN NOT access_pedestrian_tf THEN -1 -- no access
+    #                       WHEN bridge THEN 0.6 -- bridge
+    #                       ELSE index_walk_tf
+    #                  END + 1) * (5 - 1) - (5 - 2)) * length::numeric AS reverse_cost
+    #         FROM export_edge
+    #         WHERE access_pedestrian_ft OR access_pedestrian_tf
+    #     );
+    # ''')
+    # db.commit()
+
     # close database connection
     h.log('close database connection')
     db.close()
