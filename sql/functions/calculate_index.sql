@@ -376,7 +376,7 @@ BEGIN
 
     index := round(index, 4);
     index_certainty := round(weights_sum / weights_total, 4);
-    index_explanation := (
+    /* index_explanation := (
         WITH indicator_weights AS (
             SELECT unnest(indicator_weights) AS indicator_weight
             ORDER BY (unnest(indicator_weights)).weight DESC, (unnest(indicator_weights)).indicator
@@ -384,6 +384,6 @@ BEGIN
         )
         SELECT json_object_agg((indicator_weight).indicator, round((indicator_weight).weight, 4))
         FROM indicator_weights
-    );
+    ); */
 END;
 $$ LANGUAGE plpgsql;
