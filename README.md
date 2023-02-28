@@ -156,7 +156,7 @@ In this step, necessary [attributes / indicators](attributes.md) for routing app
 In this step indices will be calculated based on the weight profiles defined in the settings file, resulting in the tables: `network_edge_index`, `edge`, `node`.
 - The index is calculated as a weighted average over all available indicators for every edge.
   - The values of the indicators are rated with predefined values between 1 (best) and 0 (worst) for the respective use cases (bike or walk).
-  - The indicators are weighted with values between 1 (best) and 2 (worst) as defined in the weights file.
+  - The indicators are weighted with values between 1 (best) and 0 (worst) as defined in the weights file.
 - The tables `edge` and `node` are created by joining the resulting datasets from the previous steps, including all attributes, indicators and indices.
 
 ### 6. export_step
