@@ -153,18 +153,18 @@ In this step, necessary [attributes / indicators](attributes.md) for routing app
 
 ### 5. index_step
 
-In this step indices will be calculated based on the weight profiles defined in the settings file, resulting in the tables: `network_edge_index`, `edge`, `node`.
+In this step indices will be calculated based on the weight profiles defined in the settings file, resulting in the tables: `network_edge_index`, `export_edge`, `export_node`.
 - The index is calculated as a weighted average over all available indicators for every edge.
   - The values of the indicators are rated with predefined values between 1 (best) and 0 (worst) for the respective use cases (bike or walk).
   - The indicators are weighted with values between 1 (best) and 0 (worst) as defined in the weights file.
-- The tables `edge` and `node` are created by joining the resulting datasets from the previous steps, including all attributes, indicators and indices.
+- The tables `export_edge` and `export_node` are created by joining the resulting datasets from the previous steps, including all attributes, indicators and indices.
 
 ### 6. export_step
 
-In this step the tables `edge` and `node` are exported, as defined in the settings file.
+In this step the tables `export_edge` and `export_node` are exported, as defined in the settings file.
 
 `geopackage`
-- The tables `edge` and `node` are exported to one geopackage with the layers `edge` and `node`.
+- The tables `export_edge` and `export_node` are exported to one geopackage with the layers `edge` and `node`.
 
 ## How to run the project
 
