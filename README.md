@@ -4,6 +4,8 @@ NetAScore provides a toolset and automated workflow for computing ***bikeability
 
 For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'**, can be used if you work on an area of interest within Austria. 
 
+Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: https://doi.org/10.5281/zenodo.7695369
+
 ## How to get started?
 
 To get a better impression of what this toolset and workflow provides, you can quickly start with processing a sample area.
