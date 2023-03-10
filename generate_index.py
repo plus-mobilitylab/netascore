@@ -110,9 +110,12 @@ with settings_stream:
 
     if 'index' not in skip_steps:
         h.majorInfo(' === generating index ===')
-        weight_definitions: dict = settings['weights']
-        weights = load_weights(base_path, weight_definitions)
-        generate_index(db_settings, weights)
+        mode_profile_settings: dict = settings['profiles']
+        weights = load_weights(base_path, mode_profile_settings)
+        index_settings: dict = None
+        if h.has_keys(settings, ['index']):
+            index_settings = settings['index']
+        generate_index(db_settings, weights, index_settings)
 
     if 'export' not in skip_steps:
         h.majorInfo(' === exporting ===')

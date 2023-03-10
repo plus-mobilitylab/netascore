@@ -23,8 +23,10 @@ ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sql
 ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf;
 ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_ft_certainty;
 ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf_certainty;
--- ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_ft_explanation;
--- ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf_explanation;
+{% if compute_explanation %}
+    ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_ft_explanation;
+    ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf_explanation;
+{% endif %}
 
 DROP TABLE IF EXISTS network_edge_index_tmp;
 CREATE TABLE network_edge_index_tmp AS (
@@ -33,8 +35,10 @@ CREATE TABLE network_edge_index_tmp AS (
            tf.index AS index_{{ profile_name | sqlsafe }}_tf,
            ft.index_certainty AS index_{{ profile_name | sqlsafe }}_ft_certainty,
            tf.index_certainty AS index_{{ profile_name | sqlsafe }}_tf_certainty
-           -- ft.index_explanation AS index_{{ profile_name | sqlsafe }}_ft_explanation,
-           -- tf.index_explanation AS index_{{ profile_name | sqlsafe }}_tf_explanation
+           {% if compute_explanation %}
+               ,ft.index_explanation AS index_{{ profile_name | sqlsafe }}_ft_explanation,
+               tf.index_explanation AS index_{{ profile_name | sqlsafe }}_tf_explanation
+           {% endif %}
     FROM network_edge_index a
         JOIN network_edge_attributes b USING (edge_id),
         LATERAL calculate_index(

@@ -31,7 +31,7 @@ def load_weights(base_path: str, weight_definitions: dict):
     return [Weight(base_path, definition) for definition in weight_definitions]
 
 
-def generate_index(db_settings: DbSettings, weights: List[Weight]):
+def generate_index(db_settings: DbSettings, weights: List[Weight], settings: dict):
     schema = db_settings.entities.network_schema
 
     # open database connection
@@ -43,21 +43,28 @@ def generate_index(db_settings: DbSettings, weights: List[Weight]):
     db.schema = schema
 
     # create functions
-    h.log('create functions')
-    db.execute_sql_from_file("calculate_index", "sql/functions")
+    ## this now happens in the "calculate index step" (re-defining functions based on mode profile and settings)
 
     # calculate index
     h.logBeginTask("compute index columns for given profiles")
     if db.handle_conflicting_output_tables(['network_edge_index']):
         for w in weights:
             profile_name = w.profile_name
-            weights = w.weights['weights']
+            indicator_weights = w.weights['weights']
+            # profile-specific function registration
+            h.info(f'register index function for profile "{profile_name}"...')
+            f_params = {
+                'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation']
+            }
+            db.execute_template_sql_from_file("calculate_index", f_params, template_subdir="sql/functions")
+            # calculate index for currrent profile
             h.info('calculate index_' + profile_name)
             params = {
                 'schema_network': schema,
-                'profile_name': profile_name
+                'profile_name': profile_name,
+                'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation']
             }
-            params.update(weights)
+            params.update(indicator_weights)
             db.execute_template_sql_from_file("index", params)
     h.logEndTask()
 
