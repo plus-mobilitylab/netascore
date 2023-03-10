@@ -22,8 +22,8 @@ The settings file can consist of the following **sections**:
   essential information for importing core datasets
 - **optional**: 
   information on optional datasets to import
-- **weights**: 
-  specification of indicator weights - e.g. for *bikeability* and *walkability*
+- **profiles**: 
+  specification of indicator weights per mode profile - e.g. for *bikeability* and *walkability*
 - **export**: 
   information for exporting results
 
@@ -44,7 +44,7 @@ Datasets will be imported and if necessary transformed to this reference system.
 
 ### Property `case_id`
 
-This parameter allows you to specify a unique identifier for the current task as defined in the settings file. It may be useful if working with different areas of interest, different weights profiles, or when re-executing parts of a workflow. You can include this identifier e.g. in export file names using `<case_id>` as a placeholder.
+This parameter allows you to specify a unique identifier for the current task as defined in the settings file. It may be useful if working with different areas of interest, different mode profiles, or when re-executing parts of a workflow. You can include this identifier e.g. in export file names using `<case_id>` as a placeholder.
 
 **Note**: Only alphanumeric characters [A-Z, a-z, 0-9] and '_' are allowed.
 
@@ -206,20 +206,20 @@ If these datasets are not directly derived from an OSM dataset, they can be impo
 
 
 
-## Section `weights`
+## Section `profiles`
 
 NetAScore uses weights to determine the importance of individual indicators for a specific profile such as for cycling or walking. Different use cases may have different weights.
 
-We include well-tested default weights for cycling as well as walking with NetAScore. For general purpose assessments we recommend to utilize these profiles by copying the respective weights files `weights_bike.yml` and `weights_walk.yml` to the `data` directory and referencing them from the settings file as follows:
+We include well-tested default weights for cycling as well as walking with NetAScore. For general purpose assessments we recommend to utilize these profiles by copying the respective mode profile files `profile_bike.yml` and `profile_walk.yml` to the `data` directory and referencing them from the settings file as follows:
 
 ```yaml
-weights:
+profiles:
   -
     profile_name: bike
-    filename: weights_bike.yml
+    filename: profile_bike.yml
   -
     profile_name: walk
-    filename: weights_walk.yml
+    filename: profile_walk.yml
 ```
 
 You may edit these profiles or create your own custom profiles and add them to this section of the settings file. The `profile_name` value is included in the column name of the resulting index: e.g. `index_bike_ft`

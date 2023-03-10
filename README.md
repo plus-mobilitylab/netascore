@@ -155,8 +155,8 @@ In this step, necessary [attributes / indicators](attributes.md) for routing app
 
 In this step indices will be calculated based on the weight profiles defined in the settings file, resulting in the tables: `network_edge_index`, `export_edge`, `export_node`.
 - The index is calculated as a weighted average over all available indicators for every edge.
-  - The values of the indicators are rated with predefined values between 1 (best) and 0 (worst) for the respective use cases (bike or walk).
-  - The indicators are weighted with values between 1 (best) and 0 (worst) as defined in the weights file.
+  - The values of the indicators are rated with predefined values between 1 (best) and 0 (worst) for the respective use cases (e.g. bike or walk).
+  - The indicators are weighted with values between 1 (best) and 0 (worst) as defined in the mode profile file.
 - The tables `export_edge` and `export_node` are created by joining the resulting datasets from the previous steps, including all attributes, indicators and indices.
 
 ### 6. export_step
@@ -170,7 +170,7 @@ In this step the tables `export_edge` and `export_node` are exported, as defined
 
 This sections describes how to run the project directly on your machine without Docker. For information on how to run it in a Docker environment see [docker.md](docker.md). However, for a **quick start**, we recommend to use the **ready-made Docker image** as outlined in "How to get started".
 
-In order to run NetAScore, you need to prepare a **`data` directory** that contains at least the **settings file** and **weights files** for *bike* and *walk* profiles. You find **example files** in the `examples` subdirectory of the NetAScore repository. If available, also copy the input data sets and optional data sets to the `data` subdirectory in your repository root.
+In order to run NetAScore, you need to prepare a **`data` directory** that contains at least the **settings file** and **mode profile files** for *bike* and *walk* profiles. You find **example files** in the `examples` subdirectory of the NetAScore repository. If available, also copy the input data sets and optional data sets to the `data` subdirectory in your repository root.
 
 As a next step, make sure that you have a (local) **PostgreSQL** database running and that you specified the correct database connection details in the settings file. 
 

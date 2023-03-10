@@ -22,7 +22,7 @@ The easiest way to run a network assessment for your own area of interest is by 
 
 - create a new **subdirectory** named **`data`** (if you already ran the quickstart example, you can just use the `data` directory created)
 - download the **settings template** [from here](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/settings_osm_query.yml) or copy it from `examples/settings_osm_query.yml`
-- add the **weight profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `weights_bike.yml` and `weights_walk.yml` from the `examples` folder.
+- add the **weight profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `profile_bike.yml` and `profile_walk.yml` from the `examples` folder.
 - **edit** your newly created **settings file** `settings_osm_query.yml` - e.g. to download data for the City of London:
   - provide a **`case_id`**  in `global` section (only alphanumeric characters are allowed; this will be added e.g. to the output file name) - e.g. `case_id: london`
   - specify a **`place_name`** that is used to query data from OSM - e.g. `place_name: City of London`
@@ -37,7 +37,7 @@ The example settings use OpenStreetMap data as the only input. While this gives 
 To add optional input data sets, follow these steps:
 
 - acquire the file(s) for your area of interest - availability of DEM, noise map, etc. may largely depend on the area of interest
-- add the file(s) to the `data` subdirectory (where the settings file and weights profiles are located)
+- add the file(s) to the `data` subdirectory (where the settings file and mode profiles are located)
 - edit the settings file to add the new datasets and store it inside the `data` folder
 - execute NetAScore from the parent directory:
   `docker compose run netascore data/<your_settings_file>.yml` (where `<your_settings_file>` refers to the file name you chose for the edited settings file)
@@ -53,7 +53,7 @@ docker pull plusmobilitylab/netascore:latest
 To run the workflow with an existing postgres database, simply follow these steps:
 
 - create a directory named `data` and place all geofiles inside
-- add weights files and settings file to this directory (see example files provided in the code repository)
+- add mode profile files and settings file to this directory (see example files provided in the code repository)
 - adjust settings to your needs in the `settings.yml` file - see the [settings documentation](settings.md) for reference
 - finally, execute the workflow using:
 
@@ -67,7 +67,7 @@ The easiest way to build and launch NetAScore is by using docker compose. The `d
 
 `docker compose build`
 
-Then, once you are sure that all input datasets, settings and weights files are properly placed inside the `data` subdirectory, execute NetAScore:
+Then, once you are sure that all input datasets, settings and mode profile files are properly placed inside the `data` subdirectory, execute NetAScore:
 
 `docker compose run netascore data/<your_settings_file>.yml`
 
