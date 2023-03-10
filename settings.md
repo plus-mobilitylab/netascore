@@ -190,7 +190,7 @@ The noise dataset contains a mapping of noise levels in decibels, represented as
 
 - `filename`: name of the file to be imported
 
-For Austrian states the noise datasets can be downloaded here: [https://www.data.gv.at](https://www.data.gv.at/katalog/dataset/b5de6975-417b-4320-afdb-eb2a9e2a1dbf)
+For Austrian states the noise datasets can be downloaded here: [https://www.inspire.gv.at](https://geometadatensuche.inspire.gv.at/metadatensuche/srv/ger/catalog.search#/metadata/125ec87c-7120-48a7-bd2c-2718cbf878c6)
 
 ### Subsection `osm`
 
