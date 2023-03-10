@@ -69,7 +69,7 @@ with settings_stream:
     if 'export' not in skip_steps:
         h.require_keys(settings, ['export'], 'error: section missing:')
     if 'index' not in skip_steps:
-        h.require_keys(settings, ['weights'], 'error: section missing:')
+        h.require_keys(settings, ['profiles'], 'error: section missing:')
 
     # execute processing steps
     if 'import' not in skip_steps:
