@@ -56,7 +56,7 @@ def generate_index(db_settings: DbSettings, weights: List[Weight], settings: dic
             f_params = {
                 'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation']
             }
-            db.execute_template_sql_from_file("calculate_index", f_params, template_subdir="sql/functions")
+            db.execute_template_sql_from_file("calculate_index", f_params, template_subdir="sql/functions/")
             # calculate index for currrent profile
             h.info('calculate index_' + profile_name)
             params = {
