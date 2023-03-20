@@ -37,6 +37,8 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
     full_name = name_hierarchy + indicator_name
     h.debugLog(f"parsing YAML for ind. '{full_name}' \tRaw input: {indicator_yml}")
     value_assignments = "CASE \n"
+    add_default_value: bool = False
+    default_value = None
 
     # check type of mapping
     del indicator_yml['indicator']
@@ -45,17 +47,28 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
         raise Exception(f"Exactly one indicator mapping key is needed for indicator '{full_name}'. Please update your mode profile file accordingly.")
     k = list(keys)[0]
     contents = indicator_yml.get(k)
+
     if k == "mapping":
         for key in contents:
             v = contents[key]
-            h.debugLog(f"got mapping: {key}: {v} (type: {type(v)})")
+            h.debugLog(f"got mapping: {key}: {v} (type: {type(key)}:{type(v)})")
             if type(v) == dict:
                 # parse dict recursively -> add result to value_assignments (nested CASE...END)
                 v = _build_sql_indicator_mapping_internal_(v, f"{full_name}.")
+            elif v is None:
+                v = "NULL"
             elif not h.is_numeric(v):
                 raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{full_name}' for '{key}'.")
             # append current assignment
-            value_assignments += f"WHEN {indicator_name} = '{h.get_safe_string(key)}' THEN {v}\n"
+            # handle special case of test for NULL values
+            if key is None:
+                value_assignments += f"WHEN {indicator_name} IS NULL THEN {v}\n"
+            # handle special case of default value (added last)
+            elif str(key) == "_default_":
+                add_default_value = True
+                default_value = v
+            else:
+                value_assignments += f"WHEN {indicator_name} = '{h.get_safe_string(key)}' THEN {v}\n"
     elif k == "classes":
         for key in contents:
             v = contents[key]
@@ -63,35 +76,48 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
             if type(v) == dict:
                 # parse dict recursively -> add result to value_assignments (nested CASE...END)
                 v = _build_sql_indicator_mapping_internal_(v, f"{full_name}.")
+            elif v is None:
+                v = "NULL"
             elif not h.is_numeric(v):
                 raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{full_name}' for '{key}'.")
-            # split key into op. and class value
-            kstr = str(key)
-            cv = re.sub("[^0-9.\-]", "", kstr) # extract value
-            if cv.find(".") > -1:
-                cv = float(cv)
-            elif len(cv) > 0:
-                cv = int(cv)
+            # first: handle special case of NULL value
+            if key is None:
+                value_assignments += f"WHEN {indicator_name} IS NULL THEN {v}\n"
+            # handle special case of default value (added last)
+            elif str(key) == "_default_":
+                add_default_value = True
+                default_value = v
             else:
-                raise Exception(f"For class-based indicator value assignments, a numeric class value must be specified. Indicator '{full_name}', key '{key}'.")
-            op = "=" # default: equals
-            opstr = re.sub("[^a-zA-Z]", "", kstr)
-            if opstr == "g":
-                op = ">"
-            elif opstr == "ge":
-                op = ">="
-            elif opstr == "l":
-                op = "<"
-            elif opstr == "le":
-                op = "<="
-            elif opstr == "e":
-                op = "="
-            elif opstr == "ne":
-                op = "<>"
-            # append current assignment
-            value_assignments += f"WHEN {indicator_name} {op} {cv} THEN {v}\n"
+                # split key into op. and class value
+                kstr = str(key)
+                cv = re.sub("[^0-9.\-]", "", kstr) # extract value
+                if cv.find(".") > -1:
+                    cv = float(cv)
+                elif len(cv) > 0:
+                    cv = int(cv)
+                else:
+                    raise Exception(f"For class-based indicator value assignments, a numeric class value must be specified. Indicator '{full_name}', key '{key}'.")
+                op = "=" # default: equals
+                opstr = re.sub("[^a-zA-Z]", "", kstr)
+                if opstr == "g":
+                    op = ">"
+                elif opstr == "ge":
+                    op = ">="
+                elif opstr == "l":
+                    op = "<"
+                elif opstr == "le":
+                    op = "<="
+                elif opstr == "e":
+                    op = "="
+                elif opstr == "ne":
+                    op = "<>"
+                # append current assignment
+                value_assignments += f"WHEN {indicator_name} {op} {cv} THEN {v}\n"
     else:
         raise Exception(f"You provided an unknown indicator mapping '{k}' for indicator '{full_name}'. Please update your mode profile file accordingly.")
+    # add default value assignment if specified
+    if add_default_value:
+        value_assignments += f"ELSE {default_value} \n"
     # close this indicator mapping CASE statement
     value_assignments += "END \n"
     return value_assignments
