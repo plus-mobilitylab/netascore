@@ -8,15 +8,12 @@ CREATE OR REPLACE FUNCTION calculate_index(
     IN bicycle_infrastructure varchar, IN bicycle_infrastructure_weight numeric,
     IN pedestrian_infrastructure varchar, IN pedestrian_infrastructure_weight numeric,
     IN designated_route varchar, IN designated_route_weight numeric,
-    IN road_category_bicycle varchar, IN road_category_bicycle_weight numeric,
-    IN road_category_pedestrian varchar, IN road_category_pedestrian_weight numeric,
-    IN max_speed_bicycle numeric, IN max_speed_bicycle_weight numeric,
-    IN max_speed_pedestrian numeric, IN max_speed_pedestrian_weight numeric,
+    IN road_category varchar, IN road_category_weight numeric,
+    IN max_speed numeric, IN max_speed_weight numeric,
     IN parking varchar, IN parking_weight numeric,
     IN pavement varchar, IN pavement_weight numeric,
     IN width numeric, IN width_weight numeric,
-    IN gradient_bicycle numeric, IN gradient_bicycle_weight numeric,
-    IN gradient_pedestrian numeric, IN gradient_pedestrian_weight numeric,
+    IN gradient numeric, IN gradient_weight numeric,
     IN number_lanes numeric, IN number_lanes_weight numeric,
     IN facilities numeric, IN facilities_weight numeric,
     IN crossings numeric, IN crossings_weight numeric,
@@ -36,33 +33,30 @@ DECLARE
     indicator_weights indicator_weight[];
 BEGIN
     -- TODO: Gewichte anpassen: pavement/gradient
-    IF pavement IN ('gravel', 'soft', 'cobble') AND pavement_weight IS NOT NULL AND
+    {# IF pavement IN ('gravel', 'soft', 'cobble') AND pavement_weight IS NOT NULL AND
        gradient_bicycle IN (-4,-3, 3, 4) AND gradient_bicycle_weight IS NOT NULL THEN
         pavement_weight := pavement_weight * 16;
         gradient_bicycle_weight := gradient_bicycle_weight * 16;
-    END IF;
+    END IF; #}
 
     -- TODO: Index anpassen: pedestrian_infrastructure/road_category
-    IF pedestrian_infrastructure IN ('sidewalk') AND pedestrian_infrastructure_weight IS NOT NULL AND
+    {# IF pedestrian_infrastructure IN ('sidewalk') AND pedestrian_infrastructure_weight IS NOT NULL AND
        road_category_pedestrian IN ('secondary', 'primary') AND road_category_pedestrian_weight IS NOT NULL THEN
         index := 0.2;
         RETURN;
-    END IF;
+    END IF; #}
 
     weights_total := 0;
     weights_total :=
         CASE WHEN bicycle_infrastructure_weight IS NOT NULL THEN bicycle_infrastructure_weight ELSE 0 END +
         CASE WHEN pedestrian_infrastructure_weight IS NOT NULL THEN pedestrian_infrastructure_weight ELSE 0 END +
         CASE WHEN designated_route_weight IS NOT NULL THEN designated_route_weight ELSE 0 END +
-        CASE WHEN road_category_bicycle_weight IS NOT NULL THEN road_category_bicycle_weight ELSE 0 END +
-        CASE WHEN road_category_pedestrian_weight IS NOT NULL THEN road_category_pedestrian_weight ELSE 0 END +
-        CASE WHEN max_speed_bicycle_weight IS NOT NULL THEN max_speed_bicycle_weight ELSE 0 END +
-        CASE WHEN max_speed_pedestrian_weight IS NOT NULL THEN max_speed_pedestrian_weight ELSE 0 END +
+        CASE WHEN road_category_weight IS NOT NULL THEN road_category_weight ELSE 0 END +
+        CASE WHEN max_speed_weight IS NOT NULL THEN max_speed_weight ELSE 0 END +
         CASE WHEN parking_weight IS NOT NULL THEN parking_weight ELSE 0 END +
         CASE WHEN pavement_weight IS NOT NULL THEN pavement_weight ELSE 0 END +
         CASE WHEN width_weight IS NOT NULL THEN width_weight ELSE 0 END +
-        CASE WHEN gradient_bicycle_weight IS NOT NULL THEN gradient_bicycle_weight ELSE 0 END +
-        CASE WHEN gradient_pedestrian_weight IS NOT NULL THEN gradient_pedestrian_weight ELSE 0 END +
+        CASE WHEN gradient_weight IS NOT NULL THEN gradient_weight ELSE 0 END +
         CASE WHEN number_lanes_weight IS NOT NULL THEN number_lanes_weight ELSE 0 END +
         CASE WHEN facilities_weight IS NOT NULL THEN facilities_weight ELSE 0 END +
         CASE WHEN crossings_weight IS NOT NULL THEN crossings_weight ELSE 0 END +
@@ -76,15 +70,12 @@ BEGIN
         CASE WHEN bicycle_infrastructure IS NOT NULL AND bicycle_infrastructure_weight IS NOT NULL THEN bicycle_infrastructure_weight ELSE 0 END +
         CASE WHEN pedestrian_infrastructure IS NOT NULL AND pedestrian_infrastructure_weight IS NOT NULL THEN pedestrian_infrastructure_weight ELSE 0 END +
         CASE WHEN designated_route IS NOT NULL AND designated_route_weight IS NOT NULL THEN designated_route_weight ELSE 0 END +
-        CASE WHEN road_category_bicycle IS NOT NULL AND road_category_bicycle_weight IS NOT NULL THEN road_category_bicycle_weight ELSE 0 END +
-        CASE WHEN road_category_pedestrian IS NOT NULL AND road_category_pedestrian_weight IS NOT NULL THEN road_category_pedestrian_weight ELSE 0 END +
-        CASE WHEN max_speed_bicycle IS NOT NULL AND max_speed_bicycle_weight IS NOT NULL THEN max_speed_bicycle_weight ELSE 0 END +
-        CASE WHEN max_speed_pedestrian IS NOT NULL AND max_speed_pedestrian_weight IS NOT NULL THEN max_speed_pedestrian_weight ELSE 0 END +
+        CASE WHEN road_category IS NOT NULL AND road_category_weight IS NOT NULL THEN road_category_weight ELSE 0 END +
+        CASE WHEN max_speed IS NOT NULL AND max_speed_weight IS NOT NULL THEN max_speed_weight ELSE 0 END +
         CASE WHEN parking IS NOT NULL AND parking_weight IS NOT NULL THEN parking_weight ELSE 0 END +
         CASE WHEN pavement IS NOT NULL AND pavement_weight IS NOT NULL THEN pavement_weight ELSE 0 END +
         CASE WHEN width IS NOT NULL AND width_weight IS NOT NULL THEN width_weight ELSE 0 END +
-        CASE WHEN gradient_bicycle IS NOT NULL AND gradient_bicycle_weight IS NOT NULL THEN gradient_bicycle_weight ELSE 0 END +
-        CASE WHEN gradient_pedestrian IS NOT NULL AND gradient_pedestrian_weight IS NOT NULL THEN gradient_pedestrian_weight ELSE 0 END +
+        CASE WHEN gradient IS NOT NULL AND gradient_weight IS NOT NULL THEN gradient_weight ELSE 0 END +
         CASE WHEN number_lanes IS NOT NULL AND number_lanes_weight IS NOT NULL THEN number_lanes_weight ELSE 0 END +
         CASE WHEN facilities IS NOT NULL AND facilities_weight IS NOT NULL THEN facilities_weight ELSE 0 END +
         CASE WHEN crossings IS NOT NULL AND crossings_weight IS NOT NULL THEN crossings_weight ELSE 0 END +
@@ -142,70 +133,37 @@ BEGIN
             indicator_weights := array_append(indicator_weights, ('designated_route', indicator * weight)::indicator_weight);
         END IF;
 
-        IF road_category_bicycle IS NOT NULL AND road_category_bicycle_weight IS NOT NULL THEN
+        IF road_category IS NOT NULL AND road_category_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN road_category_bicycle = 'primary' THEN 0
-                    WHEN road_category_bicycle = 'secondary' THEN 0.2
-                    WHEN road_category_bicycle = 'residential' THEN 0.8
-                    WHEN road_category_bicycle = 'service' THEN 0.85
-                    WHEN road_category_bicycle = 'calmed' THEN 0.9
-                    WHEN road_category_bicycle = 'no_mit' THEN 1
-                    WHEN road_category_bicycle = 'path' THEN 0
+                    WHEN road_category = 'primary' THEN 0
+                    WHEN road_category = 'secondary' THEN 0.2
+                    WHEN road_category = 'residential' THEN 0.8
+                    WHEN road_category = 'service' THEN 0.85
+                    WHEN road_category = 'calmed' THEN 0.9
+                    WHEN road_category = 'no_mit' THEN 1
+                    WHEN road_category = 'path' THEN 0
                 END;
-            weight := road_category_bicycle_weight / weights_sum;
+            weight := road_category_weight / weights_sum;
             index := index + indicator * weight;
-            indicator_weights := array_append(indicator_weights, ('road_category_bicycle', indicator * weight)::indicator_weight);
+            indicator_weights := array_append(indicator_weights, ('road_category', indicator * weight)::indicator_weight);
         END IF;
 
-        IF road_category_pedestrian IS NOT NULL AND road_category_pedestrian_weight IS NOT NULL THEN
+        IF max_speed IS NOT NULL AND max_speed_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN road_category_pedestrian = 'primary' THEN 0
-                    WHEN road_category_pedestrian = 'secondary' THEN 0.2
-                    WHEN road_category_pedestrian = 'residential' THEN 0.8
-                    WHEN road_category_pedestrian = 'service' THEN 0.85
-                    WHEN road_category_pedestrian = 'calmed' THEN 0.9
-                    WHEN road_category_pedestrian = 'no_mit' THEN 1
-                    WHEN road_category_pedestrian = 'path' THEN 1
+                    WHEN max_speed >= 100 THEN 0
+                    WHEN max_speed >= 80 THEN 0.2
+                    WHEN max_speed >= 70 THEN 0.3
+                    WHEN max_speed >= 60 THEN 0.4
+                    WHEN max_speed >= 50 THEN 0.6
+                    WHEN max_speed >= 30 THEN 0.85
+                    WHEN max_speed > 0 THEN 0.9
+                    WHEN max_speed = 0 THEN 1
                 END;
-            weight := road_category_pedestrian_weight / weights_sum;
+            weight := max_speed_weight / weights_sum;
             index := index + indicator * weight;
-            indicator_weights := array_append(indicator_weights, ('road_category_pedestrian', indicator * weight)::indicator_weight);
-        END IF;
-
-        IF max_speed_bicycle IS NOT NULL AND max_speed_bicycle_weight IS NOT NULL THEN
-            indicator :=
-                CASE
-                    WHEN max_speed_bicycle >= 100 THEN 0
-                    WHEN max_speed_bicycle >= 80 THEN 0.2
-                    WHEN max_speed_bicycle >= 70 THEN 0.3
-                    WHEN max_speed_bicycle >= 60 THEN 0.4
-                    WHEN max_speed_bicycle >= 50 THEN 0.6
-                    WHEN max_speed_bicycle >= 30 THEN 0.85
-                    WHEN max_speed_bicycle > 0 THEN 0.9
-                    WHEN max_speed_bicycle = 0 THEN 1
-                END;
-            weight := max_speed_bicycle_weight / weights_sum;
-            index := index + indicator * weight;
-            indicator_weights := array_append(indicator_weights, ('max_speed_bicycle', indicator * weight)::indicator_weight);
-        END IF;
-
-        IF max_speed_pedestrian IS NOT NULL AND max_speed_pedestrian_weight IS NOT NULL THEN
-            indicator :=
-                CASE
-                    WHEN max_speed_pedestrian >= 100 THEN 0
-                    WHEN max_speed_pedestrian >= 80 THEN 0.2
-                    WHEN max_speed_pedestrian >= 70 THEN 0.3
-                    WHEN max_speed_pedestrian >= 60 THEN 0.4
-                    WHEN max_speed_pedestrian >= 50 THEN 0.6
-                    WHEN max_speed_pedestrian >= 30 THEN 0.85
-                    WHEN max_speed_pedestrian > 0 THEN 0.9
-                    WHEN max_speed_pedestrian = 0 THEN 1
-                END;
-            weight := max_speed_pedestrian_weight / weights_sum;
-            index := index + indicator * weight;
-            indicator_weights := array_append(indicator_weights, ('max_speed_pedestrian', indicator * weight)::indicator_weight);
+            indicator_weights := array_append(indicator_weights, ('max_speed', indicator * weight)::indicator_weight);
         END IF;
 
         IF parking IS NOT NULL AND parking_weight IS NOT NULL THEN
@@ -246,40 +204,22 @@ BEGIN
             indicator_weights := array_append(indicator_weights, ('width', indicator * weight)::indicator_weight);
         END IF;
 
-        IF gradient_bicycle IS NOT NULL AND gradient_bicycle_weight IS NOT NULL THEN
+        IF gradient IS NOT NULL AND gradient_weight IS NOT NULL THEN
             indicator :=
                 CASE
-                    WHEN gradient_bicycle = 4 THEN 0
-                    WHEN gradient_bicycle = 3 THEN 0.25
-                    WHEN gradient_bicycle = 2 THEN 0.4
-                    WHEN gradient_bicycle = 1 THEN 0.5
-                    WHEN gradient_bicycle = 0 THEN 0.9
-                    WHEN gradient_bicycle = -1 THEN 1
-                    WHEN gradient_bicycle = -2 THEN 0.95
-                    WHEN gradient_bicycle = -3 THEN 0.35
-                    WHEN gradient_bicycle = -4 THEN 0
+                    WHEN gradient = 4 THEN 0
+                    WHEN gradient = 3 THEN 0.25
+                    WHEN gradient = 2 THEN 0.4
+                    WHEN gradient = 1 THEN 0.5
+                    WHEN gradient = 0 THEN 0.9
+                    WHEN gradient = -1 THEN 1
+                    WHEN gradient = -2 THEN 0.95
+                    WHEN gradient = -3 THEN 0.35
+                    WHEN gradient = -4 THEN 0
                 END;
-            weight := gradient_bicycle_weight / weights_sum;
+            weight := gradient_weight / weights_sum;
             index := index + indicator * weight;
-            indicator_weights := array_append(indicator_weights, ('gradient_bicycle', indicator * weight)::indicator_weight);
-        END IF;
-
-        IF gradient_pedestrian IS NOT NULL AND gradient_pedestrian_weight IS NOT NULL THEN
-            indicator :=
-                CASE
-                    WHEN gradient_pedestrian = 4 THEN 0.25
-                    WHEN gradient_pedestrian = 3 THEN 0.5
-                    WHEN gradient_pedestrian = 2 THEN 0.7
-                    WHEN gradient_pedestrian = 1 THEN 1
-                    WHEN gradient_pedestrian = 0 THEN 1
-                    WHEN gradient_pedestrian = -1 THEN 1
-                    WHEN gradient_pedestrian = -2 THEN 0.7
-                    WHEN gradient_pedestrian = -3 THEN 0.5
-                    WHEN gradient_pedestrian = -4 THEN 0.25
-                END;
-            weight := gradient_pedestrian_weight / weights_sum;
-            index := index + indicator * weight;
-            indicator_weights := array_append(indicator_weights, ('gradient_pedestrian', indicator * weight)::indicator_weight);
+            indicator_weights := array_append(indicator_weights, ('gradient', indicator * weight)::indicator_weight);
         END IF;
 
         IF number_lanes IS NOT NULL AND number_lanes_weight IS NOT NULL THEN
