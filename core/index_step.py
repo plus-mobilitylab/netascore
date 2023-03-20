@@ -1,4 +1,5 @@
 import os
+from markupsafe import re
 import yaml
 
 import toolbox.helper as h
@@ -31,6 +32,73 @@ def load_profiles(base_path: str, profile_definitions: dict):
     return [ModeProfile(base_path, definition) for definition in profile_definitions]
 
 
+def _build_sql_indicator_mapping(indicator_yml: dict) -> str:
+    indicator_name = h.get_safe_name(indicator_yml.get('indicator'))
+    h.debugLog(f"parsing YAML for ind. '{indicator_name}' \tRaw input: {indicator_yml}")
+    value_assignments = ""
+
+    # check type of mapping
+    del indicator_yml['indicator']
+    keys = indicator_yml.keys()
+    if len(keys) != 1:
+        raise Exception(f"Exactly one indicator mapping key is needed for indicator '{indicator_name}'. Please update your mode profile file accordingly.")
+    k = list(keys)[0]
+    contents = indicator_yml.get(k)
+    if k == "mapping":
+        for key in contents:
+            v = contents[key]
+            h.debugLog(f"got mapping: {key}: {v} (type: {type(v)})")
+            if not h.is_numeric(v):
+                raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{indicator_name}' for '{key}'.")
+            # append current assignment
+            value_assignments += f"WHEN {indicator_name} = '{h.get_safe_string(key)}' THEN {v}\n"
+    elif k == "classes":
+        for key in contents:
+            v = contents[key]
+            h.debugLog(f"got mapping: {key}: {v} (type: {type(key)}:{type(v)})")
+            if not h.is_numeric(v):
+                raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{indicator_name}' for '{key}'.")
+            # split key into op. and class value
+            kstr = str(key)
+            cv = re.sub("[^0-9.\-]", "", kstr) # extract value
+            if cv.find(".") > -1:
+                cv = float(cv)
+            elif len(cv) > 0:
+                cv = int(cv)
+            else:
+                raise Exception(f"For class-based indicator value assignments, a numeric class value must be specified. Indicator '{indicator_name}', key '{key}'.")
+            op = "=" # default: equals
+            opstr = re.sub("[^a-zA-Z]", "", kstr)
+            if opstr == "g":
+                op = ">"
+            elif opstr == "ge":
+                op = ">="
+            elif opstr == "l":
+                op = "<"
+            elif opstr == "le":
+                op = "<="
+            elif opstr == "e":
+                op = "="
+            elif opstr == "ne":
+                op = "<>"
+            # append current assignment
+            value_assignments += f"WHEN {indicator_name} {op} {cv} THEN {v}\n"
+    else:
+        raise Exception(f"You provided an unknown indicator mapping '{k}' for indicator '{indicator_name}'. Please update your mode profile file accordingly.")
+
+    sql: str = f"""
+        IF {indicator_name} IS NOT NULL AND {indicator_name}_weight IS NOT NULL THEN
+            indicator :=
+                CASE
+                    {value_assignments}
+                END;
+            weight := {indicator_name}_weight / weights_sum;
+            index := index + indicator * weight;
+            indicator_weights := array_append(indicator_weights, ('{indicator_name}', indicator * weight)::indicator_weight);
+        END IF;"""
+    
+    return sql
+
 def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], settings: dict):
     schema = db_settings.entities.network_schema
 
@@ -51,10 +119,18 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
         for p in profiles:
             profile_name = p.profile_name
             indicator_weights = p.profile['weights']
+            # parse profile definition: generate SQL for indicator value assignments
+            h.info(f'parsing indicator value mapping for profile "{profile_name}"...')
+            indicator_mapping_sql = ""
+            for indicator in p.profile['indicator_mapping']:
+                indicator_mapping_sql += _build_sql_indicator_mapping(indicator)
+            h.debugLog(f"compiled indicator mapping SQL: \n\n{indicator_mapping_sql}")
+            
             # profile-specific function registration
             h.info(f'register index function for profile "{profile_name}"...')
             f_params = {
-                'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation']
+                'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation'],
+                'indicator_mappings': indicator_mapping_sql
             }
             db.execute_template_sql_from_file("calculate_index", f_params, template_subdir="sql/functions/")
             # calculate index for currrent profile
