@@ -4,6 +4,7 @@ from time import perf_counter as clock
 import sys
 from typing import List
 from datetime import datetime as dt
+import re
 
 ### LOGGING ###
 
@@ -134,3 +135,16 @@ def has_any_key(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
             return True
     log(f"None of the following keys were provided: {keys}", loglevel)
     return False
+
+
+# helper functions for parsing user input / settings values - sqlsafe
+
+def is_numeric(value) -> bool:
+    return type(value) in [int, float]
+
+def get_safe_name(value: str) -> str:
+    return re.sub("[^a-zA-Z0-9_]", "", value)
+
+def get_safe_string(value) -> str:
+    v = str(value)
+    return re.sub("[^a-zA-Z0-9_.: ]", "", v)
