@@ -147,4 +147,4 @@ def get_safe_name(value: str) -> str:
 
 def get_safe_string(value) -> str:
     v = str(value)
-    return re.sub("[^a-zA-Z0-9_.: ]", "", v)
+    return re.sub("[^a-zA-Z0-9_.: \-]", "", v)
