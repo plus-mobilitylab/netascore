@@ -32,32 +32,39 @@ def load_profiles(base_path: str, profile_definitions: dict):
     return [ModeProfile(base_path, definition) for definition in profile_definitions]
 
 
-def _build_sql_indicator_mapping(indicator_yml: dict) -> str:
+def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: str = "") -> str:
     indicator_name = h.get_safe_name(indicator_yml.get('indicator'))
-    h.debugLog(f"parsing YAML for ind. '{indicator_name}' \tRaw input: {indicator_yml}")
-    value_assignments = ""
+    full_name = name_hierarchy + indicator_name
+    h.debugLog(f"parsing YAML for ind. '{full_name}' \tRaw input: {indicator_yml}")
+    value_assignments = "CASE \n"
 
     # check type of mapping
     del indicator_yml['indicator']
     keys = indicator_yml.keys()
     if len(keys) != 1:
-        raise Exception(f"Exactly one indicator mapping key is needed for indicator '{indicator_name}'. Please update your mode profile file accordingly.")
+        raise Exception(f"Exactly one indicator mapping key is needed for indicator '{full_name}'. Please update your mode profile file accordingly.")
     k = list(keys)[0]
     contents = indicator_yml.get(k)
     if k == "mapping":
         for key in contents:
             v = contents[key]
             h.debugLog(f"got mapping: {key}: {v} (type: {type(v)})")
-            if not h.is_numeric(v):
-                raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{indicator_name}' for '{key}'.")
+            if type(v) == dict:
+                # parse dict recursively -> add result to value_assignments (nested CASE...END)
+                v = _build_sql_indicator_mapping_internal_(v, f"{full_name}.")
+            elif not h.is_numeric(v):
+                raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{full_name}' for '{key}'.")
             # append current assignment
             value_assignments += f"WHEN {indicator_name} = '{h.get_safe_string(key)}' THEN {v}\n"
     elif k == "classes":
         for key in contents:
             v = contents[key]
             h.debugLog(f"got mapping: {key}: {v} (type: {type(key)}:{type(v)})")
-            if not h.is_numeric(v):
-                raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{indicator_name}' for '{key}'.")
+            if type(v) == dict:
+                # parse dict recursively -> add result to value_assignments (nested CASE...END)
+                v = _build_sql_indicator_mapping_internal_(v, f"{full_name}.")
+            elif not h.is_numeric(v):
+                raise Exception(f"Only numeric value assignments are allowed for indicator mappings. Please update indicator '{full_name}' for '{key}'.")
             # split key into op. and class value
             kstr = str(key)
             cv = re.sub("[^0-9.\-]", "", kstr) # extract value
@@ -66,7 +73,7 @@ def _build_sql_indicator_mapping(indicator_yml: dict) -> str:
             elif len(cv) > 0:
                 cv = int(cv)
             else:
-                raise Exception(f"For class-based indicator value assignments, a numeric class value must be specified. Indicator '{indicator_name}', key '{key}'.")
+                raise Exception(f"For class-based indicator value assignments, a numeric class value must be specified. Indicator '{full_name}', key '{key}'.")
             op = "=" # default: equals
             opstr = re.sub("[^a-zA-Z]", "", kstr)
             if opstr == "g":
@@ -84,19 +91,23 @@ def _build_sql_indicator_mapping(indicator_yml: dict) -> str:
             # append current assignment
             value_assignments += f"WHEN {indicator_name} {op} {cv} THEN {v}\n"
     else:
-        raise Exception(f"You provided an unknown indicator mapping '{k}' for indicator '{indicator_name}'. Please update your mode profile file accordingly.")
+        raise Exception(f"You provided an unknown indicator mapping '{k}' for indicator '{full_name}'. Please update your mode profile file accordingly.")
+    # close this indicator mapping CASE statement
+    value_assignments += "END \n"
+    return value_assignments
 
+def _build_sql_indicator_mapping(indicator_yml: dict) -> str:
+    indicator_name = h.get_safe_name(indicator_yml.get('indicator'))
+    value_assignments = _build_sql_indicator_mapping_internal_(indicator_yml)
+    # compile full indicator SQL around indicator mapping code
     sql: str = f"""
         IF {indicator_name} IS NOT NULL AND {indicator_name}_weight IS NOT NULL THEN
             indicator :=
-                CASE
-                    {value_assignments}
-                END;
+                {value_assignments};
             weight := {indicator_name}_weight / weights_sum;
             index := index + indicator * weight;
             indicator_weights := array_append(indicator_weights, ('{indicator_name}', indicator * weight)::indicator_weight);
         END IF;"""
-    
     return sql
 
 def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], settings: dict):
