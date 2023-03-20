@@ -9,7 +9,7 @@ from core.attributes_step import create_attributes_step
 from core.db_step import DbStep
 from core.export_step import create_exporter
 from core.import_step import create_importer
-from core.index_step import generate_index, load_weights
+from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
 from settings import DbSettings, GlobalSettings
@@ -111,11 +111,11 @@ with settings_stream:
     if 'index' not in skip_steps:
         h.majorInfo(' === generating index ===')
         mode_profile_settings: dict = settings['profiles']
-        weights = load_weights(base_path, mode_profile_settings)
+        profiles = load_profiles(base_path, mode_profile_settings)
         index_settings: dict = None
         if h.has_keys(settings, ['index']):
             index_settings = settings['index']
-        generate_index(db_settings, weights, index_settings)
+        generate_index(db_settings, profiles, index_settings)
 
     if 'export' not in skip_steps:
         h.majorInfo(' === exporting ===')

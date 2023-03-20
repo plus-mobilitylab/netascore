@@ -7,7 +7,7 @@ from toolbox.dbhelper import PostgresConnection
 from typing import List
 
 
-class WeightDefinition:
+class ProfileDefinition:
     profile_name: str
     filename: str
 
@@ -16,22 +16,22 @@ class WeightDefinition:
         self.filename = filename
 
 
-class Weight:
+class ModeProfile:
     profile_name: str
-    weights: dict = {}
+    profile: dict = {}
 
     def __init__(self, base_path: str, definition: dict):
         self.profile_name = definition.get('profile_name')
         filename = os.path.join(base_path, definition.get('filename'))
         with open(filename) as file:
-            self.weights = yaml.safe_load(file)
+            self.profile = yaml.safe_load(file)
 
 
-def load_weights(base_path: str, weight_definitions: dict):
-    return [Weight(base_path, definition) for definition in weight_definitions]
+def load_profiles(base_path: str, profile_definitions: dict):
+    return [ModeProfile(base_path, definition) for definition in profile_definitions]
 
 
-def generate_index(db_settings: DbSettings, weights: List[Weight], settings: dict):
+def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], settings: dict):
     schema = db_settings.entities.network_schema
 
     # open database connection
@@ -48,9 +48,9 @@ def generate_index(db_settings: DbSettings, weights: List[Weight], settings: dic
     # calculate index
     h.logBeginTask("compute index columns for given profiles")
     if db.handle_conflicting_output_tables(['network_edge_index']):
-        for w in weights:
-            profile_name = w.profile_name
-            indicator_weights = w.weights['weights']
+        for p in profiles:
+            profile_name = p.profile_name
+            indicator_weights = p.profile['weights']
             # profile-specific function registration
             h.info(f'register index function for profile "{profile_name}"...')
             f_params = {
