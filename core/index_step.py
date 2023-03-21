@@ -45,10 +45,10 @@ def _build_sql_overrides(overrides_yml: dict) -> str:
         if h.has_keys(out, ["for"]):
             ft = out.get("for")
             if type(ft) == str:
-                assignment_targets.append(f"{h.get_safe_string(ft)}_weight")
+                assignment_targets.append(f"{h.get_safe_name(ft)}_weight")
             elif type(ft) == list:
                 for t in ft:
-                    assignment_targets.append(f"{h.get_safe_string(t)}_weight")
+                    assignment_targets.append(f"{h.get_safe_name(t)}_weight")
     else:
         raise Exception(f"Unknown output type '{out_type}' provided in overrides definition for '{indicator_name}'.")
     # compile value assignment SQL
