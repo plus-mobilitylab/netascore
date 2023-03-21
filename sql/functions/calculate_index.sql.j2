@@ -33,20 +33,7 @@ DECLARE
     temp numeric;
     indicator_weights indicator_weight[];
 BEGIN
-    -- TODO: Gewichte anpassen: pavement/gradient
-    {# IF pavement IN ('gravel', 'soft', 'cobble') AND pavement_weight IS NOT NULL AND
-       gradient_bicycle IN (-4,-3, 3, 4) AND gradient_bicycle_weight IS NOT NULL THEN
-        pavement_weight := pavement_weight * 16;
-        gradient_bicycle_weight := gradient_bicycle_weight * 16;
-    END IF; #}
-
-    -- TODO: Index anpassen: pedestrian_infrastructure/road_category
-    {# IF pedestrian_infrastructure IN ('sidewalk') AND pedestrian_infrastructure_weight IS NOT NULL AND
-       road_category_pedestrian IN ('secondary', 'primary') AND road_category_pedestrian_weight IS NOT NULL THEN
-        index := 0.2;
-        RETURN;
-    END IF; #}
-
+    -- here, index and weights overrides are added according to their definition in the mode profile files --
     {{ overrides | sqlsafe }}
 
     weights_total := 0;
