@@ -148,3 +148,13 @@ def get_safe_name(value: str) -> str:
 def get_safe_string(value) -> str:
     v = str(value)
     return re.sub("[^a-zA-Z0-9_.: \-]", "", v)
+
+def str_to_numeric(value: str, throw_error: bool = False):
+    v = re.sub("[^0-9.\-]", "", value) # extract value
+    if v.find(".") > -1:
+        return float(v)
+    elif len(v) > 0:
+        return int(v)
+    if throw_error:
+        raise Exception(f"Unable to convert string '{value}' to numeric.")
+    return None
