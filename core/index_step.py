@@ -31,14 +31,54 @@ class ModeProfile:
 def load_profiles(base_path: str, profile_definitions: dict):
     return [ModeProfile(base_path, definition) for definition in profile_definitions]
 
+def _build_sql_overrides(overrides_yml: dict) -> str:
+    # load yml: extract output details and prepare target variable names
+    indicator_name = h.get_safe_name(overrides_yml.get('indicator'))
+    h.require_keys(overrides_yml, ["output"], f"No 'output' key provided in overrides definition for '{indicator_name}'.")
+    out = overrides_yml.get("output")
+    h.require_keys(out, ["type"], f"'output' key has no 'type' in overrides definition for '{indicator_name}'.")
+    out_type = out.get("type")
+    assignment_targets = []
+    if out_type == "index":
+        assignment_targets.append("index")
+    elif out_type == "weight":
+        if h.has_keys(out, ["for"]):
+            ft = out.get("for")
+            if type(ft) == str:
+                assignment_targets.append(f"{h.get_safe_string(ft)}_weight")
+            elif type(ft) == list:
+                for t in ft:
+                    assignment_targets.append(f"{h.get_safe_string(t)}_weight")
+    else:
+        raise Exception(f"Unknown output type '{out_type}' provided in overrides definition for '{indicator_name}'.")
+    # compile value assignment SQL
+    assignment_sql = ""
+    for a_target in assignment_targets:
+        assignment_sql += f"{a_target} := temp; \n"
+    # delete output details and description from yml (for function compatibility)
+    del overrides_yml['output']
+    del overrides_yml['description']
+    # compile value mappings
+    value_assignments = _build_sql_indicator_mapping_internal_(overrides_yml, "", force_default_value = True, def_value = -1)
+    # compile full indicator SQL around indicator mapping code
+    sql: str = f"""
+        temp :=
+            {value_assignments};
+        IF NOT temp < 0 THEN
+            {assignment_sql}
+            {"return; " if out_type == "index" else ""}
+        END IF;
+        """
+    # compile result into template
+    return sql
 
-def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: str = "") -> str:
+def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: str = "", force_default_value: bool = False, def_value = None) -> str:
     indicator_name = h.get_safe_name(indicator_yml.get('indicator'))
     full_name = name_hierarchy + indicator_name
     h.debugLog(f"parsing YAML for ind. '{full_name}' \tRaw input: {indicator_yml}")
     value_assignments = "CASE \n"
-    add_default_value: bool = False
-    default_value = None
+    add_default_value: bool = force_default_value
+    default_value = def_value
 
     # check type of mapping
     del indicator_yml['indicator']
@@ -56,7 +96,7 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
         h.debugLog(f"got mapping: {key}: {v} (type: {type(key)}:{type(v)})")
         if type(v) == dict:
             # parse dict recursively -> add result to value_assignments (nested CASE...END)
-            v = _build_sql_indicator_mapping_internal_(v, f"{full_name}.")
+            v = _build_sql_indicator_mapping_internal_(v, f"{full_name}.", force_default_value, def_value)
         elif v is None:
             v = "NULL"
         elif not h.is_numeric(v):
@@ -147,12 +187,19 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
             for indicator in p.profile['indicator_mapping']:
                 indicator_mapping_sql += _build_sql_indicator_mapping(indicator)
             h.debugLog(f"compiled indicator mapping SQL: \n\n{indicator_mapping_sql}")
+            # parse profile definition: generate SQL for overrides (indicator weights or index)
+            h.info(f'parsing value overrides for profile "{profile_name}"...')
+            overrides_sql = ""
+            for override in p.profile['overrides']:
+                overrides_sql += _build_sql_overrides(override)
+            h.debugLog(f"compiled overrides SQL: \n\n{overrides_sql}")
             
             # profile-specific function registration
             h.info(f'register index function for profile "{profile_name}"...')
             f_params = {
                 'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation'],
-                'indicator_mappings': indicator_mapping_sql
+                'indicator_mappings': indicator_mapping_sql,
+                'overrides': overrides_sql
             }
             db.execute_template_sql_from_file("calculate_index", f_params, template_subdir="sql/functions/")
             # calculate index for currrent profile

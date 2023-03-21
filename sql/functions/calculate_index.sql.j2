@@ -30,6 +30,7 @@ DECLARE
     weights_sum numeric;
     indicator numeric;
     weight numeric;
+    temp numeric;
     indicator_weights indicator_weight[];
 BEGIN
     -- TODO: Gewichte anpassen: pavement/gradient
@@ -45,6 +46,8 @@ BEGIN
         index := 0.2;
         RETURN;
     END IF; #}
+
+    {{ overrides | sqlsafe }}
 
     weights_total := 0;
     weights_total :=
