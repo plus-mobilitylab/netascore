@@ -25,28 +25,45 @@ weights:
 
 # =================================================================== #
 # In the following section advanced settings can be defined.          #
-# Only edit the section below if you really know what you are doing.  #
+# Only edit the contents below if you really know what you are doing. #
 # =================================================================== #
+
+
+# OVERRIDES - here, weights and/or index values can be overridden #
+
+overrides:
+  - description: fixed index value for sidewalk on primary/secondary roads (pedestrian_infrastructure/road_category)
+    indicator: pedestrian_infrastructure
+    output:
+      type: index
+    mapping:
+      "sidewalk":
+        indicator: road_category
+        mapping:
+          "[secondary, primary]": 0.2
+
+
+# INDICATOR attribute mappings #
 
 indicator_mapping:
   - indicator: pedestrian_infrastructure
     mapping:
-      pedestrian_area: 1
-      pedestrian_way: 1
-      mixed_way: 0.85
-      stairs: 0.7
-      sidewalk: 0.5
-      no: 0
+      "pedestrian_area": 1
+      "pedestrian_way": 1
+      "mixed_way": 0.85
+      "stairs": 0.7
+      "sidewalk": 0.5
+      "no": 0
 
   - indicator: road_category
     mapping:
-      primary: 0
-      secondary: 0.2
-      residential: 0.8
-      service: 0.85
-      calmed: 0.9
-      no_mit: 1
-      path: 1
+      "primary": 0
+      "secondary": 0.2
+      "residential": 0.8
+      "service": 0.85
+      "calmed": 0.9
+      "no_mit": 1
+      "path": 1
 
   - indicator: max_speed
     classes:
@@ -61,15 +78,17 @@ indicator_mapping:
 
   - indicator: parking
     mapping:
-      yes: 0
-      no: 1
+      "yes": 0
+      "no": 1
+      True: 0
+      False: 1
 
   - indicator: pavement
     mapping:
-      asphalt: 1
-      gravel: 0.75
-      soft: 0.4
-      cobble: 0
+      "asphalt": 1
+      "gravel": 0.75
+      "soft": 0.4
+      "cobble": 0
   
   - indicator: width
     classes:
@@ -115,7 +134,7 @@ indicator_mapping:
           "residential": 0.5
           _default_: 1
       g0: 1
-
+  
   - indicator: buildings
     classes:
       ge80: 0
@@ -144,3 +163,4 @@ indicator_mapping:
       g55: 0.6
       g10: 0.8
       ge0: 1
+      

@@ -25,8 +25,26 @@ weights:
 
 # =================================================================== #
 # In the following section advanced settings can be defined.          #
-# Only edit the section below if you really know what you are doing.  #
+# Only edit the contents below if you really know what you are doing. #
 # =================================================================== #
+      
+
+# OVERRIDES - here, weights and/or index values can be overridden #
+
+overrides:
+  - description: combination of gradient and pavement (steep and loose/rough)
+    indicator: pavement
+    output:
+      type: weight
+      for: [pavement, gradient]
+    mapping: 
+      "[gravel, soft, cobble]":
+        indicator: gradient
+        mapping:
+          "(-4, -3, 3, 4)": 1.6
+
+
+# INDICATOR attribute mappings #
 
 indicator_mapping:
   - indicator: bicycle_infrastructure
