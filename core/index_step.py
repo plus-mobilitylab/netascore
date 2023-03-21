@@ -109,6 +109,17 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
         elif str(key) == "_default_":
             add_default_value = True
             default_value = v
+        # handle lists
+        elif str(key).startswith("[") and str(key).endswith("]"):
+            # list of Strings
+            s = str(key)[1:-1]
+            slist = s.split(',')
+            value_assignments += f"""WHEN {indicator_name} IN ('{"', '".join([h.get_safe_string(v.strip()) for v in slist])}') THEN {v}\n"""
+        elif str(key).startswith("(") and str(key).endswith(")") and str(key).find(',')>0:
+            # list of numeric values
+            s = str(key)[1:-1]
+            slist = s.split(',')
+            value_assignments += f"WHEN {indicator_name} IN ({', '.join([str(h.str_to_numeric(v.strip())) for v in slist])}) THEN {v}\n"
         # specific handling depending on type (mapping / classes)
         elif k == "mapping":
             if h.is_numeric(key) or type(key) == bool:
