@@ -253,7 +253,7 @@ CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
            b.max_speed_ft,
            b.max_speed_tf,
-           greatest(b.max_speed_ft, b.max_speed_tf) AS max_speed
+           greatest(b.max_speed_ft, b.max_speed_tf) AS max_speed_greatest
     FROM network_edge_attributes a
         LEFT JOIN max_speed b USING (edge_id)
 );
@@ -671,6 +671,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS road_category varchar,
     ADD COLUMN IF NOT EXISTS max_speed_ft numeric,
     ADD COLUMN IF NOT EXISTS max_speed_tf numeric,
+    ADD COLUMN IF NOT EXISTS max_speed_greatest numeric,
     ADD COLUMN IF NOT EXISTS parking_ft varchar,
     ADD COLUMN IF NOT EXISTS parking_tf varchar,
     ADD COLUMN IF NOT EXISTS pavement varchar,

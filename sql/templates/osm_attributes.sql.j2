@@ -576,7 +576,7 @@ CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
            CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed_ft,
            CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed_tf,
-           CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed
+           CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed_greatest
     FROM network_edge_attributes a
         LEFT JOIN max_speed b USING (edge_id)
 );
@@ -1038,7 +1038,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS road_category varchar,
     ADD COLUMN IF NOT EXISTS max_speed_ft numeric,
     ADD COLUMN IF NOT EXISTS max_speed_tf numeric,
-    ADD COLUMN IF NOT EXISTS max_speed numeric,
+    ADD COLUMN IF NOT EXISTS max_speed_greatest numeric,
     ADD COLUMN IF NOT EXISTS parking_ft varchar,
     ADD COLUMN IF NOT EXISTS parking_tf varchar,
     ADD COLUMN IF NOT EXISTS pavement varchar,
