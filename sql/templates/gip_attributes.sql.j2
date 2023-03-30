@@ -224,12 +224,9 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 -- calculate indicator "max_speed"
 -- ---------------------------------------------------------------------------------------------------------------------
 
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_ft;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_tf;
-
-DROP TABLE IF EXISTS network_edge_attributes_tmp;
-CREATE TABLE network_edge_attributes_tmp AS (
-    SELECT a.*,
+DROP TABLE IF EXISTS max_speed;
+CREATE TABLE max_speed AS ( -- 7 s
+    SELECT edge_id,
            CASE
                WHEN b.maxspeed_tow_car <> -1 THEN b.maxspeed_tow_car
                WHEN b.maxspeed_tow_car = -1 AND b.speed_tow_car <> -1 THEN b.speed_tow_car
@@ -242,12 +239,29 @@ CREATE TABLE network_edge_attributes_tmp AS (
                WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car = -1 AND b.maxspeed_tow_car <> -1 THEN b.maxspeed_tow_car
                WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car = -1 AND b.maxspeed_tow_car = -1 AND b.speed_tow_car <> -1 THEN b.speed_tow_car
            END::numeric AS max_speed_tf
+    FROM network_edge
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           b.max_speed_ft,
+           b.max_speed_tf,
+           greatest(b.max_speed_ft, b.max_speed_tf) AS max_speed
     FROM network_edge_attributes a
-        LEFT JOIN network_edge b USING (edge_id)
+        LEFT JOIN max_speed b USING (edge_id)
 );
 
 DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+DROP TABLE max_speed;
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "pavement"
