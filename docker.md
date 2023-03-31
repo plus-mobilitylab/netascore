@@ -22,17 +22,17 @@ The easiest way to run a network assessment for your own area of interest is by 
 
 - create a new **subdirectory** named **`data`** (if you already ran the quickstart example, you can just use the `data` directory created)
 - download the **settings template** [from here](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/settings_osm_query.yml) or copy it from `examples/settings_osm_query.yml`
-- add the **weight profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `profile_bike.yml` and `profile_walk.yml` from the `examples` folder.
+- add the **mode profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `profile_bike.yml` and `profile_walk.yml` from the `examples` folder.
 - **edit** your newly created **settings file** `settings_osm_query.yml` - e.g. to download data for the City of London:
   - provide a **`case_id`**  in `global` section (only alphanumeric characters are allowed; this will be added e.g. to the output file name) - e.g. `case_id: london`
-  - specify a **`place_name`** that is used to query data from OSM - e.g. `place_name: City of London`
-- **run NetAScore** by executing the following line inside the main directory (parent of `data`):
+  - specify a **`place_name`** that is used to query data from OSM in the section `import`: e.g. `place_name: City of London`
+- **run NetAScore** by executing the following line from a terminal inside the main directory (parent of `data`):
   `docker compose run netascore data/settings_osm_query.yml`
   (here, the last argument represents the settings file to use)
 
 ## Add more detail
 
-The example settings use OpenStreetMap data as the only input. While this gives a good first estimate of *bikeability* and *walkability*, utilizing additional input datasets can further improve the quality of results. NetAScore supports additional datasets such as *DEM* (digital elevation model) and *noise* (e.g. traffic noise corridors). Please refer to [settings](settings.md) documentation for details.
+The example settings use OpenStreetMap data as the only input. While this gives a good first estimate of *bikeability* and *walkability*, utilizing additional input datasets can further improve the quality of results. NetAScore supports additional datasets such as *DEM* (digital elevation model) and *noise* (e.g. traffic noise corridors). Please refer to the [settings documentation](settings.md) for details.
 
 To add optional input data sets, follow these steps:
 
@@ -107,7 +107,7 @@ database:
     password: postgres
 ```
 
-Make sure that you have all necessary geofiles, settings and weight files in the `data` subdirectory, because this directory is mounted into the netascore container:
+Make sure that you have all necessary geofiles, settings and mode profile files in the `data` subdirectory, because this directory is mounted into the netascore container:
 
 ```bash
 # linux and mac:

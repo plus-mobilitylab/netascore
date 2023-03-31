@@ -2,18 +2,20 @@
 
 NetAScore uses a settings file that holds the necessary information to perform all steps for computing *bikeability* and *walkability*. It is written in YAML markup language. General information about YAML can be found at https://yaml.org/.
 
-We provide a set of **example settings files** with NetAScore. You find them inside the subdirectory `examples`.  The most common to start from is `settings_osm_query.yml`. This is the file used by default in the Docker image. It is configured for easy use with all components running in Docker and no local input files required.   See [docker.md](docker.md) for instructions on executing NetAScore in this example setup.
+We provide a set of **example settings files** with NetAScore. You find them inside the subdirectory `examples`. The most common to start from is `settings_osm_query.yml`. This is the file used by default in the Docker image. It is configured for easy use with all components running in Docker and no local input files required. See [docker.md](docker.md) for instructions on executing NetAScore in this example setup.
 
 Settings files for NetAScore consist of several sections. For **every processing step** that should be executed, a **corresponding settings section** needs to be provided. This means that you can omit sections if you skip all processing steps that require this section. E.g. if you skip the `export` step, then you don't need to provide an `export` section.
 
 In this document, we provide an overview on the structure of settings files and details on available settings for each processing step.
+
+Besides the settings file, you also need to provide a mode profile file for each of the modes you want to compute a suitability index for. For now, please refer to the two mode profiles provided in the `examples/` subdirectory for reference and copy them to the `data` directory for usage in your own queries.
 
 ## Structure
 
 The settings file can consist of the following **sections**:
 
 - **version**: 
-  mandatory, single value. Currently, this is always `1.0`.
+  mandatory, single value. For compatibility with NetAScore version 1.0, the settings file `version` entry should be `1.1`.
 - **global**: 
   general settings such as target reference system (SRID) to use
 - **database**: 
@@ -23,7 +25,7 @@ The settings file can consist of the following **sections**:
 - **optional**: 
   information on optional datasets to import
 - **profiles**: 
-  specification of indicator weights per mode profile - e.g. for *bikeability* and *walkability*
+  specification of indicator weights and indicator value mappings per mode profile - e.g. for *bikeability* and *walkability*
 - **export**: 
   information for exporting results
 
@@ -208,9 +210,9 @@ If these datasets are not directly derived from an OSM dataset, they can be impo
 
 ## Section `profiles`
 
-NetAScore uses weights to determine the importance of individual indicators for a specific profile such as for cycling or walking. Different use cases may have different weights.
+NetAScore uses weights to determine the importance of individual indicators for a specific profile such as for cycling or walking. Different use cases may have different weights. Additionally, numeric indicator values are assigned to original attribute values in the mode profiles.
 
-We include well-tested default weights for cycling as well as walking with NetAScore. For general purpose assessments we recommend to utilize these profiles by copying the respective mode profile files `profile_bike.yml` and `profile_walk.yml` to the `data` directory and referencing them from the settings file as follows:
+We include well-tested default mode profiles for cycling as well as walking with NetAScore. For general purpose assessments we recommend to utilize these profiles by copying the respective mode profile files `profile_bike.yml` and `profile_walk.yml` from `examples` to the `data` directory and referencing them from the settings file as follows:
 
 ```yaml
 profiles:
