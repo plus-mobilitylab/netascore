@@ -66,7 +66,8 @@ class PostgresConnection:
         h.log(f"connecting to database '{self._dbname}' on {self._host}:{self._port}...")
         # create db connection
         try:
-            self._con:psy.connection = psy.connect(dbname = self._dbname, host = self._host, port = self._port, user = self._user, password = self._pw)
+            self._con:psy.connection = psy.connect(dbname = self._dbname, host = self._host, port = self._port, user = self._user, password = self._pw,
+                connect_timeout=3, keepalives=1, keepalives_idle=5, keepalives_interval=2, keepalives_count=2)       
         except psy.Error as e:
             h.log(f"ERROR while connecting to database: Error {e.pgcode} - {e.pgerror}")
             raise Exception("ERROR while connecting to database. Terminating.")
