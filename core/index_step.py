@@ -110,16 +110,18 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
             add_default_value = True
             default_value = v
         # handle lists
-        elif str(key).startswith("[") and str(key).endswith("]"):
-            # list of Strings
+        elif str(key).startswith("{") and str(key).endswith("}"):
+            # list of Strings or numeric values
             s = str(key)[1:-1]
             slist = s.split(',')
-            value_assignments += f"""WHEN {indicator_name} IN ('{"', '".join([h.get_safe_string(v.strip()) for v in slist])}') THEN {v}\n"""
-        elif str(key).startswith("(") and str(key).endswith(")") and str(key).find(',')>0:
-            # list of numeric values
-            s = str(key)[1:-1]
-            slist = s.split(',')
-            value_assignments += f"WHEN {indicator_name} IN ({', '.join([str(h.str_to_numeric(v.strip())) for v in slist])}) THEN {v}\n"
+            # if list contains at least one non-numeric value, interpret as list of strings
+            cnt = sum([1 for val in slist if not h.str_is_numeric_only(val)])
+            if cnt > 0:
+                # String
+                value_assignments += f"""WHEN {indicator_name} IN ('{"', '".join([h.get_safe_string(v.strip()) for v in slist])}') THEN {v}\n"""
+            else:
+                # numeric
+                value_assignments += f"WHEN {indicator_name} IN ({', '.join([str(h.str_to_numeric(v.strip())) for v in slist])}) THEN {v}\n"
         # specific handling depending on type (mapping / classes)
         elif k == "mapping":
             if h.is_numeric(key) or type(key) == bool:

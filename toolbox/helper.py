@@ -158,3 +158,6 @@ def str_to_numeric(value: str, throw_error: bool = False):
     if throw_error:
         raise Exception(f"Unable to convert string '{value}' to numeric.")
     return None
+
+def str_is_numeric_only(value: str) -> bool:
+    return True if re.fullmatch("[ 0-9.\-]+" ,value) else False

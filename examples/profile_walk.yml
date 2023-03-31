@@ -41,7 +41,7 @@ overrides:
       "sidewalk":
         indicator: road_category
         mapping:
-          "[secondary, primary]": 0.2
+          "{'secondary', 'primary'}": 0.2
 
 
 # INDICATOR attribute mappings #

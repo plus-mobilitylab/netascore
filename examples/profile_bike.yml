@@ -39,10 +39,10 @@ overrides:
       type: weight
       for: [pavement, gradient]
     mapping: 
-      "[gravel, soft, cobble]":
+      "{gravel, soft, cobble}":  
         indicator: gradient
         mapping:
-          "(-4, -3, 3, 4)": 1.6
+          "{-4, -3, 3, 4}": 1.6
 
 
 # INDICATOR attribute mappings #
