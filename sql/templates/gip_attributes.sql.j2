@@ -228,16 +228,16 @@ DROP TABLE IF EXISTS max_speed;
 CREATE TABLE max_speed AS ( -- 7 s
     SELECT edge_id,
            CASE
-               WHEN b.maxspeed_tow_car <> -1 THEN b.maxspeed_tow_car
-               WHEN b.maxspeed_tow_car = -1 AND b.speed_tow_car <> -1 THEN b.speed_tow_car
-               WHEN b.maxspeed_tow_car = -1 AND b.speed_tow_car = -1 AND b.maxspeed_bkw_car <> -1 THEN b.maxspeed_bkw_car
-               WHEN b.maxspeed_tow_car = -1 AND b.speed_tow_car = -1 AND b.maxspeed_bkw_car = -1 AND b.speed_bkw_car <> -1 THEN b.speed_bkw_car
+               WHEN maxspeed_tow_car <> -1 THEN maxspeed_tow_car
+               WHEN maxspeed_tow_car = -1 AND speed_tow_car <> -1 THEN speed_tow_car
+               WHEN maxspeed_tow_car = -1 AND speed_tow_car = -1 AND maxspeed_bkw_car <> -1 THEN maxspeed_bkw_car
+               WHEN maxspeed_tow_car = -1 AND speed_tow_car = -1 AND maxspeed_bkw_car = -1 AND speed_bkw_car <> -1 THEN speed_bkw_car
            END::numeric AS max_speed_ft,
            CASE
-               WHEN b.maxspeed_bkw_car <> -1 THEN b.maxspeed_bkw_car
-               WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car <> -1 THEN b.speed_bkw_car
-               WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car = -1 AND b.maxspeed_tow_car <> -1 THEN b.maxspeed_tow_car
-               WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car = -1 AND b.maxspeed_tow_car = -1 AND b.speed_tow_car <> -1 THEN b.speed_tow_car
+               WHEN maxspeed_bkw_car <> -1 THEN maxspeed_bkw_car
+               WHEN maxspeed_bkw_car = -1 AND speed_bkw_car <> -1 THEN speed_bkw_car
+               WHEN maxspeed_bkw_car = -1 AND speed_bkw_car = -1 AND maxspeed_tow_car <> -1 THEN maxspeed_tow_car
+               WHEN maxspeed_bkw_car = -1 AND speed_bkw_car = -1 AND maxspeed_tow_car = -1 AND speed_tow_car <> -1 THEN speed_tow_car
            END::numeric AS max_speed_tf
     FROM network_edge
 );
@@ -246,7 +246,7 @@ CREATE TABLE max_speed AS ( -- 7 s
 
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_ft;
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_tf;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_greatest;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (

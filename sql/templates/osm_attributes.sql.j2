@@ -570,6 +570,7 @@ CREATE TABLE max_speed AS ( -- 7 s
 
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_ft;
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_greatest;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
