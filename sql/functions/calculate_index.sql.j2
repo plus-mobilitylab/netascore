@@ -23,7 +23,7 @@ CREATE OR REPLACE FUNCTION calculate_index(
     IN water boolean, IN water_weight numeric,
     IN noise numeric, IN noise_weight numeric,
     OUT index numeric,
-    OUT index_certainty numeric,
+    OUT index_robustness numeric,
     OUT index_explanation json
 ) AS $$
 DECLARE
@@ -86,7 +86,7 @@ BEGIN
     END IF;
 
     index := round(index, 4);
-    index_certainty := round(weights_sum / weights_total, 4);
+    index_robustness := round(weights_sum / weights_total, 4);
     {% if compute_explanation %}
     index_explanation := (
         WITH indicator_weights AS (

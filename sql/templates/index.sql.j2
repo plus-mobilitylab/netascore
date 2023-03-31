@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS network_edge_index AS (
 
 ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_ft;
 ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf;
-ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_ft_certainty;
-ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf_certainty;
+ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_ft_robustness;
+ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf_robustness;
 {% if compute_explanation %}
     ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_ft_explanation;
     ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sqlsafe }}_tf_explanation;
@@ -33,8 +33,8 @@ CREATE TABLE network_edge_index_tmp AS (
     SELECT a.*,
            ft.index AS index_{{ profile_name | sqlsafe }}_ft,
            tf.index AS index_{{ profile_name | sqlsafe }}_tf,
-           ft.index_certainty AS index_{{ profile_name | sqlsafe }}_ft_certainty,
-           tf.index_certainty AS index_{{ profile_name | sqlsafe }}_tf_certainty
+           ft.index_robustness AS index_{{ profile_name | sqlsafe }}_ft_robustness,
+           tf.index_robustness AS index_{{ profile_name | sqlsafe }}_tf_robustness
            {% if compute_explanation %}
                ,ft.index_explanation AS index_{{ profile_name | sqlsafe }}_ft_explanation,
                tf.index_explanation AS index_{{ profile_name | sqlsafe }}_tf_explanation
