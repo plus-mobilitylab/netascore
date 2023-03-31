@@ -10,6 +10,7 @@ weights:
   designated_route: 0.1
   road_category: 0.3
   max_speed: 0.1
+  max_speed_greatest: NULL
   parking: 0.1
   pavement: 0.1
   width: NULL
@@ -77,6 +78,17 @@ indicator_mapping:
       "path": 0
 
   - indicator: max_speed
+    classes:
+      ge100: 0
+      ge80: 0.2
+      ge70: 0.3
+      ge60: 0.4
+      ge50: 0.6
+      ge30: 0.85
+      g0: 0.9
+      e0: 1
+
+  - indicator: max_speed_greatest
     classes:
       ge100: 0
       ge80: 0.2
