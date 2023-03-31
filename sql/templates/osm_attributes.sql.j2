@@ -26,7 +26,7 @@ CREATE TABLE network_node_attributes AS ( -- 4 s, 3.215.552
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- calculate attributes "access_car_tow", "access_car_bkw"
+-- calculate attributes "access_car_ft", "access_car_tf"
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS access_car;
@@ -119,20 +119,20 @@ CREATE TABLE access_car AS ( -- 7 s, 3.875.334
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_bkw;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_tf;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_access_car('tow', b.access, b.motor_vehicle_forward,
+           calculate_access_car('ft', b.access, b.motor_vehicle_forward,
                b.oneway, b.oneway_motor_vehicle, b.oneway_vehicle,
                b.roundabout, b.motor_vehicle, b.motorcar,
-               b.vehicle_forward, b.vehicle, b.highway)::boolean AS access_car_tow,
-           calculate_access_car('bkw', access, b.motor_vehicle_backward,
+               b.vehicle_forward, b.vehicle, b.highway)::boolean AS access_car_ft,
+           calculate_access_car('tf', access, b.motor_vehicle_backward,
                b.oneway, b.oneway_motor_vehicle, b.oneway_vehicle,
                b.roundabout, b.motor_vehicle, b.motorcar,
-               b.vehicle_backward, b.vehicle, b.highway)::boolean AS access_car_bkw
+               b.vehicle_backward, b.vehicle, b.highway)::boolean AS access_car_tf
     FROM network_edge_attributes a
         LEFT JOIN access_car b USING (edge_id)
 );
@@ -143,7 +143,7 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 DROP TABLE access_car;
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- calculate attributes "access_bicycle_tow", "access_bicycle_bkw"
+-- calculate attributes "access_bicycle_ft", "access_bicycle_tf"
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS access_bicycle;
@@ -221,20 +221,20 @@ CREATE TABLE access_bicycle AS ( -- 9 s, 3.875.334
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_bkw;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_tf;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_access_bicycle('tow', b.access, b.bicycle_forward,
+           calculate_access_bicycle('ft', b.access, b.bicycle_forward,
                b.oneway_bicycle, b.roundabout, b.oneway, b.cycleway,
                b.cycleway_right, b.cycleway_left, b.cycleway_both,
-               b.bicycle, b.highway)::boolean AS access_bicycle_tow,
-           calculate_access_bicycle('bkw', b.access, b.bicycle_backward,
+               b.bicycle, b.highway)::boolean AS access_bicycle_ft,
+           calculate_access_bicycle('tf', b.access, b.bicycle_backward,
                b.oneway_bicycle, b.roundabout, b.oneway, b.cycleway,
                b.cycleway_right, b.cycleway_left, b.cycleway_both,
-               b.bicycle, b.highway)::boolean AS access_bicycle_bkw
+               b.bicycle, b.highway)::boolean AS access_bicycle_tf
     FROM network_edge_attributes a
         LEFT JOIN access_bicycle b USING (edge_id)
 );
@@ -245,7 +245,7 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 DROP TABLE access_bicycle;
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- calculate attributes "access_pedestrian_tow", "access_pedestrian_bkw"
+-- calculate attributes "access_pedestrian_ft", "access_pedestrian_tf"
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS access_pedestrian;
@@ -282,14 +282,14 @@ CREATE TABLE access_pedestrian AS ( -- 8 s, 3.875.334
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_bkw;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_tf;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_access_pedestrian(access,b.foot,b.footway,b.sidewalk,b.highway)::boolean AS access_pedestrian_tow,
-           calculate_access_pedestrian(access,b.foot,b.footway,b.sidewalk,b.highway)::boolean AS access_pedestrian_bkw
+           calculate_access_pedestrian(access,b.foot,b.footway,b.sidewalk,b.highway)::boolean AS access_pedestrian_ft,
+           calculate_access_pedestrian(access,b.foot,b.footway,b.sidewalk,b.highway)::boolean AS access_pedestrian_tf
     FROM network_edge_attributes a
         LEFT JOIN access_pedestrian b USING (edge_id)
 );
@@ -313,6 +313,23 @@ CREATE TABLE network_edge_attributes_tmp AS (
            CASE WHEN b.tunnel IS NOT NULL THEN true ELSE false END::boolean AS tunnel
         FROM network_edge_attributes a
             LEFT JOIN network_edge b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- calculate attribute "stairs"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS stairs;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           CASE WHEN highway = 'steps' THEN true ELSE false END::boolean AS stairs
+    FROM network_edge_attributes a
+        LEFT JOIN network_edge b USING (edge_id)
 );
 
 DROP TABLE network_edge_attributes;
@@ -378,7 +395,7 @@ CREATE TABLE pedestrian_infrastructure AS ( -- 10 s
                    (a.highway = 'track' AND a.bicycle = ANY ('{yes,designated}') AND (a.foot != 'no' OR a.foot IS NULL) AND a.tracktype = ANY ('{grade1,grade2}')) OR
                    (a.tags -> 'cycleway' = ANY ('{track,opposite_track}') AND a.foot = ANY ('{yes,designated}')) THEN 'mixed_way'
               WHEN a.highway = 'steps' THEN 'stairs'
-              WHEN b.access_pedestrian_tow THEN 'sidewalk'
+              WHEN b.access_pedestrian_ft THEN 'sidewalk'
               ELSE 'no'
            END AS pedestrian_infrastructure
     FROM network_edge a
@@ -546,19 +563,21 @@ CREATE TABLE max_speed AS ( -- 7 s
                WHEN highway = 'construction' AND ref = 'B304' THEN 70
                WHEN highway = ANY ('{primary,secondary}') THEN 100
            END AS max_speed
-   FROM network_edge
+    FROM network_edge
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_ft;
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_greatest;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
            CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed_ft,
-           CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed_tf
+           CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed_tf,
+           CASE WHEN b.max_speed IS NOT NULL THEN least(b.max_speed, 130.0) END::numeric AS max_speed_greatest
     FROM network_edge_attributes a
         LEFT JOIN max_speed b USING (edge_id)
 );
@@ -1002,14 +1021,15 @@ DROP TABLE noise_intersection, noise_sum;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 ALTER TABLE network_edge_attributes
-    ADD COLUMN IF NOT EXISTS access_car_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_car_bkw boolean,
-    ADD COLUMN IF NOT EXISTS access_bicycle_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_bicycle_bkw boolean,
-    ADD COLUMN IF NOT EXISTS access_pedestrian_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_pedestrian_bkw boolean,
+    ADD COLUMN IF NOT EXISTS access_car_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_car_tf boolean,
+    ADD COLUMN IF NOT EXISTS access_bicycle_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_bicycle_tf boolean,
+    ADD COLUMN IF NOT EXISTS access_pedestrian_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_pedestrian_tf boolean,
     ADD COLUMN IF NOT EXISTS bridge boolean,
     ADD COLUMN IF NOT EXISTS tunnel boolean,
+    ADD COLUMN IF NOT EXISTS stairs boolean,
     ADD COLUMN IF NOT EXISTS bicycle_infrastructure_ft varchar,
     ADD COLUMN IF NOT EXISTS bicycle_infrastructure_tf varchar,
     ADD COLUMN IF NOT EXISTS pedestrian_infrastructure_ft varchar,
@@ -1019,6 +1039,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS road_category varchar,
     ADD COLUMN IF NOT EXISTS max_speed_ft numeric,
     ADD COLUMN IF NOT EXISTS max_speed_tf numeric,
+    ADD COLUMN IF NOT EXISTS max_speed_greatest numeric,
     ADD COLUMN IF NOT EXISTS parking_ft varchar,
     ADD COLUMN IF NOT EXISTS parking_tf varchar,
     ADD COLUMN IF NOT EXISTS pavement varchar,
@@ -1049,7 +1070,7 @@ ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 
 DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS ( -- 18 s, 3.875.173
-    SELECT edge_id, osm_id, from_node, to_node, geom
+    SELECT edge_id, osm_id, from_node, to_node, geom, length
     FROM network_edge
 );
 

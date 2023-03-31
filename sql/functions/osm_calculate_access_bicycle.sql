@@ -25,20 +25,20 @@ RETURNS int AS $BODY$
             when bicycle_fwd_bkw='yes'
                 then 1 -- allow access
             -- check oneway_bicycle restrictions and permissions
-            when (direction='tow' and  oneway_bicycle='opposite') or (direction='bkw' and oneway_bicycle='yes')
+            when (direction='ft' and  oneway_bicycle='opposite') or (direction='tf' and oneway_bicycle='yes')
                 then 0 -- restrict access
-            when (direction='tow' and  oneway_bicycle='yes') or (direction='bkw' and oneway_bicycle='opposite')
+            when (direction='ft' and  oneway_bicycle='yes') or (direction='tf' and oneway_bicycle='opposite')
                 then 1 -- allow access
             -- check roundabout restrictions for bkw direction
-            when direction='bkw' and roundabout='yes'
+            when direction='tf' and roundabout='yes'
                 then 0 -- restrict access
             -- check oneway restrictions and cycleway infrastructure in the opposite direction
-            when (direction='tow' and  oneway='opposite'
+            when (direction='ft' and  oneway='opposite'
                       and (cycleway!='yes' or cycleway is null)
                       and (cycleway_right!='yes' or cycleway_right is null)
                       and (cycleway_left!='opposite' or cycleway_left is null)
                       and (cycleway_both!='yes' or cycleway_both is null)) or
-                 (direction='bkw' and  oneway='yes'
+                 (direction='tf' and  oneway='yes'
                       and (cycleway!='opposite' or cycleway is null)
                       and (cycleway_right!='opposite' or cycleway_right is null)
                       and (cycleway_left!='yes' or cycleway_left is null)

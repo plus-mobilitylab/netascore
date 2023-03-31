@@ -22,22 +22,22 @@ The easiest way to run a network assessment for your own area of interest is by 
 
 - create a new **subdirectory** named **`data`** (if you already ran the quickstart example, you can just use the `data` directory created)
 - download the **settings template** [from here](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/settings_osm_query.yml) or copy it from `examples/settings_osm_query.yml`
-- add the **weight profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `weights_bike.yml` and `weights_walk.yml` from the `examples` folder.
+- add the **mode profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `profile_bike.yml` and `profile_walk.yml` from the `examples` folder.
 - **edit** your newly created **settings file** `settings_osm_query.yml` - e.g. to download data for the City of London:
   - provide a **`case_id`**  in `global` section (only alphanumeric characters are allowed; this will be added e.g. to the output file name) - e.g. `case_id: london`
-  - specify a **`place_name`** that is used to query data from OSM - e.g. `place_name: City of London`
-- **run NetAScore** by executing the following line inside the main directory (parent of `data`):
+  - specify a **`place_name`** that is used to query data from OSM in the section `import`: e.g. `place_name: City of London`
+- **run NetAScore** by executing the following line from a terminal inside the main directory (parent of `data`):
   `docker compose run netascore data/settings_osm_query.yml`
   (here, the last argument represents the settings file to use)
 
 ## Add more detail
 
-The example settings use OpenStreetMap data as the only input. While this gives a good first estimate of *bikeability* and *walkability*, utilizing additional input datasets can further improve the quality of results. NetAScore supports additional datasets such as *DEM* (digital elevation model) and *noise* (e.g. traffic noise corridors). Please refer to [settings](settings.md) documentation for details.
+The example settings use OpenStreetMap data as the only input. While this gives a good first estimate of *bikeability* and *walkability*, utilizing additional input datasets can further improve the quality of results. NetAScore supports additional datasets such as *DEM* (digital elevation model) and *noise* (e.g. traffic noise corridors). Please refer to the [settings documentation](settings.md) for details.
 
 To add optional input data sets, follow these steps:
 
 - acquire the file(s) for your area of interest - availability of DEM, noise map, etc. may largely depend on the area of interest
-- add the file(s) to the `data` subdirectory (where the settings file and weights profiles are located)
+- add the file(s) to the `data` subdirectory (where the settings file and mode profiles are located)
 - edit the settings file to add the new datasets and store it inside the `data` folder
 - execute NetAScore from the parent directory:
   `docker compose run netascore data/<your_settings_file>.yml` (where `<your_settings_file>` refers to the file name you chose for the edited settings file)
@@ -53,7 +53,7 @@ docker pull plusmobilitylab/netascore:latest
 To run the workflow with an existing postgres database, simply follow these steps:
 
 - create a directory named `data` and place all geofiles inside
-- add weights files and settings file to this directory (see example files provided in the code repository)
+- add mode profile files and settings file to this directory (see example files provided in the code repository)
 - adjust settings to your needs in the `settings.yml` file - see the [settings documentation](settings.md) for reference
 - finally, execute the workflow using:
 
@@ -67,7 +67,7 @@ The easiest way to build and launch NetAScore is by using docker compose. The `d
 
 `docker compose build`
 
-Then, once you are sure that all input datasets, settings and weights files are properly placed inside the `data` subdirectory, execute NetAScore:
+Then, once you are sure that all input datasets, settings and mode profile files are properly placed inside the `data` subdirectory, execute NetAScore:
 
 `docker compose run netascore data/<your_settings_file>.yml`
 
@@ -107,7 +107,7 @@ database:
     password: postgres
 ```
 
-Make sure that you have all necessary geofiles, settings and weight files in the `data` subdirectory, because this directory is mounted into the netascore container:
+Make sure that you have all necessary geofiles, settings and mode profile files in the `data` subdirectory, because this directory is mounted into the netascore container:
 
 ```bash
 # linux and mac:
@@ -161,7 +161,9 @@ database:
   password: postgres
 ```
 
-## Performance improvement
+## Troubleshooting and performance improvement
+
+### Performance when running NetAScore in Docker
 
 When using NetAScore in a docker image on mac or windows, overall performance of the pipeline can be 3-5 times slower compared to executing NetAScore in local Python or in Docker on Linux. This is caused by slow docker volume mounts and might be an issue for computations on large input files. 
 To resolve this issue, you can either execute the python script on your machine (outside Docker) or copy the files into a volume using the following steps:
@@ -191,6 +193,35 @@ To copy the resulting files back to your local system, you can use the following
 docker copy netascore-pipe:/usr/src/netascore/data/YOUR_RESULT_FILE1.gpkg .
 docker copy netascore-pipe:/usr/src/netascore/data/YOUR_RESULT_FILE2.gpkg .
 ```
+
+### Memory issues with large datasets
+
+In case you experience errors when processing large datasets, please make sure that you have enough memory and disk space available. 
+Furthermore, it might be necessary to dedicate more memory to the database container. This can be done by adding the following line to `docker-compose.yml` within the section `netascore-db` (adjust the amount of memory to your needs):
+
+```yml
+shm_size: 2gb
+```
+
+Then, the `netascore-db`-section of `docker-compose.yml` should look like this:
+
+```yml
+netascore-db:
+    image: postgis/postgis:13-3.2
+    shm_size: 2gb
+    ports:
+    - "5433:5432"
+    environment:
+    - POSTGRES_USER=postgres
+    - POSTGRES_PASSWORD=postgres
+    - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 20s
+      retries: 120
+```
+
 
 ## Overwrite `default.style` for OSM import to database
 

@@ -1,0 +1,178 @@
+# This is the default walkability mode profile provided with NetAScore,
+# developed and tested by the MobilityLab at University of Salzburg.
+# Feel free to copy, edit and adjust for specific use cases.
+
+version: 1.1
+
+weights:
+  bicycle_infrastructure: NULL
+  pedestrian_infrastructure: 0.4
+  designated_route: NULL
+  road_category: 0.3
+  max_speed: NULL
+  max_speed_greatest: 0.3
+  parking: NULL
+  pavement: NULL
+  width: NULL
+  gradient: 0.3
+  number_lanes: 0.1
+  facilities: 0.3
+  crossings: 0.2
+  buildings: 0.1
+  greenness: 0.3
+  water: 0.4
+  noise: 0.3
+
+
+# =================================================================== #
+# In the following section advanced settings can be defined.          #
+# Only edit the contents below if you really know what you are doing. #
+# =================================================================== #
+
+
+# OVERRIDES - here, weights and/or index values can be overridden #
+
+overrides:
+  - description: fixed index value for sidewalk on primary/secondary roads (pedestrian_infrastructure/road_category)
+    indicator: pedestrian_infrastructure
+    output:
+      type: index
+    mapping:
+      "sidewalk":
+        indicator: road_category
+        mapping:
+          "{'secondary', 'primary'}": 0.2
+
+
+# INDICATOR attribute mappings #
+
+indicator_mapping:
+  - indicator: pedestrian_infrastructure
+    mapping:
+      "pedestrian_area": 1
+      "pedestrian_way": 1
+      "mixed_way": 0.85
+      "stairs": 0.7
+      "sidewalk": 0.5
+      "no": 0
+
+  - indicator: road_category
+    mapping:
+      "primary": 0
+      "secondary": 0.2
+      "residential": 0.8
+      "service": 0.85
+      "calmed": 0.9
+      "no_mit": 1
+      "path": 1
+
+  - indicator: max_speed
+    classes:
+      ge100: 0
+      ge80: 0.2
+      ge70: 0.3
+      ge60: 0.4
+      ge50: 0.6
+      ge30: 0.85
+      g0: 0.9
+      e0: 1
+
+  - indicator: max_speed_greatest
+    classes:
+      ge100: 0
+      ge80: 0.2
+      ge70: 0.3
+      ge60: 0.4
+      ge50: 0.6
+      ge30: 0.85
+      g0: 0.9
+      e0: 1
+
+  - indicator: parking
+    mapping:
+      "yes": 0
+      "no": 1
+      True: 0
+      False: 1
+
+  - indicator: pavement
+    mapping:
+      "asphalt": 1
+      "gravel": 0.75
+      "soft": 0.4
+      "cobble": 0
+  
+  - indicator: width
+    classes:
+      g5: 1
+      g4: 0.9
+      g3: 0.85
+      g2: 0.5
+      ge0: 0
+  
+  - indicator: gradient
+    mapping:
+      4: 0.25
+      3: 0.5
+      2: 0.7
+      1: 1
+      0: 1
+      -1: 1
+      -2: 0.7
+      -3: 0.5
+      -4: 0.25
+
+  - indicator: number_lanes
+    classes:
+      g4: 0
+      g3: 0.1
+      g2: 0.2
+      g1: 0.5
+      ge0: 1
+
+  - indicator: facilities
+    classes:
+      g0: 1
+      e0: 0
+
+  - indicator: crossings
+    classes:
+      e0:
+        indicator: road_category
+        mapping:
+          "primary": 0
+          "secondary": 0
+          NULL: 0
+          "residential": 0.5
+          _default_: 1
+      g0: 1
+  
+  - indicator: buildings
+    classes:
+      ge80: 0
+      g60: 0.2
+      g40: 0.4
+      g20: 0.6
+      g0: 0.8
+      e0: 1
+
+  - indicator: greenness
+    classes:
+      g75: 1
+      g50: 0.9
+      g25: 0.8
+      g0: 0.7
+      e0: 0
+  
+  - indicator: water
+    mapping:
+      True: 1
+      False: 0
+
+  - indicator: noise
+    classes:
+      g70: 0
+      g55: 0.6
+      g10: 0.8
+      ge0: 1
+      

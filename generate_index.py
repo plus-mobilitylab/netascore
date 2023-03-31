@@ -9,7 +9,7 @@ from core.attributes_step import create_attributes_step
 from core.db_step import DbStep
 from core.export_step import create_exporter
 from core.import_step import create_importer
-from core.index_step import generate_index, load_weights
+from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
 from settings import DbSettings, GlobalSettings
@@ -69,7 +69,7 @@ with settings_stream:
     if 'export' not in skip_steps:
         h.require_keys(settings, ['export'], 'error: section missing:')
     if 'index' not in skip_steps:
-        h.require_keys(settings, ['weights'], 'error: section missing:')
+        h.require_keys(settings, ['profiles'], 'error: section missing:')
 
     # execute processing steps
     if 'import' not in skip_steps:
@@ -110,9 +110,12 @@ with settings_stream:
 
     if 'index' not in skip_steps:
         h.majorInfo(' === generating index ===')
-        weight_definitions: dict = settings['weights']
-        weights = load_weights(base_path, weight_definitions)
-        generate_index(db_settings, weights)
+        mode_profile_settings: dict = settings['profiles']
+        profiles = load_profiles(base_path, mode_profile_settings)
+        index_settings: dict = None
+        if h.has_keys(settings, ['index']):
+            index_settings = settings['index']
+        generate_index(db_settings, profiles, index_settings)
 
     if 'export' not in skip_steps:
         h.majorInfo(' === exporting ===')

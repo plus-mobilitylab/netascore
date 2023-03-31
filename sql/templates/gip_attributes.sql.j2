@@ -29,22 +29,22 @@ CREATE TABLE network_node_attributes AS ( -- 2 s, 1.595.844
 -- calculate attributes "access_car", "access_bicycle", "access_pedestrian"
 -- ---------------------------------------------------------------------------------------------------------------------
 
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_bkw;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_bkw;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_tow;
-ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_bkw;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_car_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_bicycle_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_ft;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_tf;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           get_bit(b.access_tow::bit(8), 5)::boolean AS access_car_tow,
-           get_bit(b.access_bkw::bit(8), 5)::boolean AS access_car_bkw,
-           get_bit(b.access_tow::bit(8), 6)::boolean AS access_bicycle_tow,
-           get_bit(b.access_bkw::bit(8), 6)::boolean AS access_bicycle_bkw,
-           get_bit(b.access_tow::bit(8), 7)::boolean AS access_pedestrian_tow,
-           get_bit(b.access_bkw::bit(8), 7)::boolean AS access_pedestrian_bkw
+           get_bit(b.access_tow::bit(8), 5)::boolean AS access_car_ft,
+           get_bit(b.access_bkw::bit(8), 5)::boolean AS access_car_tf,
+           get_bit(b.access_tow::bit(8), 6)::boolean AS access_bicycle_ft,
+           get_bit(b.access_bkw::bit(8), 6)::boolean AS access_bicycle_tf,
+           get_bit(b.access_tow::bit(8), 7)::boolean AS access_pedestrian_ft,
+           get_bit(b.access_bkw::bit(8), 7)::boolean AS access_pedestrian_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -95,6 +95,23 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 DROP TABLE bridge, tunnel;
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- calculate attribute "stairs"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS stairs;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           CASE WHEN formofway IN (18) OR funcroadclass IN (46, 47) THEN true ELSE false END::boolean AS stairs -- 18: Stiege; 46: Rolltreppe; 47: Aufzug
+    FROM network_edge_attributes a
+        LEFT JOIN network_edge b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "bicycle_infrastructure"
 -- ---------------------------------------------------------------------------------------------------------------------
 
@@ -123,8 +140,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS pedestrian_infrastruct
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturetow, b.formofway, a.access_pedestrian_tow) AS pedestrian_infrastructure_ft,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturebkw, b.formofway, a.access_pedestrian_bkw) AS pedestrian_infrastructure_tf
+           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturetow, b.formofway, a.access_pedestrian_ft) AS pedestrian_infrastructure_ft,
+           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturebkw, b.formofway, a.access_pedestrian_tf) AS pedestrian_infrastructure_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -195,7 +212,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS road_category;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_road_category(a.access_car_tow, a.access_car_bkw, a.access_bicycle_tow, a.access_bicycle_bkw, b.funcroadclass, b.streetcat, b.basetype, b.bikefeaturetow, b.bikefeaturebkw) AS road_category
+           calculate_road_category(a.access_car_ft, a.access_car_tf, a.access_bicycle_ft, a.access_bicycle_tf, b.funcroadclass, b.streetcat, b.basetype, b.bikefeaturetow, b.bikefeaturebkw) AS road_category
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -207,30 +224,44 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 -- calculate indicator "max_speed"
 -- ---------------------------------------------------------------------------------------------------------------------
 
+DROP TABLE IF EXISTS max_speed;
+CREATE TABLE max_speed AS ( -- 7 s
+    SELECT edge_id,
+           CASE
+               WHEN maxspeed_tow_car <> -1 THEN maxspeed_tow_car
+               WHEN maxspeed_tow_car = -1 AND speed_tow_car <> -1 THEN speed_tow_car
+               WHEN maxspeed_tow_car = -1 AND speed_tow_car = -1 AND maxspeed_bkw_car <> -1 THEN maxspeed_bkw_car
+               WHEN maxspeed_tow_car = -1 AND speed_tow_car = -1 AND maxspeed_bkw_car = -1 AND speed_bkw_car <> -1 THEN speed_bkw_car
+           END::numeric AS max_speed_ft,
+           CASE
+               WHEN maxspeed_bkw_car <> -1 THEN maxspeed_bkw_car
+               WHEN maxspeed_bkw_car = -1 AND speed_bkw_car <> -1 THEN speed_bkw_car
+               WHEN maxspeed_bkw_car = -1 AND speed_bkw_car = -1 AND maxspeed_tow_car <> -1 THEN maxspeed_tow_car
+               WHEN maxspeed_bkw_car = -1 AND speed_bkw_car = -1 AND maxspeed_tow_car = -1 AND speed_tow_car <> -1 THEN speed_tow_car
+           END::numeric AS max_speed_tf
+    FROM network_edge
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_ft;
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_tf;
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS max_speed_greatest;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           CASE
-               WHEN b.maxspeed_tow_car <> -1 THEN b.maxspeed_tow_car
-               WHEN b.maxspeed_tow_car = -1 AND b.speed_tow_car <> -1 THEN b.speed_tow_car
-               WHEN b.maxspeed_tow_car = -1 AND b.speed_tow_car = -1 AND b.maxspeed_bkw_car <> -1 THEN b.maxspeed_bkw_car
-               WHEN b.maxspeed_tow_car = -1 AND b.speed_tow_car = -1 AND b.maxspeed_bkw_car = -1 AND b.speed_bkw_car <> -1 THEN b.speed_bkw_car
-           END::numeric AS max_speed_ft,
-           CASE
-               WHEN b.maxspeed_bkw_car <> -1 THEN b.maxspeed_bkw_car
-               WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car <> -1 THEN b.speed_bkw_car
-               WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car = -1 AND b.maxspeed_tow_car <> -1 THEN b.maxspeed_tow_car
-               WHEN b.maxspeed_bkw_car = -1 AND b.speed_bkw_car = -1 AND b.maxspeed_tow_car = -1 AND b.speed_tow_car <> -1 THEN b.speed_tow_car
-           END::numeric AS max_speed_tf
+           b.max_speed_ft,
+           b.max_speed_tf,
+           greatest(b.max_speed_ft, b.max_speed_tf) AS max_speed_greatest
     FROM network_edge_attributes a
-        LEFT JOIN network_edge b USING (edge_id)
+        LEFT JOIN max_speed b USING (edge_id)
 );
 
 DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+DROP TABLE max_speed;
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "pavement"
@@ -622,14 +653,15 @@ DROP TABLE noise_intersection, noise_sum;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 ALTER TABLE network_edge_attributes
-    ADD COLUMN IF NOT EXISTS access_car_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_car_bkw boolean,
-    ADD COLUMN IF NOT EXISTS access_bicycle_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_bicycle_bkw boolean,
-    ADD COLUMN IF NOT EXISTS access_pedestrian_tow boolean,
-    ADD COLUMN IF NOT EXISTS access_pedestrian_bkw boolean,
+    ADD COLUMN IF NOT EXISTS access_car_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_car_tf boolean,
+    ADD COLUMN IF NOT EXISTS access_bicycle_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_bicycle_tf boolean,
+    ADD COLUMN IF NOT EXISTS access_pedestrian_ft boolean,
+    ADD COLUMN IF NOT EXISTS access_pedestrian_tf boolean,
     ADD COLUMN IF NOT EXISTS bridge boolean,
     ADD COLUMN IF NOT EXISTS tunnel boolean,
+    ADD COLUMN IF NOT EXISTS stairs boolean,
     ADD COLUMN IF NOT EXISTS bicycle_infrastructure_ft varchar,
     ADD COLUMN IF NOT EXISTS bicycle_infrastructure_tf varchar,
     ADD COLUMN IF NOT EXISTS pedestrian_infrastructure_ft varchar,
@@ -639,6 +671,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS road_category varchar,
     ADD COLUMN IF NOT EXISTS max_speed_ft numeric,
     ADD COLUMN IF NOT EXISTS max_speed_tf numeric,
+    ADD COLUMN IF NOT EXISTS max_speed_greatest numeric,
     ADD COLUMN IF NOT EXISTS parking_ft varchar,
     ADD COLUMN IF NOT EXISTS parking_tf varchar,
     ADD COLUMN IF NOT EXISTS pavement varchar,
@@ -666,7 +699,7 @@ ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 
 DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS ( -- 13 s, 1.885.895
-    SELECT edge_id, link_id AS gip_id, from_node, to_node, geom
+    SELECT edge_id, link_id AS gip_id, from_node, to_node, geom, length
     FROM network_edge
 );
 

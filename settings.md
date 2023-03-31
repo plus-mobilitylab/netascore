@@ -2,18 +2,20 @@
 
 NetAScore uses a settings file that holds the necessary information to perform all steps for computing *bikeability* and *walkability*. It is written in YAML markup language. General information about YAML can be found at https://yaml.org/.
 
-We provide a set of **example settings files** with NetAScore. You find them inside the subdirectory `examples`.  The most common to start from is `settings_osm_query.yml`. This is the file used by default in the Docker image. It is configured for easy use with all components running in Docker and no local input files required.   See [docker.md](docker.md) for instructions on executing NetAScore in this example setup.
+We provide a set of **example settings files** with NetAScore. You find them inside the subdirectory `examples`. The most common to start from is `settings_osm_query.yml`. This is the file used by default in the Docker image. It is configured for easy use with all components running in Docker and no local input files required. See [docker.md](docker.md) for instructions on executing NetAScore in this example setup.
 
 Settings files for NetAScore consist of several sections. For **every processing step** that should be executed, a **corresponding settings section** needs to be provided. This means that you can omit sections if you skip all processing steps that require this section. E.g. if you skip the `export` step, then you don't need to provide an `export` section.
 
 In this document, we provide an overview on the structure of settings files and details on available settings for each processing step.
+
+Besides the settings file, you also need to provide a mode profile file for each of the modes you want to compute a suitability index for. For now, please refer to the two mode profiles provided in the `examples/` subdirectory for reference and copy them to the `data` directory for usage in your own queries.
 
 ## Structure
 
 The settings file can consist of the following **sections**:
 
 - **version**: 
-  mandatory, single value. Currently, this is always `1.0`.
+  mandatory, single value. For compatibility with NetAScore version 1.0, the settings file `version` entry should be `1.1`.
 - **global**: 
   general settings such as target reference system (SRID) to use
 - **database**: 
@@ -22,8 +24,8 @@ The settings file can consist of the following **sections**:
   essential information for importing core datasets
 - **optional**: 
   information on optional datasets to import
-- **weights**: 
-  specification of indicator weights - e.g. for *bikeability* and *walkability*
+- **profiles**: 
+  specification of indicator weights and indicator value mappings per mode profile - e.g. for *bikeability* and *walkability*
 - **export**: 
   information for exporting results
 
@@ -44,7 +46,7 @@ Datasets will be imported and if necessary transformed to this reference system.
 
 ### Property `case_id`
 
-This parameter allows you to specify a unique identifier for the current task as defined in the settings file. It may be useful if working with different areas of interest, different weights profiles, or when re-executing parts of a workflow. You can include this identifier e.g. in export file names using `<case_id>` as a placeholder.
+This parameter allows you to specify a unique identifier for the current task as defined in the settings file. It may be useful if working with different areas of interest, different mode profiles, or when re-executing parts of a workflow. You can include this identifier e.g. in export file names using `<case_id>` as a placeholder.
 
 **Note**: Only alphanumeric characters [A-Z, a-z, 0-9] and '_' are allowed.
 
@@ -190,7 +192,7 @@ The noise dataset contains a mapping of noise levels in decibels, represented as
 
 - `filename`: name of the file to be imported
 
-For Austrian states the noise datasets can be downloaded here: [https://www.data.gv.at](https://www.data.gv.at/katalog/dataset/b5de6975-417b-4320-afdb-eb2a9e2a1dbf)
+For Austrian states the noise datasets can be downloaded here: [https://www.inspire.gv.at](https://geometadatensuche.inspire.gv.at/metadatensuche/srv/ger/catalog.search#/metadata/125ec87c-7120-48a7-bd2c-2718cbf878c6)
 
 ### Subsection `osm`
 
@@ -206,20 +208,20 @@ If these datasets are not directly derived from an OSM dataset, they can be impo
 
 
 
-## Section `weights`
+## Section `profiles`
 
-NetAScore uses weights to determine the importance of individual indicators for a specific profile such as for cycling or walking. Different use cases may have different weights.
+NetAScore uses weights to determine the importance of individual indicators for a specific profile such as for cycling or walking. Different use cases may have different weights. Additionally, numeric indicator values are assigned to original attribute values in the mode profiles.
 
-We include well-tested default weights for cycling as well as walking with NetAScore. For general purpose assessments we recommend to utilize these profiles by copying the respective weights files `weights_bike.yml` and `weights_walk.yml` to the `data` directory and referencing them from the settings file as follows:
+We include well-tested default mode profiles for cycling as well as walking with NetAScore. For general purpose assessments we recommend to utilize these profiles by copying the respective mode profile files `profile_bike.yml` and `profile_walk.yml` from `examples` to the `data` directory and referencing them from the settings file as follows:
 
 ```yaml
-weights:
+profiles:
   -
     profile_name: bike
-    filename: weights_bike.yml
+    filename: profile_bike.yml
   -
     profile_name: walk
-    filename: weights_walk.yml
+    filename: profile_walk.yml
 ```
 
 You may edit these profiles or create your own custom profiles and add them to this section of the settings file. The `profile_name` value is included in the column name of the resulting index: e.g. `index_bike_ft`

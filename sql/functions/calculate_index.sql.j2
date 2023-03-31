@@ -1,0 +1,121 @@
+DROP TYPE IF EXISTS indicator_weight CASCADE;
+CREATE TYPE indicator_weight AS (
+    indicator varchar,
+    weight numeric
+);
+
+DROP FUNCTION IF EXISTS calculate_index(varchar, numeric,
+    varchar, numeric,
+    varchar, numeric,
+    varchar, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    varchar, numeric,
+    varchar, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    boolean, numeric,
+    numeric, numeric);
+DROP FUNCTION IF EXISTS calculate_index;
+
+CREATE OR REPLACE FUNCTION calculate_index(
+    IN bicycle_infrastructure varchar, IN bicycle_infrastructure_weight numeric,
+    IN pedestrian_infrastructure varchar, IN pedestrian_infrastructure_weight numeric,
+    IN designated_route varchar, IN designated_route_weight numeric,
+    IN road_category varchar, IN road_category_weight numeric,
+    IN max_speed numeric, IN max_speed_weight numeric,
+    IN max_speed_greatest numeric, IN max_speed_greatest_weight numeric,
+    IN parking varchar, IN parking_weight numeric,
+    IN pavement varchar, IN pavement_weight numeric,
+    IN width numeric, IN width_weight numeric,
+    IN gradient numeric, IN gradient_weight numeric,
+    IN number_lanes numeric, IN number_lanes_weight numeric,
+    IN facilities numeric, IN facilities_weight numeric,
+    IN crossings numeric, IN crossings_weight numeric,
+    IN buildings numeric, IN buildings_weight numeric,
+    IN greenness numeric, IN greenness_weight numeric,
+    IN water boolean, IN water_weight numeric,
+    IN noise numeric, IN noise_weight numeric,
+    OUT index numeric,
+    OUT index_robustness numeric,
+    OUT index_explanation json
+) AS $$
+DECLARE
+    weights_total numeric;
+    weights_sum numeric;
+    indicator numeric;
+    weight numeric;
+    temp numeric;
+    indicator_weights indicator_weight[];
+BEGIN
+    -- here, index and weights overrides are added according to their definition in the mode profile files --
+    {{ overrides | sqlsafe }}
+
+    weights_total := 0;
+    weights_total :=
+        CASE WHEN bicycle_infrastructure_weight IS NOT NULL THEN bicycle_infrastructure_weight ELSE 0 END +
+        CASE WHEN pedestrian_infrastructure_weight IS NOT NULL THEN pedestrian_infrastructure_weight ELSE 0 END +
+        CASE WHEN designated_route_weight IS NOT NULL THEN designated_route_weight ELSE 0 END +
+        CASE WHEN road_category_weight IS NOT NULL THEN road_category_weight ELSE 0 END +
+        CASE WHEN max_speed_weight IS NOT NULL THEN max_speed_weight ELSE 0 END +
+        CASE WHEN max_speed_greatest_weight IS NOT NULL THEN max_speed_greatest_weight ELSE 0 END +
+        CASE WHEN parking_weight IS NOT NULL THEN parking_weight ELSE 0 END +
+        CASE WHEN pavement_weight IS NOT NULL THEN pavement_weight ELSE 0 END +
+        CASE WHEN width_weight IS NOT NULL THEN width_weight ELSE 0 END +
+        CASE WHEN gradient_weight IS NOT NULL THEN gradient_weight ELSE 0 END +
+        CASE WHEN number_lanes_weight IS NOT NULL THEN number_lanes_weight ELSE 0 END +
+        CASE WHEN facilities_weight IS NOT NULL THEN facilities_weight ELSE 0 END +
+        CASE WHEN crossings_weight IS NOT NULL THEN crossings_weight ELSE 0 END +
+        CASE WHEN buildings_weight IS NOT NULL THEN buildings_weight ELSE 0 END +
+        CASE WHEN greenness_weight IS NOT NULL THEN greenness_weight ELSE 0 END +
+        CASE WHEN water_weight IS NOT NULL THEN water_weight ELSE 0 END +
+        CASE WHEN noise_weight IS NOT NULL THEN noise_weight ELSE 0 END;
+
+    weights_sum := 0;
+    weights_sum :=
+        CASE WHEN bicycle_infrastructure IS NOT NULL AND bicycle_infrastructure_weight IS NOT NULL THEN bicycle_infrastructure_weight ELSE 0 END +
+        CASE WHEN pedestrian_infrastructure IS NOT NULL AND pedestrian_infrastructure_weight IS NOT NULL THEN pedestrian_infrastructure_weight ELSE 0 END +
+        CASE WHEN designated_route IS NOT NULL AND designated_route_weight IS NOT NULL THEN designated_route_weight ELSE 0 END +
+        CASE WHEN road_category IS NOT NULL AND road_category_weight IS NOT NULL THEN road_category_weight ELSE 0 END +
+        CASE WHEN max_speed IS NOT NULL AND max_speed_weight IS NOT NULL THEN max_speed_weight ELSE 0 END +
+        CASE WHEN max_speed_greatest IS NOT NULL AND max_speed_greatest_weight IS NOT NULL THEN max_speed_greatest_weight ELSE 0 END +
+        CASE WHEN parking IS NOT NULL AND parking_weight IS NOT NULL THEN parking_weight ELSE 0 END +
+        CASE WHEN pavement IS NOT NULL AND pavement_weight IS NOT NULL THEN pavement_weight ELSE 0 END +
+        CASE WHEN width IS NOT NULL AND width_weight IS NOT NULL THEN width_weight ELSE 0 END +
+        CASE WHEN gradient IS NOT NULL AND gradient_weight IS NOT NULL THEN gradient_weight ELSE 0 END +
+        CASE WHEN number_lanes IS NOT NULL AND number_lanes_weight IS NOT NULL THEN number_lanes_weight ELSE 0 END +
+        CASE WHEN facilities IS NOT NULL AND facilities_weight IS NOT NULL THEN facilities_weight ELSE 0 END +
+        CASE WHEN crossings IS NOT NULL AND crossings_weight IS NOT NULL THEN crossings_weight ELSE 0 END +
+        CASE WHEN buildings IS NOT NULL AND buildings_weight IS NOT NULL THEN buildings_weight ELSE 0 END +
+        CASE WHEN greenness IS NOT NULL AND greenness_weight IS NOT NULL THEN greenness_weight ELSE 0 END +
+        CASE WHEN water IS NOT NULL AND water_weight IS NOT NULL THEN water_weight ELSE 0 END +
+        CASE WHEN noise IS NOT NULL AND noise_weight IS NOT NULL THEN noise_weight ELSE 0 END;
+
+    IF weights_sum > 0 THEN
+        index := 0;
+
+        -- here, the value assignments per indicator are added as defined in the mode profile files --
+        {{ indicator_mappings | sqlsafe }}
+        
+    END IF;
+
+    index := round(index, 4);
+    index_robustness := round(weights_sum / weights_total, 4);
+    {% if compute_explanation %}
+    index_explanation := (
+        WITH indicator_weights AS (
+            SELECT unnest(indicator_weights) AS indicator_weight
+            ORDER BY (unnest(indicator_weights)).weight DESC, (unnest(indicator_weights)).indicator
+            -- LIMIT 1
+        )
+        SELECT json_object_agg((indicator_weight).indicator, round((indicator_weight).weight, 4))
+        FROM indicator_weights
+    );
+    {% endif %}
+END;
+$$ LANGUAGE plpgsql;

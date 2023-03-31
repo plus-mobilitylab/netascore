@@ -26,11 +26,11 @@ RETURNS int AS $BODY$
             when motor_vehicle_fwd_bkw='no'
                 then 0 -- restrict access
             -- check oneway restrictions
-            when (direction='tow' and (oneway='opposite' or oneway_motor_vehicle='opposite' or oneway_vehicle='opposite')) or
-                 (direction='bkw' and (oneway='yes' or oneway_motor_vehicle='yes' or oneway_vehicle='yes'))
+            when (direction='ft' and (oneway='opposite' or oneway_motor_vehicle='opposite' or oneway_vehicle='opposite')) or
+                 (direction='tf' and (oneway='yes' or oneway_motor_vehicle='yes' or oneway_vehicle='yes'))
                 then 0 -- restrict access
             -- check roundabout restrictions
-               when direction='bkw' and roundabout='yes'
+               when direction='tf' and roundabout='yes'
                    then 0 -- restrict access
             -- check motor_vehicle and motorcar restrictions and permissions
             when motor_vehicle='yes' or motorcar='yes'

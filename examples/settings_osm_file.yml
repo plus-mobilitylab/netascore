@@ -1,4 +1,4 @@
-version: 1.0
+version: 1.1
 # this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
 database:
   host: gateway.docker.internal
@@ -17,13 +17,15 @@ optional:
   noise:
     filename: noise.gpkg # GeoPackage
     # column_noise: noise # TODO: set from settings file
-weights:
+index:
+  compute_explanation: False
+profiles:
   -
     profile_name: bike
-    filename: weights_bike.yml
+    filename: profile_bike.yml
   -
     profile_name: walk
-    filename: weights_walk.yml
+    filename: profile_walk.yml
 export:
   type: geopackage
   filename: osm_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes

@@ -2,6 +2,7 @@
 
 
 # NetAScore - Network Assessment Score Toolbox for Sustainable Mobility
+![NetAScore_V1_small](https://user-images.githubusercontent.com/24413180/229195757-8920106a-065c-4aeb-bea7-377e04e43aea.png)
 
 NetAScore provides a toolset and automated workflow for computing ***bikeability***, ***walkability*** and related indicators from publicly available network data sets. Currently, we provide common presets for assessing infrastructure suitability for cycling (*bikeability*) and walking (*walkability*). By editing settings files and mode profiles, additional modes or custom preferences can easily be modeled.
 
@@ -29,11 +30,11 @@ NetAScore first loads an area of interest by place name from Overpass Turbo API,
 
 #### What the results look like:
 
-Currently, NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. Then in layer preferences define a symbology that visualizes one of the computed index values - e.g. `index_bike_ft` for *bikeability* (`_ft`: bikeability in forward-direction of each segment).
+Currently, NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. Then in layer preferences define a symbology that visualizes one of the computed index values - e.g. `index_bike_ft` for *bikeability* (`_ft`: bikeability in forward-direction of each segment). Please note that from version 1.0 onwards, an index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
 
 This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
-![Bikeability result for Salzburg, Austria](https://user-images.githubusercontent.com/24413180/216041815-9e2457e5-ce2f-48b3-9df4-5c33f805de38.png)
+![Bikeability result for Salzburg, Austria](https://user-images.githubusercontent.com/24413180/229191339-7271e4ac-5a9b-4c12-ad02-dd3909215623.png)
 
 #### How to proceed?
 
@@ -55,17 +56,25 @@ For running NetAScore without Docker you need several software packages and Pyth
 
 ## What is NetAScore?
 
-TODO: what does it do? -> inputs, outputs,...
+NetAScore
+
+- is a (commandline) software tool for assessing infrastructure suitability for different modes
+- provides default profiles for cycling and walking
+- can be used as foundation for advanced network analyses e.g. in urban planning
+- supports OpenStreetMap and GIP (for Austria) network data
+- is open source
 
 #### Goals and Roadmap
 
-TODO: add
+Our goal is to support open research and planning with providing NetAScore as open source software. We plan on developing further add-ons that build up on the assessed network and enable applications e.g. in routing, network analysis and very applied mobility planning topics. Furthermore, we look forward to ideas and contributions from the research and open source communities.
 
 #### Non-Goals
 
-TODO: to be defined...
+We **do not** want to:
 
-
+- provide another full GIS software
+- re-invent general-purpose network analysis tools and libraries such as NetworkX, igraph or OSMnx
+- develop very purpose-specific additions that are targeted to a single end user or customer. However, you are welcome to adapt the code yourself following the MIT license.
 
 ## The workflow
 
@@ -75,11 +84,12 @@ The settings file contains information about:
 
 - how to connect to the database
 - which parameters to use in the process
+- which mode profiles (e.g. bike or walk) to use for generating index values
 - what datasets to import
 - how and where to export the results
 - global settings such as SRID (spatial reference system)
 
-The settings file itself does not contain geodata. It specifies all parameters such as which input files to be used. You find details on which options are available and what they mean in [settings.md](settings.md). In general, each step of the workflow has its respective section in the settings file. NetAScore also comes with a set of examplary settings files in the `examples` subdirectory.
+The settings file itself does not contain geodata. It specifies all parameters such as which input files to be used. You find details on which options are available and what they mean in [settings.md](settings.md). In general, each step of the workflow has its respective section in the settings file. NetAScore also comes with a set of examplary settings files in the `examples` subdirectory. These are a perfect starting point for adapting NetAScore to your specific demands.
 
 The system relies on a PostgreSQL database and a Python script that is executed.
 
@@ -108,7 +118,7 @@ In this step a network dataset is imported. Currently `osm` (OpenStreetMap) and 
 
 `osm`
 
-- The necessary database tables are imported from a PBF or XML file, as defined in the settings file. The geometry is not transformed - this will be done in the network_step.
+- The necessary database tables are imported from a PBF or XML file, as defined in the settings file. The geometry is not transformed - this will be done in the network_step. Another option is to directly query OpenStreetMap data by providing a place name or bounding box.
 - Additionally, the optional datasets `building`, `crossing`, `facility`, `greenness`, `water` are derived as database tables. The geometry is transformed.
 
 `gip`
@@ -158,24 +168,24 @@ In this step, necessary [attributes / indicators](attributes.md) for routing app
 
 ### 5. index_step
 
-In this step indices will be calculated based on the weight profiles defined in the settings file, resulting in the tables: `network_edge_index`, `edge`, `node`.
+In this step indices will be calculated based on the mode profiles defined in the settings file, resulting in the tables: `network_edge_index`, `export_edge`, `export_node`.
 - The index is calculated as a weighted average over all available indicators for every edge.
-  - The values of the indicators are rated with predefined values between 0 (best) and 1 (worst) for the respective use cases (bike or walk).
-  - The indicators are weighted with values between 0 (best) and 1 (worst) as defined in the weights file.
-- The tables `edge` and `node` are created by joining the resulting datasets from the previous steps, including all attributes, indicators and indices.
+  - Original values of the indicators are rated with numeric values between 1 (best) and 0 (worst) regarding suitability for a given mode (e.g. bike or walk).
+  - According to the weights defined in the mode profile, the indicators are then combined into a single index value per mode and edge (per direction).
+- The tables `export_edge` and `export_node` are created by joining the resulting datasets from the previous steps, including all attributes, indicators and indices.
 
 ### 6. export_step
 
-In this step the tables `edge` and `node` are exported, as defined in the settings file.
+In this step the tables `export_edge` and `export_node` are exported, as defined in the settings file.
 
 `geopackage`
-- The tables `edge` and `node` are exported to one geopackage with the layers `edge` and `node`.
+- The tables `export_edge` and `export_node` are exported to one geopackage with the layers `edge` and `node`.
 
 ## How to run the project
 
 This sections describes how to run the project directly on your machine without Docker. For information on how to run it in a Docker environment see [docker.md](docker.md). However, for a **quick start**, we recommend to use the **ready-made Docker image** as outlined in "How to get started".
 
-In order to run NetAScore, you need to prepare a **`data` directory** that contains at least the **settings file** and **weights files** for *bike* and *walk* profiles. You find **example files** in the `examples` subdirectory of the NetAScore repository. If available, also copy the input data sets and optional data sets to the `data` subdirectory in your repository root.
+In order to run NetAScore, you need to prepare a **`data` directory** that contains at least the **settings file** and **mode profile files** for *bike* and *walk* profiles. You find **example files** in the `examples` subdirectory of the NetAScore repository. If available, also copy the input data sets and optional data sets to the `data` subdirectory in your repository root.
 
 As a next step, make sure that you have a (local) **PostgreSQL** database running and that you specified the correct database connection details in the settings file. 
 
@@ -198,7 +208,7 @@ Now you can **run NetAScore** by providing the filename of the settings file as 
 
     generate_index.py your-settings-file.yml
 
-The processing can take several minutes up to several hours - depending on the size of the geodata and the hardware used. Therefore, we recommend to start with a small example first.
+The processing can take several minutes up to several hours - depending on the size of the geodata and the hardware used. Therefore, we recommend to **start with a small example** first.
 
 ### Additional commandline parameters
 
@@ -209,7 +219,7 @@ If you want to re-run the pipeline, but **skip certain steps**, use the **`--ski
 If you want to get more (or less) detailed **log outputs**, set the **`--loglevel`** flag to one of the following levels: 
 `1` = MajorInfo, `2` = Info (default), `3` = Detailed, `4` = Debug
 
-## Running NetAScore in Docker or better directly on the machine in Python?
+## Running NetAScore in Docker or better directly on your machine in Python?
 
 The great advantage of running NetAScore in Docker is that you do not have to install any software or python dependencies on your machine. Only docker is required. Also the configuration is very simple, as you get a ready-to-use setup including a PostgreSQL database with PostGIS extension.
 
@@ -217,28 +227,25 @@ However, running NetAScore in Docker can potentially be slower on macOS and Wind
 
 ## How to contribute
 
-We are happy about contributions, feedback and ideas that help developing NetAScore further.
+We are happy about contributions, feedback and ideas that help developing NetAScore further, or with integrating it into other tools.
 
 If you want to work with the source code of NetAScore, you might want to start exploring it from the entrypoint of execution in `generate_index.py`. This script parses all arguments and settings and verifies their correctness and that all mandatory information is given. Then it runs all processing steps in order and calls the respective handlers for each step.
 
-TODO:
-- important next steps
-- future possibilities
-
-TODO: how to handle contributions? Should people send in pull requests?
+We will provide further details on the structure of the NetAScore source code soon.
 
 ## Limitations
 
-TODO: what are the projects limitations and shortcomings
+Please also consider the limitations of NetAScore:
 
-- Results depend on input data quality
-- GeoPackages are to be provided in required format
+- As with any data-driven method, quality of results depends on input data quality
+- NetAScore uses modeling approaches that lead to some level of abstraction. Therefore, it can only be an approximation of reality and is designed to fit a certain purpose. However, we give you easy access to adjusting model parameters to your specific needs with the mode profile files.
+- If you provide individual GeoPackages for optional data sets such as noise, buildings, etc., these need to be provided in the required format. Otherwise, processing will fail and give you an error message.
 
 ## Credits
 
 NetAScore is developed by the [Mobility Lab](https://mobilitylab.zgis.at/) at the Department of Geoinformatics (Z_GIS), University of Salzburg, Austria.
 
-The main developers are: Dana Kaziyeva, Martin Loidl, Petra Stutz, Robin Wendel and Christian Werner.
+The main developers are: Christian Werner, Robin Wendel, Dana Kaziyeva, Petra Stutz and Martin Loidl.
 
 As NetAScore relies on great OpenSource software, we want to thank all contributors to these projects - especially PostgreSQL with PostGIS and OSGeo4W.
 
@@ -246,4 +253,4 @@ We want to thank [TraffiCon GmbH](https://www.trafficon.eu/) and [Triply GmbH](h
 
 ## License
 
-This project is licensed under the MIT license. For details please see [LICENSE](LICENSE)
+This project is licensed under the MIT license. For details please see the [LICENSE file](LICENSE).

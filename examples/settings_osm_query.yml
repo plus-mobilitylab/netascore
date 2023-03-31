@@ -1,4 +1,4 @@
-version: 1.0
+version: 1.1
 
 # global settings that are relevant across individual processing steps
 global:
@@ -26,13 +26,17 @@ import:
   interactive: False # if true, allows for interactive choice in case multiple results were returned for given AOI query (otherwise first is used)
   buffer: 1000
 
-weights:
+index:
+  compute_explanation: True
+
+profiles:
   -
     profile_name: bike
-    filename: weights_bike.yml
+    filename: profile_bike.yml
   -
     profile_name: walk
-    filename: weights_walk.yml
+    filename: profile_walk.yml
+
 export:
   type: geopackage
   filename: netascore_<case_id>.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
