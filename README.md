@@ -1,4 +1,5 @@
 # NetAScore - Network Assessment Score Toolbox for Sustainable Mobility
+![NetAScore_V1_small](https://user-images.githubusercontent.com/24413180/229195757-8920106a-065c-4aeb-bea7-377e04e43aea.png)
 
 NetAScore provides a toolset and automated workflow for computing ***bikeability***, ***walkability*** and related indicators from publicly available network data sets. Currently, we provide common presets for assessing infrastructure suitability for cycling (*bikeability*) and walking (*walkability*). By editing settings files and mode profiles, additional modes or custom preferences can easily be modeled.
 
