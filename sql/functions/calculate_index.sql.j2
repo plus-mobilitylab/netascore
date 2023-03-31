@@ -4,6 +4,8 @@ CREATE TYPE indicator_weight AS (
     weight numeric
 );
 
+DROP FUNCTION IF EXISTS calculate_index;
+
 CREATE OR REPLACE FUNCTION calculate_index(
     IN bicycle_infrastructure varchar, IN bicycle_infrastructure_weight numeric,
     IN pedestrian_infrastructure varchar, IN pedestrian_infrastructure_weight numeric,
