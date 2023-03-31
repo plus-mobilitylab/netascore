@@ -28,7 +28,7 @@ Currently, NetAScore does not come with a built-in visualization module. However
 
 This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
-![Bikeability result for Salzburg, Austria](https://user-images.githubusercontent.com/24413180/216041815-9e2457e5-ce2f-48b3-9df4-5c33f805de38.png)
+![Bikeability result for Salzburg, Austria](https://user-images.githubusercontent.com/24413180/229191339-7271e4ac-5a9b-4c12-ad02-dd3909215623.png)
 
 #### How to proceed?
 
