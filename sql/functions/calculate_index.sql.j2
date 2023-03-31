@@ -4,6 +4,23 @@ CREATE TYPE indicator_weight AS (
     weight numeric
 );
 
+DROP FUNCTION IF EXISTS calculate_index(varchar, numeric,
+    varchar, numeric,
+    varchar, numeric,
+    varchar, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    varchar, numeric,
+    varchar, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    numeric, numeric,
+    boolean, numeric,
+    numeric, numeric);
 DROP FUNCTION IF EXISTS calculate_index;
 
 CREATE OR REPLACE FUNCTION calculate_index(
