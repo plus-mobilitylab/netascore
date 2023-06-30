@@ -353,8 +353,16 @@ CREATE TABLE bicycle_infrastructure AS ( -- 7 s
                     ((tags -> 'cycleway' = 'track' OR tags -> 'cycleway' = 'opposite_track') AND (foot = 'yes' OR foot = 'designated')) THEN 'mixed_way'
                WHEN tags -> 'cycleway' = 'shared_lane' OR
                     tags -> 'cycleway' = 'lane' OR
-                    tags -> 'cycleway' = 'opposite_lane' THEN 'bicycle_lane'
-               WHEN tags -> 'cycleway' = 'share_busway' THEN 'bus_lane'
+                    tags -> 'cycleway' = 'opposite_lane' OR
+                    tags -> 'cycleway:left' = 'lane' OR
+                    tags -> 'cycleway:left:lane' = 'advisory' OR
+                    tags -> 'cycleway:right' = 'lane' OR
+                    tags -> 'cycleway:right:lane' = 'advisory'
+                    THEN 'bicycle_lane'
+               WHEN tags -> 'cycleway' = 'share_busway' OR
+                    tags -> 'cycleway:right' = 'share_busway' OR
+                    tags -> 'cycleway:left' = 'share_busway'
+               THEN 'bus_lane'
                ELSE 'no'
            END AS bicycle_infrastructure
     FROM network_edge
