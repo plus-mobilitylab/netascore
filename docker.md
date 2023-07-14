@@ -24,8 +24,9 @@ The easiest way to run a network assessment for your own area of interest is by 
 - download the **settings template** [from here](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/settings_osm_query.yml) or copy it from `examples/settings_osm_query.yml`
 - add the **mode profiles** for *bikeability* and *walkability* to the `data` direcotry: copy both, `profile_bike.yml` and `profile_walk.yml` from the `examples` folder.
 - **edit** your newly created **settings file** `settings_osm_query.yml` - e.g. to download data for the City of London:
-  - provide a **`case_id`**  in `global` section (only alphanumeric characters are allowed; this will be added e.g. to the output file name) - e.g. `case_id: london`
-  - specify a **`place_name`** that is used to query data from OSM in the section `import`: e.g. `place_name: City of London`
+  - provide a **`case_id`**  in `global` section (only alphanumeric characters are allowed - please avoid special characters such as German "Umlaute" etc.; this will be added e.g. to the output file name) - e.g. `case_id: london`
+  - specify a **`place_name`** that is used to query data from OSM in the section `import`: e.g. `place_name: City of London` (please note: currently, this must equal the OSM "name" tag of your target area - you may check this using e.g. www.openstreetmap.org)
+  - for editing this file we recommend using a code editor such as Visual Studio Code, Notepad++ or comparable which handles text encodings properly
 - **run NetAScore** by executing the following line from a terminal inside the main directory (parent of `data`):
   `docker compose run netascore data/settings_osm_query.yml`
   (here, the last argument represents the settings file to use)
