@@ -362,7 +362,7 @@ CREATE TABLE bicycle_infrastructure AS ( -- 7 s
                             tags -> 'cycleway:left' = 'track' OR 
                             tags -> 'cycleway:left' = 'opposite_track' OR
                             tags -> 'cycleway:right' = 'track' OR 
-                            tags -> 'cycleway:right' = 'opposite_track' OR
+                            tags -> 'cycleway:right' = 'opposite_track'
                         ) 
                         AND (foot != 'yes' OR foot IS NULL) 
                         AND (foot != 'designated' OR foot IS NULL)
