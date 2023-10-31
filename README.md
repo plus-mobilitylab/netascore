@@ -1,4 +1,11 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7695369.svg)](https://doi.org/10.5281/zenodo.7695369)
+# 👉 CALL FOR PARTICIPATION 👤
+**Online survey on bikeability &rarr;**
+https://websurvey.zgis.at/index.php/173238?lang=en
+
+Please support our research and the development of NetAScore by answering our online survey on bikeability. It will take 5-10 minutes.
+
+Thank you for your support! 👏
 
 
 # NetAScore - Network Assessment Score Toolbox for Sustainable Mobility
