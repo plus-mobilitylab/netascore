@@ -1,5 +1,5 @@
 import os
-from markupsafe import re
+import re
 import yaml
 
 import toolbox.helper as h
