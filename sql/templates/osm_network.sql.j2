@@ -40,10 +40,17 @@ CREATE TABLE network_init AS ( -- 19 s, 2.162.218
     AND (highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
                      'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link', 'living_street',
                      'service', 'pedestrian', 'track', 'bus_guideway', 'escape', 'road', 'footway', 'bridleway',
-                     'steps', 'path', 'cycleway', 'construction', 'crossing', 'emergency_bay', 'platform') OR
-         railway IN ('construction', 'funicular', 'light_rail', 'monorail', 'narrow_gauge', 'rail', 'subway', 'tram',
-                     'turntable', 'traverser') OR
-         aerialway IN ('cable_car', 'gondola', 'mixed_lift', 'chair_lift', 'drag_lift', 't-bar', 'j-bar', 'platter'))
+                     'steps', 'path', 'cycleway', 'construction', 'crossing', 'emergency_bay', 'platform') 
+        {% if include_rail %}
+            OR
+            railway IN ('construction', 'funicular', 'light_rail', 'monorail', 'narrow_gauge', 'rail', 'subway', 'tram',
+                        'turntable', 'traverser') 
+        {% endif %}
+        {% if include_aerialway %}
+            OR
+            aerialway IN ('cable_car', 'gondola', 'mixed_lift', 'chair_lift', 'drag_lift', 't-bar', 'j-bar', 'platter')
+        {% endif %}
+    )
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
