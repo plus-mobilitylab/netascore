@@ -20,10 +20,19 @@ class ProfileDefinition:
 class ModeProfile:
     profile_name: str
     profile: dict = {}
+    access_car: False
+    access_bike: False
+    access_walk: False
 
     def __init__(self, base_path: str, definition: dict):
         self.profile_name = definition.get('profile_name')
         filename = os.path.join(base_path, definition.get('filename'))
+        self.access_car = h.has_keys(definition, ['filter_access_car']) and definition['filter_access_car']
+        self.access_bike = h.has_keys(definition, ['filter_access_bike']) and definition['filter_access_bike']
+        self.access_walk = h.has_keys(definition, ['filter_access_walk']) and definition['filter_access_walk']
+        # if none of the mode access filters are set, then enable index computation for all modes
+        if not (self.access_car or self.access_bike or self.access_walk):
+            self.access_car = self.access_bike = self.access_walk = True
         with open(filename) as file:
             self.profile = yaml.safe_load(file)
 
@@ -220,9 +229,13 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
             params = {
                 'schema_network': schema,
                 'profile_name': profile_name,
-                'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation']
+                'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation'],
+                'access_car': p.access_car,
+                'access_bike': p.access_bike,
+                'access_walk': p.access_walk,
             }
             params.update(indicator_weights)
+            print(params)
             db.execute_template_sql_from_file("index", params)
     h.logEndTask()
 

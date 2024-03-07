@@ -33,9 +33,11 @@ profiles:
   - 
     profile_name: bike
     filename: profile_bike.yml
+    filter_access_bike: True
   -
     profile_name: walk
     filename: profile_walk.yml
+    filter_access_walk: True
 export:
   type: geopackage
   filename: gip_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
