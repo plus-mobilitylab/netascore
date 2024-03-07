@@ -1162,7 +1162,13 @@ ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 
 DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS ( -- 18 s, 3.875.173
-    SELECT edge_id, osm_id, from_node, to_node, geom, length
+    SELECT edge_id, osm_id, from_node, to_node, geom, length, 
+    CASE
+        WHEN highway IS NOT NULL THEN 'road'
+        WHEN railway IS NOT NULL THEN 'rail'
+        WHEN aerialway IS NOT NULL THEN 'aerial'
+        ELSE NULL
+    END AS net_type
     FROM network_edge
 );
 
