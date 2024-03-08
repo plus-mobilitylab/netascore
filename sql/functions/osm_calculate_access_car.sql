@@ -17,9 +17,6 @@ RETURNS int AS $BODY$
 	    car_access int;
 	BEGIN
 	    car_access:=case
-	        -- check access restrictions
-            when access='no'
-                then 0 -- restrict access
             -- check motor vehicle forward restrictions and permissions
             when motor_vehicle_fwd_bkw='yes'
                 then 1 -- allow access
@@ -42,6 +39,9 @@ RETURNS int AS $BODY$
                 then 0 -- restrict access
             -- check vehicle restrictions
             when vehicle='no'
+                then 0 -- restrict access
+            -- check global access restrictions
+            when access='no'
                 then 0 -- restrict access
             -- check highway restrictions
             when highway='no' or highway is null

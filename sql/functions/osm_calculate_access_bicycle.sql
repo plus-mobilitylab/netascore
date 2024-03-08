@@ -16,9 +16,6 @@ RETURNS int AS $BODY$
 	    bike_access int;
 	BEGIN
 	    bike_access:=case
-	        -- check access restrictions
-            when access='no'
-                then 0 -- restrict access
             -- check bicycle_forward/bicycle_backward (depends on the direction) restrictions and permissions
             when bicycle_fwd_bkw='no'
                 then 0 -- restrict access
@@ -49,6 +46,9 @@ RETURNS int AS $BODY$
                 then 0 -- restrict access
             when bicycle='yes'
                 then 1 -- allow access
+            -- check global access restrictions
+            when access='no'
+                then 0 -- restrict access
             -- check highway restrictions
             when highway='no' or highway is null
                 then 0 -- restrict access
