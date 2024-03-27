@@ -249,7 +249,7 @@ The main developers are: Christian Werner, Robin Wendel, Dana Kaziyeva, Petra St
 
 As NetAScore relies on great OpenSource software, we want to thank all contributors to these projects - especially PostgreSQL with PostGIS and OSGeo4W.
 
-We want to thank [TraffiCon GmbH](https://www.trafficon.eu/) and [Triply GmbH](https://triply.net/) for contracted research and development. Research on the concepts of *bikeability* and *walkability* as well as the development of the NetAScore software was made possible by [SINUS](https://projekte.ffg.at/projekt/3325243) (BMK, FFG No. 874070), [POSITIM](https://projekte.ffg.at/projekt/3298537) (BMK, FFG No. 873353) and On-Demand II (BMK & BMAW, FFG No. 880996).
+We thank TraffiCon GmbH and Triply GmbH for contracted research and development, as well as funding of the following recent research projects that supported the development of bikeability and walkability concepts as well as code development: SINUS (BMK, FFG No. 874070), POSITIM (BMK, FFG No. 873353) and On-Demand II (BMK and BMAW, FFG No. 880996). Also thank you to everyone who provided feedback, tested applications that utilize outputs of NetAScore and who contributed to the development of NetAScore. Special thanks to all participants of our evaluation studies for walkability and bikeability.
 
 ## License
 
