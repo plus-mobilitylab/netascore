@@ -8,7 +8,8 @@ NetAScore provides a toolset and automated workflow for computing ***bikeability
 
 For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'**, can be used if you work on an area of interest within Austria. 
 
-Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: https://doi.org/10.5281/zenodo.7695369
+Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: https://doi.org/10.5281/zenodo.7695369. You can cite NetAScore as follows (APA-style): 
+Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., Zagel, B., & Loidl, M. (2023). NetAScore [Computer software]. https://doi.org/10.5281/zenodo.7695369
 
 ## How to get started?
 
@@ -168,10 +169,15 @@ In this step, necessary [attributes / indicators](attributes.md) for routing app
 
 ### 5. index_step
 
-In this step indices will be calculated based on the mode profiles defined in the settings file, resulting in the tables: `network_edge_index`, `export_edge`, `export_node`.
-- The index is calculated as a weighted average over all available indicators for every edge.
-  - Original values of the indicators are rated with numeric values between 1 (best) and 0 (worst) regarding suitability for a given mode (e.g. bike or walk).
-  - According to the weights defined in the mode profile, the indicators are then combined into a single index value per mode and edge (per direction).
+In this step indices are calculated based on the mode profiles defined in the settings file, resulting in the tables: `network_edge_index`, `export_edge`, `export_node`.
+
+Starting with version 1.1.0, by default index values are only computed for edges that are legally accessible per mode. This is indicated in the *settings file* where referencing the *mode profile*: e.g. `filter_access_bike: True`. If desired (e.g. for use in routing applications) this tag can be omitted or additional mode filters can be added. 
+
+- For each mode, an index is calculated as a weighted average over all available indicators per edge.
+  - Original values of the indicators are rated with numeric values between 1 (best) and 0 (worst) regarding suitability for a given mode (e.g. bike or walk). This follows the value mappings defined in the respective *mode profile*.
+  - According to the indicator weights defined in the *mode profile*, the numeric indicator values are then combined into a single index value per mode and edge (per direction). Accordingly, columns `index_<name>_ft` and `index_<name>_tf` are generated, representing the index for forward *(from-to)* and backward *(to-from)* direction of each edge.
+- Per index, an additional column with suffix `robustness` is added. The numeric value represents the sum of weights for all available indicators per edge. This gives indication on how robust the respective index value is in terms of data availability.
+- If enabled in the *settings file*, another column with suffix `explanation` is generated. It consists of a list of indicator names with associated influence on overall edge suitability. 
 - The tables `export_edge` and `export_node` are created by joining the resulting datasets from the previous steps, including all attributes, indicators and indices.
 
 ### 6. export_step
@@ -219,6 +225,10 @@ If you want to re-run the pipeline, but **skip certain steps**, use the **`--ski
 If you want to get more (or less) detailed **log outputs**, set the **`--loglevel`** flag to one of the following levels: 
 `1` = MajorInfo, `2` = Info (default), `3` = Detailed, `4` = Debug
 
+### Further remarks
+
+If you provide individual GeoPackages for optional data sets such as noise, buildings, etc., these need to be provided in the required format (see documentation). Otherwise, processing will fail and give you an error message.
+
 ## Running NetAScore in Docker or better directly on your machine in Python?
 
 The great advantage of running NetAScore in Docker is that you do not have to install any software or python dependencies on your machine. Only docker is required. Also the configuration is very simple, as you get a ready-to-use setup including a PostgreSQL database with PostGIS extension.
@@ -239,7 +249,7 @@ Please also consider the limitations of NetAScore:
 
 - As with any data-driven method, quality of results depends on input data quality
 - NetAScore uses modeling approaches that lead to some level of abstraction. Therefore, it can only be an approximation of reality and is designed to fit a certain purpose. However, we give you easy access to adjusting model parameters to your specific needs with the mode profile files.
-- If you provide individual GeoPackages for optional data sets such as noise, buildings, etc., these need to be provided in the required format. Otherwise, processing will fail and give you an error message.
+- Currently, data availability does not allow for appropriately modeling suitability of intersections. As soon as data and methods allow for generic assessment of intersections, we will be happy to add this feature to NetAScore.
 
 ## Credits
 

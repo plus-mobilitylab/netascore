@@ -15,7 +15,7 @@ Besides the settings file, you also need to provide a mode profile file for each
 The settings file can consist of the following **sections**:
 
 - **version**: 
-  mandatory, single value. For compatibility with NetAScore version 1.0, the settings file `version` entry should be `1.1`.
+  mandatory, single value. For compatibility with NetAScore version 1.1, the settings file `version` entry should be `1.2`.
 - **global**: 
   general settings such as target reference system (SRID) to use
 - **database**: 
@@ -35,10 +35,10 @@ The settings file can consist of the following **sections**:
 
 ### Property `target_srid` 
 
-**This parameter is optional if using GIP** (for the whole of Austria) **or OSM Download via place name** - in these cases NetAScore uses the centroid's UTM zone by default. However, **if working with OSM file import** (e.g. Planet OSM / Geofabrik downloads), you almost certainly should **provide an appropriate reference system** for your specific area of interest.
+**This parameter is optional if using GIP** (for the whole of Austria) **or OSM Download via place name** - in these cases NetAScore uses the centroid's UTM zone by default. However, **if working with OSM file import** (e.g. Planet OSM / Geofabrik downloads), you should **provide an appropriate reference system** for your specific area of interest.
 Specify the SRID (spatial reference system as EPSG-code) to use for processing and data output. 
-Datasets will be imported and if necessary transformed to this reference system. Please note:
-**currently only metric unit systems are supported such as UTM**.
+Datasets will be imported and if necessary transformed to this reference system. 
+**Please note: currently only metric unit systems are supported such as UTM**.
 
 **Example**:
 
@@ -48,7 +48,7 @@ Datasets will be imported and if necessary transformed to this reference system.
 
 This parameter allows you to specify a unique identifier for the current task as defined in the settings file. It may be useful if working with different areas of interest, different mode profiles, or when re-executing parts of a workflow. You can include this identifier e.g. in export file names using `<case_id>` as a placeholder.
 
-**Note**: Only alphanumeric characters [A-Z, a-z, 0-9] and '_' are allowed.
+**Note**: Only alphanumeric characters [A-Z, a-z, 0-9] and '_' are allowed. Other characters will be removed.
 
 
 
@@ -121,6 +121,8 @@ NetAScore allows you to **directly download OpenStreetMap data** via Overpass AP
 - property **`bbox`**: Bounding box of your area of interest in WGS 84 (longitude and latitude, geographic coordinates) - e.g. for Salzburg (Austria) use: `bbox: 47.7957,13.0117,47.8410,13.0748`
   **Please note**: when using this option, please specify **`target_srid`** in the `global` settings section to define an appropriate spatial reference system for your custom area of interest
 
+- properties **`include_rail`** and **`include_aerialway`**: These optional `boolean` tags allow you to include railway and aerialway features into the network dataset. This may be useful for visualization and specific types of analysis. For example, provide `include_rail: True` if you want railway geometry to be included in the output data set.
+  
 - (advanced) property `filename_style`: For importing OpenStreetMap data into the database, NetAScore uses [osm2pgsql](https://osm2pgsql.org/). Import settings for this commandline utility are provided in a `default.style` file. By default, NetAScore provides this file in the `resources` directory. This setting, however, allows you to specify a custom style file.
 
 
@@ -219,14 +221,27 @@ profiles:
   -
     profile_name: bike
     filename: profile_bike.yml
+    filter_access_bike: True
   -
     profile_name: walk
     filename: profile_walk.yml
+    filter_access_walk: True
 ```
 
-You may edit these profiles or create your own custom profiles and add them to this section of the settings file. The `profile_name` value is included in the column name of the resulting index: e.g. `index_bike_ft`
+You may edit these profiles or create your own custom profiles and add them to this section of the settings file. The `profile_name` value is included in the column name of the resulting index: e.g. `index_bike_ft`.
 
-For details on weight file definition and computation steps involved, please refer to [README](README.md) and [attributes](attributes.md) documentation.
+Since NetAScore version 1.1.0, index values are only computed for edges with legal access per mode. This filter is indicated by `filter_access_<mode>: True`. You may include segments accessible to other modes by adding multiple lines of `filter_access_<mode>`.  Possible modes are: `bike`, `walk` and `car`. For example, if you want to compute bikeability for all segments that are accessible by bike but also for those only open to pedestrians you may use:
+
+``````yaml
+profiles:
+  -
+    profile_name: bike
+    filename: profile_bike.yml
+    filter_access_bike: True
+    filter_access_walk: True
+``````
+
+For details on weight file definition and computation steps involved, please refer to the [README](README.md) and [attributes](attributes.md) documentation.
 
 
 
