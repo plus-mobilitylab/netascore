@@ -103,10 +103,12 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
         geometry_column = data_source.GetLayerByName(layer).GetGeometryColumn()
 
         select = f"-select \"{attributes}\"" if attributes else ""
-        where = f"-where \"GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
-
-        subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", 
+        where = f"-where \"ST_GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
+        
+        result = subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", 
             shell=True, check=True)
+        h.debugLog(f"ogr2ogr returned code: {result.returncode}")
+        #h.debugLog(f"ogr2ogr stdout: {result.args}")
 
 
 def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:
