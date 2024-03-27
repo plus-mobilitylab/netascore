@@ -30,14 +30,14 @@ ALTER TABLE network_edge_index DROP COLUMN IF EXISTS index_{{ profile_name | sql
 
 DROP TABLE IF EXISTS network_edge_index_tmp;
 CREATE TABLE network_edge_index_tmp AS (
-    SELECT a.*,
-           ft.index AS index_{{ profile_name | sqlsafe }}_ft,
-           tf.index AS index_{{ profile_name | sqlsafe }}_tf,
-           ft.index_robustness AS index_{{ profile_name | sqlsafe }}_ft_robustness,
-           tf.index_robustness AS index_{{ profile_name | sqlsafe }}_tf_robustness
+    WITH index_filtered as (SELECT a.edge_id,
+           ft.index AS index_ft,
+           tf.index AS index_tf,
+           ft.index_robustness AS index_robustness_ft,
+           tf.index_robustness AS index_robustness_tf
            {% if compute_explanation %}
-               ,ft.index_explanation AS index_{{ profile_name | sqlsafe }}_ft_explanation,
-               tf.index_explanation AS index_{{ profile_name | sqlsafe }}_tf_explanation
+               ,ft.index_explanation AS index_explanation_ft,
+               tf.index_explanation AS index_explanation_tf
            {% endif %}
     FROM network_edge_index a
         JOIN network_edge_attributes b USING (edge_id),
@@ -79,9 +79,30 @@ CREATE TABLE network_edge_index_tmp AS (
             b.water, {{ water }},
             b.noise, {{ noise }}
         ) tf
-    WHERE b.access_car_ft OR b.access_car_tf OR
-          b.access_bicycle_ft OR b.access_bicycle_tf OR
-          b.access_pedestrian_ft OR b.access_pedestrian_tf
+    WHERE 
+        false
+        {%if access_car %}
+            OR b.access_car_ft OR b.access_car_tf
+        {% endif %}
+        {% if access_bike %}
+            OR b.access_bicycle_ft OR b.access_bicycle_tf
+        {% endif %}
+        {% if access_walk %}
+            OR b.access_pedestrian_ft OR b.access_pedestrian_tf
+        {% endif %}
+    )
+    SELECT a.*,  
+            b.index_ft AS index_{{ profile_name | sqlsafe }}_ft,  
+            b.index_tf AS index_{{ profile_name | sqlsafe }}_tf,
+            b.index_robustness_ft AS index_{{ profile_name | sqlsafe }}_ft_robustness,
+            b.index_robustness_tf AS index_{{ profile_name | sqlsafe }}_tf_robustness
+            {% if compute_explanation %}
+                ,b.index_explanation_ft AS index_{{ profile_name | sqlsafe }}_ft_explanation,
+                b.index_explanation_tf AS index_{{ profile_name | sqlsafe }}_tf_explanation
+            {% endif %}
+    FROM network_edge_index a 
+    LEFT JOIN index_filtered b 
+    USING (edge_id)
 );
 
 DROP TABLE network_edge_index;

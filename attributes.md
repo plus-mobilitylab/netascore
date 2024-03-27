@@ -22,7 +22,7 @@ Indicates a tunnel on a road segment: `true`, `false`
 
 ### bicycle_infrastructure_*
 
-Describes the existence of dedicated bicycle infrastructure: `bicycle_way`, `mixed_way`, `bicycle_lane`, `bus_lane`, `no`.
+Describes the existence of dedicated bicycle infrastructure: `bicycle_way`, `mixed_way`, `bicycle_road`, `cyclestreet`, `bicycle_lane`, `bus_lane`, `no`.
 
 ### buildings
 

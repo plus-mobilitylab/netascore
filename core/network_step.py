@@ -64,7 +64,9 @@ class OsmNetworkStep(DbStep):
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
-                'target_srid': GlobalSettings.get_target_srid()
+                'target_srid': GlobalSettings.get_target_srid(),
+                'include_rail': settings and h.has_keys(settings, ['include_rail']) and settings['include_rail'],
+                'include_aerialway': settings and h.has_keys(settings, ['include_aerialway']) and settings['include_aerialway']
             }
             db.execute_template_sql_from_file("osm_network", params)
             db.commit()

@@ -52,6 +52,8 @@ indicator_mapping:
     mapping:
       "bicycle_way": 1
       "mixed_way": 0.9
+      "bicycle_road": 0.85
+      "cyclestreet": 0.8
       "bicycle_lane": 0.75
       "bus_lane": 0.75
       "shared_lane": 0.5

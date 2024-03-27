@@ -103,10 +103,12 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
         geometry_column = data_source.GetLayerByName(layer).GetGeometryColumn()
 
         select = f"-select \"{attributes}\"" if attributes else ""
-        where = f"-where \"GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
-
-        subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", 
+        where = f"-where \"ST_GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
+        
+        result = subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", 
             shell=True, check=True)
+        h.debugLog(f"ogr2ogr returned code: {result.returncode}")
+        #h.debugLog(f"ogr2ogr stdout: {result.args}")
 
 
 def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:
@@ -463,26 +465,32 @@ class OsmImporter(DbStep):
                 CREATE TABLE facility AS ( -- 3 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom
                     FROM osm_point
-                    WHERE amenity IN ('arts_centre', 'artwork', 'attraction', 'bar', 'biergarten', 'cafe', 'castle', 'cinema', 'museum',
-                                      'park', 'pub', 'restaurant', 'swimming_pool', 'theatre', 'viewpoint') -- entertainment
-                       OR amenity IN ('bakery', 'beverages', 'butcher', 'clothes', 'department_store', 'fast_food',
-                                      'florist', 'furniture_shop', 'kiosk', 'mall', 'outdoor_shop', 'pharmacy',
-                                      'shoe_shop', 'sports_shop', 'supermarket', 'commercial', 'retail', 'shop') -- retail
-                       OR amenity IN ('university', 'school', 'college', 'gymnasium', 'kindergarten', 'boarding_school', 'music_school',
-                                      'riding_school', 'school;dormitory') -- institutional
+                    WHERE amenity IN ('arts_centre', 'artwork', 'attraction', 'bar', 'biergarten', 'cafe', 'castle', 'cinema', 'community_centre', 'library', 'museum',
+                                      'music_venue', 'park', 'pub', 'public_bookcase', 'restaurant', 'swimming_pool', 'theatre', 'toy_library', 'viewpoint', 'public_bath') -- entertainment
+                       OR amenity IN ('atm', 'bureau_de_change', 'bakery', 'beverages', 'butcher', 'clothes', 'department_store', 'fast_food', 'marketplace',
+                                      'florist', 'food_court', 'furniture_shop', 'ice_cream', 'kiosk', 'mall', 'outdoor_shop', 'pharmacy',
+                                      'shoe_shop', 'sports_shop', 'internet_cafe', 'supermarket', 'commercial', 'retail', 'shop', 'bicycle_rental', 'boat_rental', 'car_rental', 'bank') -- retail
+                       OR amenity IN ('university', 'school', 'college', 'gymnasium', 'kindergarten', 'childcare', 'boarding_school', 'music_school',
+                                      'riding_school', 'driving_school', 'language_school', 'research_institute', 'school;dormitory', 'training', 'place_of_worship',
+                                      'conference_centre', 'events_venue', 'exhibition_centre', 'social_centre', 'courthouse', 'post_office', 'ranger_station', 'townhall') -- institutional
+                       OR amenity IN ('post_box', 'bbq', 'bench', 'drinking_water', 'give_box', 'shelter', 'toilets', 'water_point', 'watering_place', 
+                                      'waste_basket', 'clock', 'kneipp_water_cure', 'lounger', 'vending_machine') -- infrastructure
                        OR tourism IN ('museum', 'attraction', 'gallery', 'viewpoint', 'zoo')
     
                     UNION ALL
     
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
                     FROM osm_polygon
-                    WHERE amenity IN ('arts_centre', 'artwork', 'attraction', 'bar', 'biergarten', 'cafe', 'castle', 'cinema', 'museum',
-                                      'park', 'pub', 'restaurant', 'swimming_pool', 'theatre', 'viewpoint') -- entertainment
-                       OR amenity IN ('bakery', 'beverages', 'butcher', 'clothes', 'department_store', 'fast_food', 'florist',
-                                      'furniture_shop', 'kiosk', 'mall', 'outdoor_shop', 'pharmacy', 'shoe_shop', 'sports_shop',
-                                      'supermarket', 'commercial', 'retail', 'shop') -- retail
-                       OR amenity IN ('university', 'school', 'college', 'gymnasium', 'kindergarten', 'boarding_school', 'music_school',
-                                      'riding_school', 'school;dormitory') -- institutional
+                    WHERE amenity IN ('arts_centre', 'artwork', 'attraction', 'bar', 'biergarten', 'cafe', 'castle', 'cinema', 'community_centre', 'library', 'museum',
+                                      'music_venue', 'park', 'pub', 'public_bookcase', 'restaurant', 'swimming_pool', 'theatre', 'toy_library', 'viewpoint', 'public_bath') -- entertainment
+                       OR amenity IN ('atm', 'bureau_de_change', 'bakery', 'beverages', 'butcher', 'clothes', 'department_store', 'fast_food', 'marketplace', 'florist', 'food_court',
+                                      'furniture_shop', 'ice_cream', 'kiosk', 'mall', 'outdoor_shop', 'pharmacy', 'shoe_shop', 'sports_shop', 'internet_cafe'
+                                      'supermarket', 'commercial', 'retail', 'shop', 'bicycle_rental', 'boat_rental', 'car_rental', 'bank') -- retail
+                       OR amenity IN ('university', 'school', 'college', 'gymnasium', 'kindergarten', 'childcare', 'boarding_school', 'music_school',
+                                      'riding_school', 'driving_school', 'language_school', 'research_institute', 'school;dormitory', 'training', 'place_of_worship',
+                                      'conference_centre', 'events_venue', 'exhibition_centre', 'social_centre', 'courthouse', 'post_office', 'ranger_station', 'townhall') -- institutional
+                       OR amenity IN ('post_box', 'bbq', 'bench', 'drinking_water', 'give_box', 'shelter', 'toilets', 'water_point', 'watering_place', 
+                                      'waste_basket', 'clock', 'kneipp_water_cure', 'lounger', 'vending_machine') -- infrastructure
                        OR tourism IN ('museum', 'attraction', 'gallery', 'viewpoint', 'zoo')
                 );
     

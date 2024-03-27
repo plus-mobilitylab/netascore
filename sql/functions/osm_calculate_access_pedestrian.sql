@@ -10,13 +10,13 @@ RETURNS int AS $BODY$
 	    ped_access int;
 	BEGIN
 	    ped_access:=case
-	        -- check access restrictions
-	        when access='no'
-	            then 0 -- restrict access
 	        -- check foot, footway, and sidewalk attributes
 	        when foot='yes' or footway='yes' or sidewalk='yes'
 	            then 1 -- allow access
 	        when foot='no' or footway='no'
+	            then 0 -- restrict access
+			-- check global access restrictions
+	        when access='no'
 	            then 0 -- restrict access
 	        when highway='no' or highway is null
 	            then 0 -- restrict access

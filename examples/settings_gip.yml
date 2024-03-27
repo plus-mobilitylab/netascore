@@ -1,4 +1,4 @@
-version: 1.1
+version: 1.2
 # this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
 database:
   host: gateway.docker.internal
@@ -33,9 +33,11 @@ profiles:
   - 
     profile_name: bike
     filename: profile_bike.yml
+    filter_access_bike: True
   -
     profile_name: walk
     filename: profile_walk.yml
+    filter_access_walk: True
 export:
   type: geopackage
   filename: gip_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes

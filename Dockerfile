@@ -1,4 +1,4 @@
-FROM python:3.8 AS buildstage
+FROM python:3.8.17-bullseye AS buildstage
 
 WORKDIR /usr/src/netascore
 
