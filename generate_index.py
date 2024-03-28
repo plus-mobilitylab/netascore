@@ -15,7 +15,7 @@ from core.optional_step import run_optional_importers
 from settings import DbSettings, GlobalSettings
 
 parser = argparse.ArgumentParser(description='TODO: add description')
-parser.add_argument('settings_file', type=argparse.FileType('r'),
+parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
                     help='TODO: write detailed description here')
 parser.add_argument('--skip', nargs='+', choices=['import', 'optional', 'network', 'attributes', 'index', 'export'],
                     help='skip one or more of these steps - e.g. "--skip import optional"')

@@ -236,6 +236,7 @@ class OsmImporter(DbStep):
         
         # download AOI
         # first: create AOI query string
+        h.debugLog(f"preparing AOI query for {settings['place_name']}")
         o_add_filter = ""
         if h.has_keys(settings, ['admin_level']):
             o_add_filter += "[admin_level='" + str(settings['admin_level']) + "']" 
