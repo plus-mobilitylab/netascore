@@ -1,5 +1,6 @@
 import os
 import subprocess
+from dem_stitcher import stitch_dem
 
 import toolbox.helper as h
 from core import import_step
@@ -22,16 +23,46 @@ class DemImporter(DbStep):
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
 
+        filename = settings['filename'] if settings and h.has_keys(settings, ['filename']) else None
+        srid = settings['srid'] if settings and h.has_keys(settings, ['srid']) else 0
+
+        
         # open database connection
         h.info('open database connection')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.init_extensions_and_schema(schema)
 
+        if not filename:
+            if not (settings and h.has_keys(settings, ['download']) and settings['download']):
+                raise Exception("ERROR: optional import for DEM specified in settings, but neither 'download: True' nor 'filename' given.")
+            else:
+                # try DEM download
+                filename = f"dem30_{GlobalSettings.case_id}.tif"
+                # get bounds of current case AOI
+                # TODO: make it more robust: first check AOI table, then schema for given case, then current approach with extent of last import network
+                bbox = db.query_one(f"""with bbox as (SELECT st_extent(way) as b FROM {schema}.osm_line)
+                                    SELECT ST_xmin(b), ST_ymin(b), ST_xmax(b), ST_ymax(b) FROM bbox""")
+                print(bbox)
+                # download 30m SRTM DEM
+                X, p = stitch_dem(bbox,
+                    dem_name='glo_30',  # Global Copernicus 30 meter resolution DEM
+                    dst_ellipsoidal_height=False,
+                    dst_area_or_point='Point')
+                # X is an m x n numpy array
+                # p is a dictionary (or a rasterio profile) including relevant GIS metadata; CRS is epsg:4326
+                import rasterio
+                with rasterio.open(os.path.join(directory, filename), 'w', **p) as ds:
+                    ds.write(X, 1)
+                    ds.update_tags(AREA_OR_POINT='Point')
+
+                # specify SRID
+                srid = 4326
+
         # import DEM
         h.logBeginTask('import dem raster')
         if db.handle_conflicting_output_tables(['dem'], schema):
             # raster is imported without reprojection - during the attributes step, the network will be temporarily reprojected to DEM srid.
-            import_raster(db.connection_string, os.path.join(directory, settings['filename']), schema, table='dem', input_srid=settings['srid'])  # 4 m 34 s
+            import_raster(db.connection_string, os.path.join(directory, filename), schema, table='dem', input_srid=srid)  # 4 m 34 s
         h.logEndTask()
 
         # close database connection

@@ -26,6 +26,10 @@ import:
   interactive: False # if true, allows for interactive choice in case multiple results were returned for given AOI query (otherwise first is used)
   buffer: 1000
 
+optional:
+  dem:
+    download: True # downloads 30m DEM for the given AOI
+    
 index:
   compute_explanation: True
 
