@@ -343,110 +343,54 @@ DROP TABLE IF EXISTS bicycle_infrastructure;
 CREATE TABLE bicycle_infrastructure AS ( -- 7 s
     SELECT edge_id,
            CASE
-               WHEN (
-                        highway = 'cycleway' AND (foot = 'no' OR foot IS NULL)
-                    ) OR
-                    (
-                        (
-                            (highway != 'cycleway' AND highway != 'footway') OR highway IS NULL
-                        ) 
-                        AND (bicycle = 'yes' OR bicycle = 'designated' OR bicycle = 'official' OR bicycle = 'private') 
-                        AND (foot = 'no' OR foot IS NULL) AND tags -> 'motor_vehicle' = 'no'
-                    ) 
-                    OR(
-                        (
-                            tags -> 'cycleway' = 'track' OR 
-                            tags -> 'cycleway' = 'opposite_track' OR
-                            tags -> 'cycleway:both' = 'track' OR 
-                            tags -> 'cycleway:both' = 'opposite_track' OR
-                            tags -> 'cycleway:left' = 'track' OR 
-                            tags -> 'cycleway:left' = 'opposite_track' OR
-                            tags -> 'cycleway:right' = 'track' OR 
-                            tags -> 'cycleway:right' = 'opposite_track'
-                        ) 
-                        AND (foot != 'yes' OR foot IS NULL) 
-                        AND (foot != 'designated' OR foot IS NULL)
-                        -- TODO: handle both/left/right conditions to exclude mixed bike/walk tracks --
-                    ) 
-               THEN 'bicycle_way'
-               WHEN (highway = 'cycleway' AND (foot = 'yes' OR foot = 'designated')) OR
-                    (highway = 'footway' AND (bicycle = 'yes' OR bicycle = 'designated')) OR
-                    (highway = 'path' AND (bicycle = 'designated' OR bicycle = 'yes') AND (foot != 'no' OR foot IS NULL))
-                    OR(
-                        (
-                            (tags -> 'cycleway' = 'track' OR tags -> 'cycleway' = 'opposite_track')
-                            AND tags -> 'cycleway:segregated' = 'no' -- TODO: remove because too strict?
-                            AND (tags -> 'sidewalk' = 'yes' OR tags -> 'sidewalk' = 'both' OR tags -> 'sidewalk' = 'left' OR tags -> 'sidewalk' = 'right')
-                        )
-                        OR (
-                            tags -> 'cycleway:both' = 'track'
-                            AND (
-                                (
-                                    tags -> 'cycleway:both:segregated' = 'no' -- TODO: remove because too strict?
-                                    AND tags -> 'sidewalk:both' = 'yes'
-                                )OR(
-                                    tags -> 'cycleway:left:segregated' = 'no' -- TODO: remove because too strict?
-                                    AND tags -> 'sidewalk:left' = 'yes'
-                                )OR(
-                                    tags -> 'cycleway:right:segregated' = 'no' -- TODO: remove because too strict?
-                                    AND tags -> 'sidewalk:right' = 'yes'
-                                )OR(
-                                    tags -> 'sidewalk' = 'both' OR tags -> 'sidewalk' = 'left' OR tags -> 'sidewalk' = 'right'
-                                )
-                            )
-                        )
-                        OR (
-                            tags -> 'cycleway:right' = 'track'
-                            AND tags -> 'cycleway:right:segregated' = 'no' -- TODO: remove because too strict?
-                            AND (tags -> 'sidewalk:right' = 'yes' OR tags -> 'sidewalk' = 'right')
-                        )
-                        OR (
-                            tags -> 'cycleway:left' = 'track'
-                            AND tags -> 'cycleway:left:segregated' = 'no' -- TODO: remove because too strict?
-                            AND tags -> 'sidewalk:left' = 'yes'
-                        )
-                    )
-                    OR (
-                        highway = 'track' 
-                        AND (bicycle = 'designated' OR bicycle = 'yes') 
-                        AND (foot != 'no' OR foot IS NULL) 
-                        AND (tracktype = 'grade1' OR tracktype = 'grade2')
-                    )
-                    -- OLD -- 
-                    OR
-                    (
-                        (
-                            tags -> 'cycleway' = 'track' 
-                            OR tags -> 'cycleway' = 'opposite_track'
-                        ) 
-                        AND (foot = 'yes' OR foot = 'designated')
-                    ) 
-                    -- /OLD --
-               THEN 'mixed_way'
-               WHEN 
-                    tags -> 'cycleway' = 'lane' OR
-                    tags -> 'cycleway' = 'opposite_lane' OR
-                    tags -> 'cycleway:left' = 'lane' OR
-                    tags -> 'cycleway:left:lane' = 'advisory' OR
-                    tags -> 'cycleway:left' = 'opposite_lane' OR
-                    tags -> 'cycleway:right' = 'lane' OR
-                    tags -> 'cycleway:right:lane' = 'advisory' OR
-                    tags -> 'cycleway:right' = 'opposite_lane' OR
-                    tags -> 'cycleway:both' = 'lane' OR
-                    tags -> 'cycleway:both:lane' = 'advisory'
-               THEN 'bicycle_lane'
-               WHEN tags -> 'cycleway' = 'shared_lane' OR
-                    tags -> 'cycleway:both' = 'shared_lane' OR
-                    tags -> 'cycleway:left' = 'shared_lane' OR
-                    tags -> 'cycleway:right' = 'shared_lane'
-               THEN 'shared_lane' -- sharrow etc.
-               WHEN tags -> 'cycleway' = 'share_busway' OR
-                    tags -> 'cycleway:right' = 'share_busway' OR
-                    tags -> 'cycleway:left' = 'share_busway' OR
-                    tags -> 'cycleway:both' = 'share_busway'
-               THEN 'bus_lane' -- shared bus lane
-               WHEN tags -> 'bicycle_road' = 'yes' THEN 'bicycle_road' -- Fahrradstraße
-               WHEN tags -> 'cyclestreet' = 'yes' THEN 'cyclestreet'
+                WHEN (highway = 'cycleway' AND (foot != 'designated' OR foot IS NULL)) OR
+			   		(highway = 'cycleway' AND (tags -> 'segregated' ='yes')) OR
+                    (tags -> 'cycleway' = ANY ('{track,opposite_track,segregated,yes,separate}') AND (foot != 'designated')) OR
+					(tags -> 'cycleway:left' = ANY ('{track,opposite_track,segregated,yes,separate}') AND != 'designated')) OR
+					(tags -> 'cycleway:right' = ANY ('{track,opposite_track,segregated,yes,separate}') AND (foot != 'designated')) OR
+					((tags -> 'bicycle_road' = 'yes') AND (foot != 'designated') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'bicycle_road' = 'yes') AND (tags -> 'segregated' = 'yes') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'bicycle_road' = 'yes') AND (tags -> 'sidewalk' = ANY('{yes,separate}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'bicycle_road' = 'yes') AND (tags -> 'sidewalk:both' = ANY('{yes,separate}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'bicycle_road' = 'yes') AND (tags -> 'sidewalk:left' = ANY('{yes,separate}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'bicycle_road' = 'yes') AND (tags -> 'sidewalk:right' = ANY('{yes,separate}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'cyclestreet' = 'yes') AND (foot != 'designated') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'cyclestreet' = 'yes') AND (tags -> 'segregated' = 'yes') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'cyclestreet' = 'yes') AND (tags -> 'sidewalk' = ANY('{yes,separate,left,right}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'cyclestreet' = 'yes') AND (tags -> 'sidewalk:both' = ANY('{yes,separate}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'cyclestreet' = 'yes') AND (tags -> 'sidewalk:left' = ANY('{yes,separate,opposite}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'cyclestreet' = 'yes') AND (tags -> 'sidewalk:right' = ANY('{yes,separate,opposite}')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((bicycle = 'designated') AND (foot != 'designated') AND (tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'segregated' = 'yes'))
+					THEN 'bicycle_way'
+
+                WHEN (highway = 'cycleway' AND (foot = 'designated')) OR
+			   		(highway = 'cycleway' AND (tags -> 'segregated' ='no')) OR
+                    (highway = 'footway' AND (bicycle = 'designated')) AND (tags -> 'footway' != 'sidewalk') ) OR
+					(highway = 'pedestrian' AND (bicycle = 'designated'))) OR
+                    (tags -> 'cycleway' = ANY ('{track,opposite_track,segregated,yes,separate,opposite}') AND (foot = 'designated'))) OR
+					(tags -> 'cycleway:left' = ANY ('{track,opposite_track,segregated,yes,separate}') AND (foot = 'designated'))) OR
+					(tags -> 'cycleway:right' = ANY ('{track,opposite_track,segregated,yes,separate}') AND (foot = 'designated'))) OR
+					((tags -> 'bicycle_road' = 'yes') AND (foot = 'designated')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR 
+					((tags -> 'bicycle_road' = 'yes') AND (tags -> 'segregated' = 'no') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+					((tags -> 'cyclestreet' = 'yes') AND (foot = 'designated')) AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR 
+					((tags -> 'cyclestreet' = 'yes') AND (tags -> 'segregated' = 'no') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
+                    ((bicycle = 'designated' AND foot = 'designated') AND 
+                    ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL OR access = 'no') OR (highway = ANY('{path,bridleway,cycleway,footway,track}') AND (tracktype != ALL ('{grade4,grade5}') OR tracktype IS NULL))))
+					    THEN 'mixed_way'
+                WHEN tags -> 'cycleway' = 'lane' OR
+			   		tags -> 'cycleway:both' = 'lane' OR
+					tags -> 'cycleway:left' = 'lane' OR
+					tags -> 'cycleway:right' = 'lane' OR
+			   		tags -> 'cycleway' = 'opposite_lane' OR
+					tags -> 'cycleway:both' = 'opposite_lane' OR
+					tags -> 'cycleway:left' = 'opposite_lane' OR
+					tags -> 'cycleway:right' = 'opposite_lane' OR
+					tags -> 'cycleway:lane' = 'exclusive' OR
+					tags -> 'cycleway:lane' = 'advisory' OR
+					tags -> 'cycleway:lane' = 'pictogram' 
+					--OR tags -> 'cycleway' = 'shared_lane' OR
+					THEN 'bicycle_lane'	
+               WHEN (tags -> 'cycleway' = ANY('{share_busway,opposite_share_busway}')) THEN 'bus_lane'
                ELSE 'no'
            END AS bicycle_infrastructure
     FROM network_edge
@@ -479,16 +423,19 @@ DROP TABLE IF EXISTS pedestrian_infrastructure;
 CREATE TABLE pedestrian_infrastructure AS ( -- 10 s
     SELECT a.edge_id,
            CASE
-              WHEN a.highway = 'pedestrian' THEN 'pedestrian_area'
-              WHEN a.highway = 'footway' AND (a.bicycle = ANY ('{no,dismount}') OR a.bicycle IS NULL) THEN 'pedestrian_way'
-              WHEN (a.highway = 'cycleway' AND a.foot = ANY ('{yes,designated}')) OR
-                   (a.highway = 'footway' AND a.bicycle = ANY ('{yes,designated}')) OR
-                   (a.highway = 'path' AND a.bicycle = ANY ('{yes,designated}') AND (a.foot != 'no' OR a.foot IS NULL)) OR
-                   (a.highway = 'track' AND a.bicycle = ANY ('{yes,designated}') AND (a.foot != 'no' OR a.foot IS NULL) AND a.tracktype = ANY ('{grade1,grade2}')) OR
-                   (a.tags -> 'cycleway' = ANY ('{track,opposite_track}') AND a.foot = ANY ('{yes,designated}')) THEN 'mixed_way'
-              WHEN a.highway = 'steps' THEN 'stairs'
-              WHEN b.access_pedestrian_ft THEN 'sidewalk'
-              ELSE 'no'
+                WHEN (a.highway = 'pedestrian' AND (a.bicycle != ALL ('{yes,designated,permissive,destination}')))THEN 'pedestrian_area'
+                WHEN a.highway = 'footway' AND (a.bicycle != ALL ('{yes,designated}')) AND (a.tags -> 'footway' != 'sidewalk' ) THEN 'pedestrian_way'
+                WHEN (a.highway = 'cycleway' AND a.foot = ANY ('{yes,designated}')) OR
+                    (a.highway = 'cycleway' AND (a.tags -> 'segregated' = 'no')) OR
+                    (a.highway = 'footway' AND a.bicycle = ANY ('{yes,designated}') AND (a.tags -> 'footway' != 'sidewalk' )) OR
+                    (a.highway = 'pedestrian' AND (a.bicycle = ANY ('{yes,designated,permissive,destination}'))) OR
+                    (a.tags -> 'cycleway' = ANY ('{track,opposite_track,yes,segregated,separate}') AND a.foot = ANY ('{yes,designated,permissive,destination}')) OR
+                    (a.tags -> 'cycleway' = ANY ('{track,opposite_track,yes,segregated,separate}')) AND ((a.tags -> 'segregated' ='no')) OR
+                    (a.tags -> 'bicycle_road' = 'yes' AND ((a.foot = ANY ('{yes,designated,permissive,destination}')) OR (a.tags -> 'segregated' = 'no')) AND (a.tags -> 'motor_vehicle' ='no')) OR
+                    (a.tags -> 'cyclestreet' = 'yes' AND ((a.foot = ANY ('{yes,designated,permissive,destination}')) OR (a.tags -> 'segregated' = 'no')) AND (a.tags -> 'motor_vehicle' ='no')) THEN 'mixed_way'
+                WHEN a.highway = 'steps' THEN 'stairs'
+		        WHEN ((a.tags -> 'footway' ='sidewalk') OR (a.tags -> 'sidewalk' = ANY ('{both,yes,separate,opposite,left,right}')) OR (a.tags -> 'sidewalk:both' = ANY ('{both,yes,separate}')) OR (a.tags -> 'sidewalk:left' = ANY ('{both,yes,separate,opposite}'))  OR (a.tags -> 'sidewalk:right' = ANY ('{both,yes,separate,opposite}'))) THEN 'sidewalk'
+                ELSE 'no'
            END AS pedestrian_infrastructure
     FROM network_edge a
         LEFT JOIN network_edge_attributes b USING (edge_id)
@@ -521,11 +468,11 @@ DROP TABLE IF EXISTS route;
 CREATE TABLE route AS ( -- 4 s
     SELECT osm_id, name, ST_Transform(way, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
            CASE
-               WHEN tags -> 'network' = 'icn' THEN 'international'
-               WHEN tags -> 'network' = 'ncn' THEN 'national'
+               WHEN tags -> 'network' = 'icn'  OR 'icn' = 'yes' THEN 'international'
+               WHEN tags -> 'network' = 'ncn' OR 'ncn' = 'yes' THEN 'national'
                WHEN tags -> 'network' = 'rcn' OR
-                    tags -> 'network' = 'regional' THEN 'regional'
-               WHEN tags -> 'network' = 'lcn' THEN 'local'
+                    tags -> 'network' = 'regional' OR 'rcn' = 'yes' THEN 'regional'
+               WHEN tags -> 'network' = 'lcn' OR 'lcn' = 'yes' THEN 'local'
                ELSE 'unknown'
            END AS route
     FROM osm_line
@@ -582,22 +529,22 @@ DROP TABLE IF EXISTS road_category;
 CREATE TABLE road_category AS ( -- 8 s
     SELECT edge_id,
            CASE
-               WHEN highway = ANY ('{primary,primary_link}') THEN 'primary'
-               WHEN (highway = ANY ('{secondary,secondary_link}') OR (highway = 'unclassified' AND tags -> 'maxspeed' = ANY ('{100,80}'))) THEN 'secondary'
-               WHEN ((highway = ANY ('{residential,tertiary,tertiary_link}') OR (highway = 'unclassified' AND tags -> 'maxspeed' != ALL ('{100,80}') AND tags -> 'maxspeed' IS NOT NULL)) AND (tags -> 'motor_vehicle' = ANY ('{yes,designated}') OR tags -> 'motor_vehicle' IS NULL)) THEN 'residential'
-               WHEN highway = ANY ('{service,living_street}') OR
-                    (tags -> 'motor_vehicle' = ANY ('{agricultural,forestry}') AND (access != 'no' OR access IS NULL)) OR
-                    (highway = 'path' AND (access != 'no' OR access IS NULL)) OR
-                    (highway = 'track' AND (access != 'no' OR access IS NULL) AND (tags -> 'motor_vehicle' != 'no' OR tags -> 'motor_vehicle' IS NULL) AND (tracktype = ANY ('{grade1,grade2}') OR tracktype IS NULL)) THEN 'service'
-               WHEN tags -> 'motor_vehicle' = ANY ('{delivery,destination,private}') OR
-                    (highway = 'track' AND tracktype = ANY ('{grade3,grade4,grade5}') AND surface = ANY ('{paved,gravel,asphalt}')) THEN 'calmed'
-               WHEN highway = ANY ('{footway,cycleway}') OR
-                    (tags -> 'motor_vehicle' = 'no' AND (bicycle != 'no' OR bicycle IS NULL)) OR
-                    (access != 'yes' AND access IS NOT NULL AND (bicycle != 'no' OR bicycle IS NULL)) THEN 'no_mit'
-               WHEN (highway = 'footway' AND bicycle = 'no') OR
-                    (highway = 'path' AND foot = 'yes' AND (bicycle != ALL ('{yes,designated}') OR bicycle IS NULL)) OR
-                    highway = 'steps' OR
-                    (highway = 'track' AND tracktype = ANY ('{grade3,grade4,grade5}') AND (surface != ALL ('{paved,gravel,asphalt}') OR surface IS NULL)) THEN 'path'
+                WHEN highway = ANY ('{primary,primary_link}') THEN 'primary'
+                WHEN (highway = ANY ('{secondary,secondary_link}')) OR (tags -> 'maxspeed' = ANY ('{100,90,80,70}')) THEN 'secondary'
+                WHEN (highway = ANY ('{residential,tertiary,tertiary_link, unclassified}')) OR ((tags -> 'maxspeed' = ANY ('{50,40}')) AND ((tags -> 'motor_vehicle' = ANY ('{yes,designated}')) OR (tags -> 'motor_vehicle' IS NULL))) THEN 'residential'
+                WHEN highway = 'service' AND (((tags -> 'motor_vehicle' != 'no') OR (tags -> 'motor_vehicle' IS NULL)) AND (bicycle = 'yes' AND foot = 'yes'))) THEN 'service'
+
+                WHEN highway = 'living_street' OR (tags -> 'maxspeed' = ANY ('{30,20,15,10,7,5,5.4,4}') AND ((tags -> 'motor_vehicle' = ANY ('{yes,designated}') OR tags -> 'motor_vehicle' IS NULL) AND (bicycle = 'yes' AND foot = 'yes'))) THEN 'calmed'
+
+                WHEN highway = ANY ('{footway,cycleway}') OR (
+                    (highway = 'bridleway' AND (bicycle = 'designated' OR foot = 'designated')) OR
+                    ((highway = 'path' AND surface = ANY ('{paved,asphalt,chipseal, concrete, paving_stones, brick, bricks, compacted}')) OR
+                    (highway = 'track' AND tracktype = ANY ('{grade1,grade2}')))) THEN 'no_mit'
+
+                WHEN (highway = 'path' AND (surface != ALL ('{paved,asphalt,chipseal, concrete, paving_stones, brick, bricks, compacted}'))) OR 
+                    (highway = 'track' AND (tags -> 'motor_vehicle' = 'no') AND tracktype != ALL ('{grade1,grade2}') )
+                    THEN 'path'
+                    
            END AS road_category
     FROM network_edge
 );
@@ -689,10 +636,10 @@ DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
            CASE
-               WHEN b.surface = ANY ('{asphalt,paved,concrete}') THEN 'asphalt'
-               WHEN b.surface = ANY ('{compacted,fine_gravel,gravel,paving_stones,pebblestone,ground;gravel,unpaved}') THEN 'gravel'
-               WHEN b.surface = ANY ('{dirt,earth,grass,ground,ground;grass,sand,wood}') THEN 'soft'
-               WHEN b.surface = 'cobblestone' THEN 'cobble'
+                WHEN b.surface = ANY ('{asphalt,paved,concrete,chipseal,metal}') THEN 'asphalt'
+                WHEN b.surface = ANY ('{paving_stones,bricks,brick,compacted,fine_gravel,gravel, pebblestone,unpaved,grass_paver}') THEN 'gravel'
+                WHEN b.surface = ANY ('{dirt,earth,grass,sand,wood,woodchips, ground,soil,dirt/sand}') THEN 'soft'
+                WHEN b.surface = ANY ('{sett,unhewn_coblestone,cobblestone}') THEN 'cobble'
            END::varchar AS pavement
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
