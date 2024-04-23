@@ -346,7 +346,7 @@ CREATE TABLE bicycle_infrastructure AS ( -- 7 s
                 WHEN (highway = 'cycleway' AND (foot != 'designated' OR foot IS NULL)) OR
 			   		(highway = 'cycleway' AND (tags -> 'segregated' ='yes')) OR
                     (tags -> 'cycleway' = ANY ('{track,opposite_track,segregated,yes,separate}') AND (foot != 'designated')) OR
-					(tags -> 'cycleway:left' = ANY ('{track,opposite_track,segregated,yes,separate}') AND != 'designated')) OR
+					(tags -> 'cycleway:left' = ANY ('{track,opposite_track,segregated,yes,separate}') AND foot != 'designated')) OR
 					(tags -> 'cycleway:right' = ANY ('{track,opposite_track,segregated,yes,separate}') AND (foot != 'designated')) OR
 					((tags -> 'bicycle_road' = 'yes') AND (foot != 'designated') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
 					((tags -> 'bicycle_road' = 'yes') AND (tags -> 'segregated' = 'yes') AND ((tags -> 'motor_vehicle' = 'no' OR tags-> 'motor_vehicle' = NULL) AND (tags -> 'max_speed' = NULL))) OR
