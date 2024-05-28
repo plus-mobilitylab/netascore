@@ -365,7 +365,7 @@ CREATE TABLE bicycle_infrastructure AS ( -- 7 s
 
                 WHEN (highway = 'cycleway' AND (foot = 'designated')) OR
 			   		(highway = 'cycleway' AND (tags -> 'segregated' ='no')) OR
-                    (highway = 'footway' AND (bicycle = 'designated')) AND (tags -> 'footway' != 'sidewalk') ) OR
+                    (highway = 'footway' AND (bicycle = 'designated') AND (tags -> 'footway' != 'sidewalk') ) OR
 					(highway = 'pedestrian' AND (bicycle = 'designated')) OR
                     (tags -> 'cycleway' = ANY ('{track,opposite_track,segregated,yes,separate,opposite}') AND (foot = 'designated')) OR
 					(tags -> 'cycleway:left' = ANY ('{track,opposite_track,segregated,yes,separate}') AND (foot = 'designated')) OR
