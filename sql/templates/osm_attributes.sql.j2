@@ -427,12 +427,12 @@ DROP TABLE IF EXISTS pedestrian_infrastructure;
 CREATE TABLE pedestrian_infrastructure AS ( -- 10 s
     SELECT a.edge_id,
            CASE
-                WHEN (a.highway = 'pedestrian' AND (a.bicycle != 'designated' OR a.bicycle IS NULL))THEN 'pedestrian_area'
+                WHEN (a.highway = 'pedestrian' AND (a.bicycle != 'designated' OR a.bicycle IS NULL)) THEN 'pedestrian_area'
 
-                WHEN a.highway = 'footway' AND ((a.bicycle != 'designated' OR a.bicycle IS NULL) AND (a.tags -> 'footway' != 'sidewalk' )) THEN 'pedestrian_way'
+                WHEN a.highway = 'footway' AND ((a.foot = 'yes' OR a.foot IS NULL) AND (a.bicycle != 'designated' OR a.bicycle IS NULL) AND (a.tags -> 'footway' != 'sidewalk' )) THEN 'pedestrian_way'
                 
                 WHEN (highway = 'cycleway' AND (foot = 'designated')) OR
-			   		(highway = 'cycleway' AND (tags -> 'segregated' ='no')) OR
+			   		(highway = 'cycleway' AND (foot = 'designated' AND tags -> 'segregated' ='no')) OR
                     ((highway = 'footway' AND (bicycle = 'designated')) AND (tags -> 'footway' != 'sidewalk') ) OR
 					(highway = 'pedestrian' AND (bicycle = 'designated')) OR
                     (tags -> 'cycleway' = ANY ('{track,opposite_track,segregated,yes,separate,opposite}') AND (foot = 'designated')) OR
