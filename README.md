@@ -14,9 +14,9 @@ For global coverage, we support **OpenStreetMap** data as input. Additionally, A
 
 Details regarding the **bikeability assessment method** as well as results of an **evaluation study** are provided in the following **scientific publication**, which is openly available via [doi.org/10.1016/j.jcmr.2024.100040](https://doi.org/10.1016/j.jcmr.2024.100040): Werner, C., van der Meer, L., Kaziyeva, D., Stutz, P., Wendel, R., & Loidl, M. (2024). Bikeability of road segments: An open, adjustable and extendible model. *Journal of Cycling and Micromobility Research*, *2*, 100040.
 
-**Examples:** You find example output files of NetAScore at www.doi.org/[10.5281/zenodo.10886961](https://zenodo.org/doi/10.5281/zenodo.10886961).
+**Examples:** You find example output files of NetAScore at [doi.org/10.5281/zenodo.10886961](https://doi.org/10.5281/zenodo.10886961).
 
-Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: https://doi.org/10.5281/zenodo.7695369
+Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: [doi.org/10.5281/zenodo.7695369](https://doi.org/10.5281/zenodo.7695369)
 
 You find **more information** on NetAScore in the **[wiki](https://github.com/plus-mobilitylab/netascore/wiki)**:
 
