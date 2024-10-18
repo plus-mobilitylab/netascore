@@ -12,11 +12,12 @@ NetAScore provides a toolset and automated workflow for computing ***bikeability
 
 For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'**, can be used if you work on an area of interest within Austria. 
 
+For citing NetAScore, please refer to following paper which introduces the software, its objectives, as well as the data and methods used: 
+Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., Zagel, B., & Loidl, M. (2024). NetAScore: An open and extendible software for segment-scale bikeability and walkability. *Environment and Planning B: Urban Analytics and City Science*, 0(0). [https://doi.org/10.1177/23998083241293177]. In case you want to refer to a specific version of the software implementation, you may add the respective Zenodo reference [doi.org/10.5281/zenodo.7695369](https://doi.org/10.5281/zenodo.7695369)
+
 Details regarding the **bikeability assessment method** as well as results of an **evaluation study** are provided in the following **scientific publication**, which is openly available via [doi.org/10.1016/j.jcmr.2024.100040](https://doi.org/10.1016/j.jcmr.2024.100040): Werner, C., van der Meer, L., Kaziyeva, D., Stutz, P., Wendel, R., & Loidl, M. (2024). Bikeability of road segments: An open, adjustable and extendible model. *Journal of Cycling and Micromobility Research*, *2*, 100040.
 
 **Examples:** You find example output files of NetAScore at [doi.org/10.5281/zenodo.10886961](https://doi.org/10.5281/zenodo.10886961).
-
-Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: [doi.org/10.5281/zenodo.7695369](https://doi.org/10.5281/zenodo.7695369)
 
 You find **more information** on NetAScore in the **[wiki](https://github.com/plus-mobilitylab/netascore/wiki)**:
 
