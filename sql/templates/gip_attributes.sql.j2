@@ -609,6 +609,45 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 DROP TABLE water_intersection;
 {% endif %}
 -- ---------------------------------------------------------------------------------------------------------------------
+-- calculate indicator "tourism"
+-- ---------------------------------------------------------------------------------------------------------------------
+{% if table_tourism %}
+DROP TABLE IF EXISTS tourism_count;
+CREATE TABLE tourism_count AS (
+    SELECT b.edge_id,
+           count(a.*) AS tourism_count
+    FROM {{ table_tourism | sqlsafe }} a,
+         network_edge b
+    WHERE ST_DWithin(a.geom, b.geom, 30)
+    GROUP BY b.edge_id
+);
+
+DROP TABLE IF EXISTS tourism_ratio;
+CREATE TABLE tourism_ratio AS (
+    SELECT a.edge_id,
+           (a.tourism_count / b.length * 100.0)::numeric AS tourism_ratio
+    FROM tourism_count a
+         LEFT JOIN network_edge b USING (edge_id)
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS tourism;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           coalesce(round(b.tourism_ratio, 2), 0)::numeric AS tourism
+    FROM network_edge_attributes a
+        LEFT JOIN tourism_ratio b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+DROP TABLE tourism_count, tourism_ratio;
+{% endif %}
+-- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "noise"
 -- ---------------------------------------------------------------------------------------------------------------------
 {% if table_noise %}
@@ -685,6 +724,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS buildings numeric,
     ADD COLUMN IF NOT EXISTS greenness numeric,
     ADD COLUMN IF NOT EXISTS water boolean,
+    ADD COLUMN IF NOT EXISTS tourism numeric,
     ADD COLUMN IF NOT EXISTS noise numeric;
 
 ALTER TABLE network_edge_attributes ADD PRIMARY KEY (edge_id);

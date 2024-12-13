@@ -531,6 +531,43 @@ class OsmImporter(DbStep):
             db.commit()
         h.logEndTask()
 
+        # create dataset "tourism"
+        h.logBeginTask('create dataset "tourism"')
+        if db.handle_conflicting_output_tables(['tourism'], schema):
+            db.execute('''
+                CREATE TABLE tourism AS ( -- 3 s
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom
+                    FROM osm_point
+                    WHERE amenity IN ('amusement_park', 'airport', 'bar', 'beach_resort', 'bus_station', 'cafe', 'camping', 'camping_site', 'cinema', 'communal_kitchen', 'concert_hall', 'convenience_store', 'ferry_terminal', 'food_court', 'fountain', 'gallery', 'golf_course', 'guest_house', 'historic_site', 'hostel', 'hotel', 'motel', 'museum', 'nightclub', 'outdoor_seating', 'parking', 'picnic_table', 'pool', 'public_bath', 'public_toilet', 'restaurant', 'restaurant_fast_food', 'restaurant_vegetarian', 'sauna', 'shop', 'shopping_mall', 'ski_resort', 'swimming_pool', 'theatre', 'train_station', 'tourist_info', 'viewpoint', 'wifi', 'wine_bar', 'zoo')
+                       OR building IN ('academic', 'admin', 'agricultural', 'airplane_hangar', 'apartment', 'barn', 'base', 'bunker', 'bus_station', 'cabin', 'commercial', 'construction', 'cow_shed', 'detached', 'disaster_shelter', 'dormitory', 'farm', 'fire_station', 'garage', 'greenhouse', 'hotel', 'house', 'houseboat', 'industrial', 'military', 'monastery', 'office', 'place_of_worship', 'police', 'port', 'power', 'public', 'railway_station', 'residential', 'retail', 'roof', 'ruins', 'school', 'service', 'shop', 'stable', 'storage_tank', 'supermarket', 'synagogue', 'tank', 'terminal', 'transformer', 'tower', 'train_station', 'university', 'warehouse', 'water_tower', 'windmill')
+                       OR historic IN ('battlefield', 'castle', 'ceremonial_site', 'checkpoint', 'city_gate', 'monument', 'memorial', 'ruins', 'site', 'tomb', 'traditional_house', 'wall')
+                       OR landuse IN ('allotments', 'barren', 'commercial', 'construction', 'farmlands', 'forest', 'industrial', 'military', 'mine', 'nomad', 'park', 'permanent_crop', 'private', 'quarry', 'railway', 'residential', 'retail', 'rural', 'cemetery', 'vineyard', 'village_green', 'water')
+                       OR leisure IN ('amusement_park', 'athletics', 'bowling_alley', 'cafe', 'fitness_centre', 'golf_course', 'gym', 'ice_rink', 'playground', 'pool', 'sports_centre', 'stadium', 'swimming_pool', 'tennis_court', 'theatre', 'water_park')
+                       OR man_made IN ('adit', 'aerialway', 'bridge', 'chimney', 'cooling_tower', 'cross', 'dam', 'observation_tower', 'office', 'pier', 'pumping_station', 'railing', 'reservoir', 'shed', 'signpost', 'smokestack', 'stadium', 'tower', 'transformer_tower', 'windmill')
+                       OR "natural" IN ('cape', 'cliff', 'creek', 'bay', 'forest', 'geyser', 'glacier', 'hill', 'island', 'lake', 'land', 'mud', 'sea', 'stream', 'swamp', 'water', 'wood')
+                       OR shop IN ('alcohol', 'amusement_arcade', 'antique', 'art', 'bakery', 'bank', 'bar', 'bicycle', 'book', 'butcher', 'candy', 'car', 'charity', 'clothes', 'convenience', 'dairy', 'department_store', 'electronics', 'florist', 'furniture', 'garden_centre', 'greengrocer', 'hairdresser', 'hardware', 'jeweler', 'kiosk', 'laundrette', 'mall', 'newsagent', 'optician', 'pharmacy', 'sex', 'shoe', 'shopping_centre', 'souvenir', 'sports', 'supermarket', 'tattoo', 'toy', 'wholesale')
+                       OR tourism IN ('alpine_hut', 'art_gallery', 'attraction', 'backpacker', 'beach_resort', 'campsite', 'caravan_site', 'information', 'hotel', 'hostel', 'motel', 'museum', 'monument', 'observation_tower', 'picnic_site', 'playground', 'resort', 'restaurant', 'shop', 'sightseeing_tour', 'theme_park', 'viewpoint', 'winery', 'zoo')
+
+                    UNION ALL
+
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
+                    FROM osm_polygon
+                    WHERE amenity IN ('amusement_park', 'airport', 'bar', 'beach_resort', 'bus_station', 'cafe', 'camping', 'camping_site', 'cinema', 'communal_kitchen', 'concert_hall', 'convenience_store', 'ferry_terminal', 'food_court', 'fountain', 'gallery', 'golf_course', 'guest_house', 'historic_site', 'hostel', 'hotel', 'motel', 'museum', 'nightclub', 'outdoor_seating', 'parking', 'picnic_table', 'pool', 'public_bath', 'public_toilet', 'restaurant', 'restaurant_fast_food', 'restaurant_vegetarian', 'sauna', 'shop', 'shopping_mall', 'ski_resort', 'swimming_pool', 'theatre', 'train_station', 'tourist_info', 'viewpoint', 'wifi', 'wine_bar', 'zoo')
+                       OR building IN ('academic', 'admin', 'agricultural', 'airplane_hangar', 'apartment', 'barn', 'base', 'bunker', 'bus_station', 'cabin', 'commercial', 'construction', 'cow_shed', 'detached', 'disaster_shelter', 'dormitory', 'farm', 'fire_station', 'garage', 'greenhouse', 'hotel', 'house', 'houseboat', 'industrial', 'military', 'monastery', 'office', 'place_of_worship', 'police', 'port', 'power', 'public', 'railway_station', 'residential', 'retail', 'roof', 'ruins', 'school', 'service', 'shop', 'stable', 'storage_tank', 'supermarket', 'synagogue', 'tank', 'terminal', 'transformer', 'tower', 'train_station', 'university', 'warehouse', 'water_tower', 'windmill')
+                       OR historic IN ('battlefield', 'castle', 'ceremonial_site', 'checkpoint', 'city_gate', 'monument', 'memorial', 'ruins', 'site', 'tomb', 'traditional_house', 'wall')
+                       OR landuse IN ('allotments', 'barren', 'commercial', 'construction', 'farmlands', 'forest', 'industrial', 'military', 'mine', 'nomad', 'park', 'permanent_crop', 'private', 'quarry', 'railway', 'residential', 'retail', 'rural', 'cemetery', 'vineyard', 'village_green', 'water')
+                       OR leisure IN ('amusement_park', 'athletics', 'bowling_alley', 'cafe', 'fitness_centre', 'golf_course', 'gym', 'ice_rink', 'playground', 'pool', 'sports_centre', 'stadium', 'swimming_pool', 'tennis_court', 'theatre', 'water_park')
+                       OR man_made IN ('adit', 'aerialway', 'bridge', 'chimney', 'cooling_tower', 'cross', 'dam', 'observation_tower', 'office', 'pier', 'pumping_station', 'railing', 'reservoir', 'shed', 'signpost', 'smokestack', 'stadium', 'tower', 'transformer_tower', 'windmill')
+                       OR "natural" IN ('cape', 'cliff', 'creek', 'bay', 'forest', 'geyser', 'glacier', 'hill', 'island', 'lake', 'land', 'mud', 'sea', 'stream', 'swamp', 'water', 'wood')
+                       OR shop IN ('alcohol', 'amusement_arcade', 'antique', 'art', 'bakery', 'bank', 'bar', 'bicycle', 'book', 'butcher', 'candy', 'car', 'charity', 'clothes', 'convenience', 'dairy', 'department_store', 'electronics', 'florist', 'furniture', 'garden_centre', 'greengrocer', 'hairdresser', 'hardware', 'jeweler', 'kiosk', 'laundrette', 'mall', 'newsagent', 'optician', 'pharmacy', 'sex', 'shoe', 'shopping_centre', 'souvenir', 'sports', 'supermarket', 'tattoo', 'toy', 'wholesale')
+                       OR tourism IN ('alpine_hut', 'art_gallery', 'attraction', 'backpacker', 'beach_resort', 'campsite', 'caravan_site', 'information', 'hotel', 'hostel', 'motel', 'museum', 'monument', 'observation_tower', 'picnic_site', 'playground', 'resort', 'restaurant', 'shop', 'sightseeing_tour', 'theme_park', 'viewpoint', 'winery', 'zoo')
+                );
+
+                CREATE INDEX tourism_geom_idx ON tourism USING gist (geom); -- 1 s
+            ''', {'target_srid': GlobalSettings.get_target_srid()})
+            db.commit()
+        h.logEndTask()
+
         # close database connection
         h.log('close database connection')
         db.close()
