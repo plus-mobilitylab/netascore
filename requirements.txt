@@ -8,3 +8,4 @@ JinjaSql
 requests
 osm2geojson
 PyYaml
+geopy

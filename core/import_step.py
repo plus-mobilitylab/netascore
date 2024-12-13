@@ -198,9 +198,6 @@ class OsmImporter(DbStep):
         data_con.commit()
 
     def _load_osm_from_placename(self, db: PostgresConnection, data_schema: str, data_directory: str, settings: dict):
-        # local imports, as we only use these here (makes it optional dependency for stand-alone use)    
-        import requests as rq
-        import osm2geojson as o2g
         # prepare DB: create schema and setup extensions
         db.create_schema(data_schema)
         # first, set target schema
@@ -236,48 +233,19 @@ class OsmImporter(DbStep):
         
         # download AOI
         # first: create AOI query string
-        h.debugLog(f"preparing AOI query for {settings['place_name']}")
-        o_add_filter = ""
-        if h.has_keys(settings, ['admin_level']):
-            o_add_filter += "[admin_level='" + str(settings['admin_level']) + "']" 
-        if h.has_keys(settings, ['zip_code']):
-            o_add_filter += "[\"admin_centre:postal_code\"='" + str(settings['zip_code']) + "']"
-        overpass_aoi_api_string = f"""
-            area
-            [name='{settings['place_name']}'][boundary='administrative']{o_add_filter};
-            rel(pivot);
-            out body;
-            >;
-            out skel qt;
-        """
-        h.debugLog(f"AOI query string: {overpass_aoi_api_string}")
-        # download AOI geom and add to aoi table
-        h.logBeginTask("Downloading AOI...")
-        curEndpointIndex = 0
-        success = False
-        while curEndpointIndex < len(GlobalSettings.overpass_api_endpoints) and not success:
-            try:
-                aoi_response = rq.get(GlobalSettings.overpass_api_endpoints[curEndpointIndex], params={'data': overpass_aoi_api_string}, timeout=5)
-                aoi_response.raise_for_status()
-            except HTTPError as e:
-                h.log(f"HTTPError while trying to download OSM AOI from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
-                curEndpointIndex+=1
-            except KeyboardInterrupt:
-                h.majorInfo(f"OSM AOI download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}' interrupted by user. Terminating.")
-                exit()
-            except BaseException as e:
-                h.majorInfo(f"An unexpected ERROR occured during OSM AOI download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
-                curEndpointIndex+=1
-            else:
-                success = True
-                h.log(f"Response headers from API call to {GlobalSettings.overpass_api_endpoints[curEndpointIndex]}: {aoi_response.headers}", h.LOG_LEVEL_4_DEBUG)
-                h.log(f"OSM AOI Download from {GlobalSettings.overpass_api_endpoints[curEndpointIndex]} succeeded.")
-        if not success:
-            raise Exception("OSM data download was not successful. Terminating.")
-        h.logEndTask()
-
-        aoi_geoJson = o2g.xml2geojson(aoi_response.text)
-        num_ft = len(aoi_geoJson['features'])
+        h.debugLog(f"starting AOI query for '{settings['place_name']}'")
+        # use geopy and OSM Nominatim API to query polygon features based on the given place name
+        from geopy.geocoders import Nominatim
+        geolocator = Nominatim(user_agent="py_NetAScore_downloader")
+        location = geolocator.geocode(settings['place_name'], geometry="wkt", exactly_one=False)
+        import geopandas as gpd
+        d = gpd.GeoDataFrame.from_records([l.raw for l in location])
+        d.geometry = gpd.GeoSeries.from_wkt(d.geotext, crs="EPSG:4326")
+        # filter for polygon features / (admin) boundaries; highest importance first
+        df = d[d["class"]=="boundary"].sort_values(by="importance", ascending=False)
+        areas = gpd.GeoDataFrame(df, geometry="geometry")
+        # check results
+        num_ft = len(areas)
         if num_ft < 1:
             h.majorInfo("ERROR: no matching feature found. Please try again with different AOI query settings.")
             raise Exception("AOI not found. Please check your query settings or use a bounding box instead (parameter 'bbox' in 'import' section of settings file).")
@@ -286,13 +254,9 @@ class OsmImporter(DbStep):
         if num_ft > 1:
             h.info(f"Found {num_ft} matching features:")
             i = 0
-            for ft in aoi_geoJson['features']:
+            for _id, ft in areas.iterrows():
                 i+=1
-                if "tags" in ft["properties"]:
-                    print("->", str(i), "--- Type:", ft["type"], "ZIP-Code:", ft["properties"]["tags"]["admin_centre:postal_code"] if "admin_centre:postal_code" in ft["properties"]["tags"] else "-", 
-                        "Admin level:", ft["properties"]["tags"]["admin_level"] if "admin_level" in ft["properties"]["tags"] else "-", "Wikipedia:", ft["properties"]["tags"]["wikipedia"] if "wikipedia" in ft["properties"]["tags"] else "-")
-                else:
-                    print("->", str(i), "--- Type:", ft["type"])
+                print(f"{i}: {ft.addresstype} \t {ft.display_name}")
             if h.has_keys(settings, ['interactive']) and settings['interactive']:
                 # let user choose which result to use if more than one AOI was found
                 fid = int(input("Which one do you want to use? [1.." + str(i) + "] for your choice, other number to abort:\t"))
@@ -303,11 +267,21 @@ class OsmImporter(DbStep):
                 fid -= 1 # back to 0-based index value
             else:
                 print("Using the first search result. If you want to use a different AOI, either provide more query parameters or add 'interactive: True' to the import settings for an interactive choice.")
-        
+        # selected AOI
         h.logBeginTask("importing AOI to db table...")
-        aoi_geoJson = aoi_geoJson['features'][fid]
-        h.debugLog("geoJson: " + str(aoi_geoJson))
-        db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s, ST_SetSRID(ST_GeomFromGeoJSON(%s::text),4326));", (aoi_name, str(aoi_geoJson["geometry"])))
+        area = areas.iloc[fid]
+        h.info(f"continuing with AOI: {ft.addresstype} '{ft.display_name}'")
+        # extract largest single-polygon in case of Multi-Polygon input
+        area_geom = None
+        if area.geometry.geom_type == "MultiPolygon":
+            h.debugLog(f"AOI is MultiPolygon consisting of {len(area.geometry.geoms)} geometries:")
+            polys = gpd.GeoDataFrame.from_records([[g.area, g] for g in area.geometry.geoms], columns=["area", "geometry"])
+            pgdf = gpd.GeoDataFrame(polys.sort_values(by="area", ascending=False), geometry="geometry", crs="EPSG:4326")
+            area_geom = pgdf.iloc[0].geometry
+        else:
+            area_geom = area.geometry
+        h.debugLog("Polygon WKT: " + str(area_geom))
+        db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s, ST_GeomFromText(%s::text,4326));", (aoi_name, str(area_geom)))
         db.commit()
         h.logEndTask()
 
