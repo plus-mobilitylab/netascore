@@ -270,7 +270,7 @@ class OsmImporter(DbStep):
         # selected AOI
         h.logBeginTask("importing AOI to db table...")
         area = areas.iloc[fid]
-        h.info(f"continuing with AOI: {ft.addresstype} '{ft.display_name}'")
+        h.info(f"continuing with AOI: {area.addresstype} '{area.display_name}'")
         # extract largest single-polygon in case of Multi-Polygon input
         area_geom = None
         if area.geometry.geom_type == "MultiPolygon":
