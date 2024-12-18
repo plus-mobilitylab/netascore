@@ -64,7 +64,7 @@ indicator_mapping:
       "service": 0.85
       "calmed": 0.9
       "no_mit": 1
-      "path": 1
+      "track": 1
 
   - indicator: max_speed
     classes:

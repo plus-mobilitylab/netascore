@@ -55,7 +55,7 @@ BEGIN
                 WHEN '4' = ANY (indicator_values) THEN 'service'
                 WHEN '5' = ANY (indicator_values) THEN 'calmed'
                 WHEN '6' = ANY (indicator_values) THEN 'no_mit'
-                WHEN '7' = ANY (indicator_values) THEN 'path'
+                WHEN '7' = ANY (indicator_values) THEN 'track'
             END;
     END IF;
 
