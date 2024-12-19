@@ -448,7 +448,7 @@ CREATE TABLE bicycle_infrastructure AS ( -- 7 s
                WHEN tags -> 'bicycle_road' = 'yes' THEN 'bicycle_road' -- Fahrradstraße
                WHEN tags -> 'cyclestreet' = 'yes' THEN 'cyclestreet'
                ELSE 'no'
-           END AS bicycle_infrastructure
+           END::varchar AS bicycle_infrastructure
     FROM network_edge
 );
 
@@ -489,7 +489,7 @@ CREATE TABLE pedestrian_infrastructure AS ( -- 10 s
               WHEN a.highway = 'steps' THEN 'stairs'
               WHEN b.access_pedestrian_ft THEN 'sidewalk'
               ELSE 'no'
-           END AS pedestrian_infrastructure
+           END::varchar AS pedestrian_infrastructure
     FROM network_edge a
         LEFT JOIN network_edge_attributes b USING (edge_id)
 );
@@ -598,7 +598,7 @@ CREATE TABLE road_category AS ( -- 8 s
                     (highway = 'path' AND foot = 'yes' AND (bicycle != ALL ('{yes,designated}') OR bicycle IS NULL)) OR
                     highway = 'steps' OR
                     (highway = 'track' AND tracktype = ANY ('{grade3,grade4,grade5}') AND (surface != ALL ('{paved,gravel,asphalt}') OR surface IS NULL)) THEN 'path'
-           END AS road_category
+           END::varchar AS road_category
     FROM network_edge
 );
 
