@@ -197,40 +197,13 @@ class OsmImporter(DbStep):
         data_con.ex(f"UPDATE {aoi_schema}.{aoi_table} SET srid=%s WHERE name=%s", (srid, aoi_name,))
         data_con.commit()
 
-    def _load_osm_from_placename(self, db: PostgresConnection, data_schema: str, data_directory: str, settings: dict):
-        # prepare DB: create schema and setup extensions
-        db.create_schema(data_schema)
+    def _load_osm_aoi_from_placename(self, db: PostgresConnection, data_schema: str, settings: dict):
+        # db settings
         # first, set target schema
         db.schema = data_schema
         aoi_table = self.db_settings.entities.table_aoi
         aoi_name = GlobalSettings.case_id
-        on_existing = settings['on_existing']
-        # create AOI table if it not already exists
-        db.ex(f"""CREATE TABLE IF NOT EXISTS {aoi_table} (
-            id    serial NOT NULL PRIMARY KEY,
-            name  varchar(40) NOT NULL CHECK (name <> '') UNIQUE,
-            geom  geometry,
-            srid  integer
-        );""")
 
-        # check whether an AOI with the given name already exists
-        excnt = db.query_one("SELECT COUNT(*) FROM " + aoi_table + " WHERE name = %s;", (aoi_name,))[0]
-        if excnt > 0:
-            h.info(f"found {excnt} entry in existing AOI table with the given AOI name '{aoi_name}'")
-            # if exists, use param switch or ask whether to use an existing AOI or overwrite it
-            if  on_existing == 'delete':
-                h.info("...you specified to overwrite the existing AOI entry.")
-                # delete existing AOI from AOI table
-                db.ex("DELETE FROM " + data_schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
-                # continue script execution
-            elif on_existing == 'skip':
-                h.info("...you chose to re-use the existing AOI entry. Skipping AOI download.")
-                return
-            else:
-                raise Exception("An AOI with the given id already exists. Please resolve the conflict manually or provide a different option for the import setting 'on_exists': [skip/delete/abort]")
-        else:
-            h.info("AOI name '" + aoi_name + "' is not in use -> continuing with AOI download...")
-        
         # download AOI
         # first: create AOI query string
         h.debugLog(f"starting AOI query for '{settings['place_name']}'")
@@ -285,7 +258,41 @@ class OsmImporter(DbStep):
         db.commit()
         h.logEndTask()
 
-        # now, data download can be prepared
+    def _set_aoi_from_geodata(self, filepath:str, db: PostgresConnection, data_schema: str, settings: dict):
+        import geopandas as gpd
+        # db settings
+        # first, set target schema
+        db.schema = data_schema
+        aoi_table = self.db_settings.entities.table_aoi
+        aoi_name = GlobalSettings.case_id
+        if not os.path.exists(filepath):
+            raise Exception(f"Provided AOI input file path does not exist: '{filepath}'")
+        df:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(filepath)
+        h.info(f"Loaded AOI input file. Found {len(df)} features.")
+        # find feature with matching AOI caseID or join all polygons
+        geom = None
+        if len(df) < 1:
+            raise Exception("No features found in provided AOI input file. Please provide at least one input geometry.")
+        elif len(df) > 1:
+            # enable filtering e.g. by name/ID column (match caseID of NetAScore)
+            if "name" in df.columns:
+                dff = df[df["name"]==aoi_name]
+                if len(dff) > 0:
+                    geom = dff.geometry.unary_union
+            if not geom:
+                geom = df.geometry.unary_union
+        else: 
+            geom = df.iloc[0].geometry
+        # generate AOI entry and insert geometry into AOI table
+        db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s, ST_GeomFromText(%s,4326));", (aoi_name, str(geom)))
+
+    def _load_osm_data_for_aoi(self, db: PostgresConnection, data_schema: str, settings: dict):
+        # db settings
+        # first, set target schema
+        db.schema = data_schema
+        aoi_table = self.db_settings.entities.table_aoi
+        aoi_name = GlobalSettings.case_id
+
         # determine SRID if not specified manually
         srid = GlobalSettings.custom_srid
         if srid is None:
@@ -296,7 +303,7 @@ class OsmImporter(DbStep):
             self._save_srid_for_AOI(srid, db, aoi_name, aoi_table, data_schema)
 
         # get BBox for network coverage (larger than chosen AOI -> prevent edge effects)
-        buffer = 500
+        buffer = 0
         if h.has_keys(settings, ['buffer']):
             buffer = settings['buffer']
         bbox = db.query_one("WITH a as (SELECT ST_Transform(ST_setSRID(ST_EXPAND(box2d(ST_Transform(geom, %s)),%s),%s), 4326) as bbox FROM " + 
@@ -306,9 +313,9 @@ class OsmImporter(DbStep):
                                 )
         h.debugLog(f"Determined Bounding box: {bbox}")
         # load OSM data from bounding box
-        self._load_osm_from_bbox(str(bbox)[1:-1], settings)
+        self._load_osm_data_from_bbox(str(bbox)[1:-1], settings)
 
-    def _load_osm_from_bbox(self, bbox: str, settings: dict):
+    def _load_osm_data_from_bbox(self, bbox: str, settings: dict):
         q_template: str = """
             [timeout:900][maxsize:1073741824];
             nwr(__bbox__);
@@ -360,25 +367,76 @@ class OsmImporter(DbStep):
 
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
+        skip_download = False
 
         # open database connection
         h.info('open database connection')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.init_extensions_and_schema(schema)
+        ### init AOI table 
+        # prepare DB: create schema and setup extensions
+        db.create_schema(schema)
+        # first, set target schema
+        db.schema = schema
+        aoi_table = self.db_settings.entities.table_aoi
+        aoi_name = GlobalSettings.case_id
+        on_existing = settings['on_existing']
+        # create AOI table if it not already exists
+        db.ex(f"""CREATE TABLE IF NOT EXISTS {aoi_table} (
+            id    serial NOT NULL PRIMARY KEY,
+            name  varchar(40) NOT NULL CHECK (name <> '') UNIQUE,
+            geom  geometry,
+            srid  integer
+        );""")
 
         # if needed, download OSM data
         if not h.has_keys(settings, ['filename']):
-            h.info("no OSM file provided. Checking for Overpass API settings instead...")
-            if not h.has_any_key(settings, ['place_name', 'bbox']):
-                raise Exception("neither 'aoi_name' nor 'bbox' parameter specified for OSM download. Terminating.")
+            h.info("no OSM file provided. Checking for OSM query settings instead...")
+            if not h.has_any_key(settings, ['place_name', 'bbox', 'aoi_filename']):
+                raise Exception("neither 'aoi_name', 'aoi_filename', nor 'bbox' parameter specified for OSM download. Terminating.")
             use_overpass_api = True
-            # start OSM import through overpass API
-            # import from bounding box
-            if h.has_keys(settings, ['bbox']):
-                self._load_osm_from_bbox(settings['bbox'], settings)
-            # import from place name
-            elif h.has_keys(settings, ['place_name']):
-                self._load_osm_from_placename(db, schema, directory, settings)
+            
+            ### handle conflicts (existing AOI entry with same caseID)
+            # check whether an AOI with the given name already exists
+            excnt = db.query_one("SELECT COUNT(*) FROM " + aoi_table + " WHERE name = %s;", (aoi_name,))[0]
+            if excnt > 0:
+                h.info(f"found {excnt} entry in existing AOI table with the given AOI name '{aoi_name}'")
+                # if exists, use param switch or ask whether to use an existing AOI or overwrite it
+                if  on_existing == 'delete':
+                    h.info("...you specified to overwrite the existing AOI entry.")
+                    # delete existing AOI from AOI table
+                    db.ex("DELETE FROM " + schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
+                    # continue script execution
+                elif on_existing == 'skip':
+                    # TODO: more precise behavior -> skip only AOI download (name query), or also OSM data download for existing AOI definition?
+                    #       (currently it skips both, so re-imports a locally available OSM download file / cached OSM data)
+                    h.info("...you chose to re-use the existing AOI entry. Skipping AOI download.")
+                    skip_download = True
+                else:
+                    raise Exception("An AOI with the given id already exists. Please resolve the conflict manually or provide a different option for the import setting 'on_exists': [skip/delete/abort]")
+            else:
+                h.info("AOI name '" + aoi_name + "' is not in use -> continuing with AOI download...")
+
+            ### import / query AOI and add it to AOI table
+            if not skip_download:
+                if h.has_keys(settings, ['bbox']):               # import from bounding box
+                    # TODO: validate input property for "bbox" from settings file
+                    bx = settings['bbox'].strip().split(",")
+                    if len(bx) != 4:
+                        raise Exception("Unable to interpret given bounding box - needs to follow the format '12.34, 56.78, 9.01, 23.45'")
+                    bbox_geom = f"st_setSRID(st_envelope(st_makeLine(st_makePoint({bx[1]},{bx[0]}), st_makePoint({bx[3]},{bx[2]}))), 4326)"
+                    db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s," + bbox_geom + ");", (aoi_name,))
+                elif h.has_keys(settings, ['aoi_filename']):     # import from given AOI polygon (geopackage file)
+                    filepath = os.path.join(directory, str(settings['aoi_filename']).strip())
+                    self._set_aoi_from_geodata(filepath, db, schema, settings)
+                elif h.has_keys(settings, ['place_name']):       # import from place name
+                    self._load_osm_aoi_from_placename(db, schema, settings)
+
+                # finally, query OSM data based on previously defined AOI
+                self._load_osm_data_for_aoi(db, schema, settings)
+        else:
+            h.info("using existing OSM file for import step.")
+            # TODO: determine bbox of OSM data (from available OSM file) and add entry to AOI table
 
         # import osm file
         h.logBeginTask('import osm file')
