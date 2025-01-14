@@ -26,6 +26,8 @@ args = parser.parse_args()
 settings_stream = args.settings_file
 skip_steps = args.skip or []
 base_path = settings_stream.name.rsplit('/', 1)[0]
+if settings_stream.name.find("\\") > 0: # allow use of backslash
+    base_path = settings_stream.name.rsplit('\\', 1)[0]
 if args.loglevel:
     h.verbose_level = int(args.loglevel[0])
     h.majorInfo(f"using log level {h.verbose_level}")
