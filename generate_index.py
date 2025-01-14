@@ -14,9 +14,10 @@ from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
 from settings import DbSettings, GlobalSettings
 
-parser = argparse.ArgumentParser(description='TODO: add description')
+parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Score Toolbox for Sustainable Mobility')
 parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
-                    help='TODO: write detailed description here')
+                    help="""file that contains all settings (input data, referenced mode profiles,...) - runs a demo for Salzburg, Austria if omitted. 
+                    More details available in the online documentation at: https://github.com/plus-mobilitylab/netascore""")
 parser.add_argument('--skip', nargs='+', choices=['import', 'optional', 'network', 'attributes', 'index', 'export'],
                     help='skip one or more of these steps - e.g. "--skip import optional"')
 parser.add_argument('--loglevel', nargs=1, choices=["1", "2", "3", "4"],
