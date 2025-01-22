@@ -15,20 +15,21 @@ For global coverage, we support **OpenStreetMap** data as input. Additionally, A
 
 Please use the version-specific or generic Zenodo entry for referencing the NetAScore software: https://doi.org/10.5281/zenodo.7695369
 
-More information can be found in the [wiki](https://github.com/plus-mobilitylab/netascore/wiki):
-* [About NetAScore](https://github.com/plus-mobilitylab/netascore/wiki)
-* [Quickstart-guide](https://github.com/plus-mobilitylab/netascore/wiki/Quickstart%E2%80%90Guide)
-* [The Workflow](https://github.com/plus-mobilitylab/netascore/wiki/The-workflow)
-* [How to run the Project...](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project)
-  * [...in a Docker environment](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project-in-a-Docker-environment)
-  * [...directly on your Machine (Python)](https://github.com/plus-mobilitylab/netascore/wiki/Run-NetAScore-manually-with-Python)
-* [Attributes & Indicators](https://github.com/plus-mobilitylab/netascore/wiki/Attributes-and-Indicators)
-  * [Attribute derivation from OSM](https://github.com/plus-mobilitylab/netascore/wiki/Attribute-derivation-from-OSM)
-  * [Attribute derivation from GIP](https://github.com/plus-mobilitylab/netascore/wiki/Attribute-derivation-from-GIP)
-* [Configuration of the Settings](https://github.com/plus-mobilitylab/netascore/wiki/Configuration-of-the-settings)
-* [Contribute to the Project!](https://github.com/plus-mobilitylab/netascore/wiki/How-to-contribute)
-* [Requirements and Limitations](https://github.com/plus-mobilitylab/netascore/wiki/Requirements-and-Limitations)
-* [Credits and License](https://github.com/plus-mobilitylab/netascore/wiki/Credits-and-license)
+More information can be found in the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html):
+* [About NetAScore](https://plus-mobilitylab.github.io/netascore-documentation/Home.html)
+* [Quickstart-guide](https://plus-mobilitylab.github.io/netascore-documentation/Quickstart.html)
+* [The Workflow](https://plus-mobilitylab.github.io/netascore-documentation/The-workflow.html)
+* [How to run the Project...](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project.html)
+  * [...in a Docker environment](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project-in-a-Docker-environment.html)
+  * [...directly on your Machine (Python)](https://plus-mobilitylab.github.io/netascore-documentation/Run-NetAScore-manually-with-Python.html)
+* [Attributes & Indicators](https://plus-mobilitylab.github.io/netascore-documentation/Attributes-and-Indicators.html)
+  * [Attribute derivation from OSM](https://plus-mobilitylab.github.io/netascore-documentation/Attribute-derivation-from-OSM.html)
+  * [Attribute derivation from GIP](https://plus-mobilitylab.github.io/netascore-documentation/Attribute-derivation-from-GIP.html)
+* [Configuration of the Settings](https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html)
+* [Adapting the Mode profiles](https://plus-mobilitylab.github.io/netascore-documentation/Mode-profiles.html)
+* [Implementation details & how to contribute](https://plus-mobilitylab.github.io/netascore-documentation/How-to-contribute.html)
+* [Requirements and Limitations](https://plus-mobilitylab.github.io/netascore-documentation/Requirements-and-Limitations.html)
+* [Credits and License](https://plus-mobilitylab.github.io/netascore-documentation/Credits-and-license.html)
 
 ## How to get started?
 
@@ -58,12 +59,12 @@ This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
 #### How to proceed?
 
-Most likely, you want to execute an analysis for a specific area of your interest - please see the [instructions in the wiki](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project-in-a-Docker-environment#run-netascore-for-your-own-area-of-interest) for how to achieve this with just changing one line in the settings file.
-If you need more detailled instructions or want to know more about the project, please consolidate the [wiki](https://github.com/plus-mobilitylab/netascore/wiki).
+Most likely, you want to execute an analysis for a specific area of your interest - please have a look at the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project-in-a-Docker-environment.html#run-netascore-for-your-own-area-of-interest) for how to achieve this with just changing one line in the settings file.
+If you need more detailled instructions or want to know more about the project, please consolidate the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html).
 
 ### Running NetAScore locally (without Docker)
 
-For running NetAScore without Docker you need several software packages and Python libraries installed on your machine. You find all details in the section ["How to run the project"](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project).
+For running NetAScore without Docker you need several software packages and Python libraries installed on your machine. You find all details in the section ["How to run the project"](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project.html).
 
 **NetAScore uses the following technologies:**
 
