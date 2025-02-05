@@ -21,7 +21,7 @@ weights:
   buildings: NULL
   greenness: 0.3
   water: 0.2
-  tourism: 0.4
+  sights: 0.4
   noise: 0.1
 
 
@@ -171,7 +171,7 @@ indicator_mapping:
       True: 1
       False: 0
 
-  - indicator: tourism
+  - indicator: sights
     classes:
       g0: 1
       e0: 0

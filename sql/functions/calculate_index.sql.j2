@@ -41,7 +41,7 @@ CREATE OR REPLACE FUNCTION calculate_index(
     IN buildings numeric, IN buildings_weight numeric,
     IN greenness numeric, IN greenness_weight numeric,
     IN water boolean, IN water_weight numeric,
-    IN tourism numeric, IN tourism_weight numeric,
+    IN sights numeric, IN sights_weight numeric,
     IN noise numeric, IN noise_weight numeric,
     OUT index numeric,
     OUT index_robustness numeric,
@@ -76,7 +76,7 @@ BEGIN
         CASE WHEN buildings_weight IS NOT NULL THEN buildings_weight ELSE 0 END +
         CASE WHEN greenness_weight IS NOT NULL THEN greenness_weight ELSE 0 END +
         CASE WHEN water_weight IS NOT NULL THEN water_weight ELSE 0 END +
-        CASE WHEN tourism_weight IS NOT NULL THEN tourism_weight ELSE 0 END +
+        CASE WHEN sights_weight IS NOT NULL THEN sights_weight ELSE 0 END +
         CASE WHEN noise_weight IS NOT NULL THEN noise_weight ELSE 0 END;
 
     weights_sum := 0;
@@ -97,7 +97,7 @@ BEGIN
         CASE WHEN buildings IS NOT NULL AND buildings_weight IS NOT NULL THEN buildings_weight ELSE 0 END +
         CASE WHEN greenness IS NOT NULL AND greenness_weight IS NOT NULL THEN greenness_weight ELSE 0 END +
         CASE WHEN water IS NOT NULL AND water_weight IS NOT NULL THEN water_weight ELSE 0 END +
-        CASE WHEN tourism IS NOT NULL AND tourism_weight IS NOT NULL THEN tourism_weight ELSE 0 END +
+        CASE WHEN sights IS NOT NULL AND sights_weight IS NOT NULL THEN sights_weight ELSE 0 END +
         CASE WHEN noise IS NOT NULL AND noise_weight IS NOT NULL THEN noise_weight ELSE 0 END;
 
     IF weights_sum > 0 THEN

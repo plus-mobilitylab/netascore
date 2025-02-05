@@ -58,7 +58,7 @@ CREATE TABLE network_edge_index_tmp AS (
             b.buildings, {{ buildings }},
             b.greenness, {{ greenness }},
             b.water, {{ water }},
-            b.tourism, {{ tourism }},
+            b.sights, {{ sights }},
             b.noise, {{ noise }}
         ) ft,
         LATERAL calculate_index(
@@ -78,7 +78,7 @@ CREATE TABLE network_edge_index_tmp AS (
             b.buildings, {{ buildings }},
             b.greenness, {{ greenness }},
             b.water, {{ water }},
-            b.tourism, {{ tourism }},
+            b.sights, {{ sights }},
             b.noise, {{ noise }}
         ) tf
     WHERE 

@@ -41,7 +41,7 @@ class GipAttributesStep(DbStep):
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
-                'table_tourism': db.use_if_exists('tourism', self.db_settings.entities.data_schema)
+                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema)
             }
             if params["table_dem"] is not None:
                 h.majorInfo("WARNING: You provided a DEM file. However, for GIP attribute calculation only the elevation data contained in the GIP dataset is used. Your provided DEM is ignored.")
@@ -92,7 +92,7 @@ class OsmAttributesStep(DbStep):
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
-                'table_tourism': db.use_if_exists('tourism', self.db_settings.entities.data_schema),
+                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema),
                 'target_srid': GlobalSettings.get_target_srid()
             }
             db.execute_template_sql_from_file("osm_attributes", params)

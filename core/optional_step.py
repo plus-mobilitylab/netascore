@@ -189,9 +189,9 @@ class WaterImporter(DbStep):
         db.close()
 
 
-class TourismImporter(DbStep):
+class SightsImporter(DbStep):
     def run_step(self, settings: dict):
-        h.log('importing tourism:')
+        h.log('importing sights:')
         h.log(f"using settings: {str(settings)}")
 
         schema = self.db_settings.entities.data_schema
@@ -202,11 +202,11 @@ class TourismImporter(DbStep):
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.init_extensions_and_schema(schema)
 
-        # import tourism
-        h.logBeginTask('import tourism')
-        if db.handle_conflicting_output_tables(['tourism'], schema):
+        # import sights
+        h.logBeginTask('import sights')
+        if db.handle_conflicting_output_tables(['sights'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema,
-                table='tourism', target_srid=GlobalSettings.get_target_srid(), geometry_types=['LINESTRING', 'POLYGON'])
+                table='sights', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'POLYGON'])
         h.logEndTask()
 
         # close database connection
@@ -231,8 +231,8 @@ def create_optional_importer(db_settings: DbSettings, import_type: str):
         return GreennessImporter(db_settings)
     if import_type == 'water':
         return WaterImporter(db_settings)
-    if import_type == 'tourism':
-        return TourismImporter(db_settings)
+    if import_type == 'sights':
+        return SightsImporter(db_settings)
     raise NotImplementedError(f"import type '{import_type}' not implemented")
 
 
