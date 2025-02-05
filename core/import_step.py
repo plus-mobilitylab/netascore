@@ -536,20 +536,11 @@ class OsmImporter(DbStep):
         if db.handle_conflicting_output_tables(['tourism'], schema):
             db.execute('''
                 CREATE TABLE tourism AS (
-                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom, name, historic, tourism
                     FROM osm_point
                     WHERE historic <> 'no'
-                       OR "natural" <> 'no'
                        OR tourism IN ('attraction', 'museum', 'artwork', 'viewpoint', 'picnic_site', 'zoo', 'theme_park', 'gallery')
-
-                    UNION ALL
-
-                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
-                    FROM osm_polygon
-                    WHERE historic <> 'no'
-                       OR "natural" <> 'no'
-                       OR tourism IN ('attraction', 'museum', 'artwork', 'viewpoint', 'picnic_site', 'zoo', 'theme_park', 'gallery')
-                    );
+                );
 
                 CREATE INDEX tourism_geom_idx ON tourism USING gist (geom); -- 1 s
             ''', {'target_srid': GlobalSettings.get_target_srid()})
