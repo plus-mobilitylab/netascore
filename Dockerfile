@@ -1,4 +1,4 @@
-FROM python:3.8.17-bullseye AS buildstage
+FROM python:3.13.2-bookworm AS buildstage
 
 WORKDIR /usr/src/netascore
 
@@ -13,12 +13,14 @@ COPY examples examples/
 COPY requirements.txt .
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && \
-    apt install -y \
+RUN echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
+    apt update && \
+    apt install -y -t sid \
     gdal-bin \
     libgdal-dev \
-    postgresql-client-common \
-    postgresql-client-13 \
+    libgdal36 && \
+    apt install -y \
+    postgresql-client-17 \
     osm2pgsql && \
     rm -rf /var/lib/apt/lists/*
 
