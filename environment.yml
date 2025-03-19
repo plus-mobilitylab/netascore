@@ -1,0 +1,18 @@
+name: netascore
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13
+  - flask
+  - gdal
+  - igraph
+  - jinja2
+  - pandas
+  - psycopg2
+  - pyyaml
+  - requests
+  - pip
+  - pip:
+    - jinjasql2
+    - osm2geojson
