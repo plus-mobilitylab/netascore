@@ -337,7 +337,7 @@ class OsmImporter(DbStep):
     def _load_osm_from_bbox(self, bbox: str, settings: dict):
         q_template: str = """
             [timeout:900][maxsize:1073741824];
-            nwr[!"boundary"][!"place"](__bbox__);
+            nwr[!"boundary"][!"place"][!power]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"](__bbox__);
             (._;>;);
             out;"""
         net_file = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
