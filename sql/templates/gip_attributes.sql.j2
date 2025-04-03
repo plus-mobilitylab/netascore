@@ -608,6 +608,57 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 DROP TABLE water_intersection;
 {% endif %}
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- calculate indicator "parking"
+-- ---------------------------------------------------------------------------------------------------------------------
+{% if table_parking %}
+CREATE TABLE IF NOT EXISTS network_buffer_10 AS ( -- 44 s
+    SELECT edge_id,
+           length,
+           ST_Buffer(geom, 10, 'endcap=flat') AS geom,
+           ST_Area(ST_Buffer(geom, 10, 'endcap=flat'))::numeric AS buffer_area
+    FROM network_edge
+);
+
+CREATE INDEX IF NOT EXISTS network_buffer_10_geom_idx ON network_buffer_10 USING gist (geom); -- 10 s
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS parking_intersection;
+CREATE TABLE parking_intersection AS ( -- 29 s
+    SELECT b.edge_id
+    FROM {{ table_parking | sqlsafe }} a
+        JOIN network_buffer_10 b ON ST_Intersects(a.geom, b.geom)
+        JOIN network_edge c ON b.edge_id = c.edge_id
+    WHERE ST_GeometryType(a.geom) = 'ST_LineString' AND
+          ST_Length(ST_Intersection(a.geom, b.geom)) / c.length BETWEEN 0.8 AND 1.6
+
+    UNION
+
+    SELECT b.edge_id
+    FROM {{ table_parking | sqlsafe }} a
+        JOIN network_buffer_10 b ON ST_Intersects(a.geom, b.geom)
+    WHERE ST_GeometryType(a.geom) = 'ST_Polygon'
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS parking;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           CASE WHEN b.edge_id IS NOT NULL THEN true ELSE false END::boolean AS parking
+    FROM network_edge_attributes a
+        LEFT JOIN parking_intersection b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+DROP TABLE parking_intersection;
+{% endif %}
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "noise"
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -648,6 +699,7 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 DROP TABLE noise_intersection, noise_sum;
 {% endif %}
+
 -- ---------------------------------------------------------------------------------------------------------------------
 -- add missing columns and primary keys
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -672,8 +724,8 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS max_speed_ft numeric,
     ADD COLUMN IF NOT EXISTS max_speed_tf numeric,
     ADD COLUMN IF NOT EXISTS max_speed_greatest numeric,
-    ADD COLUMN IF NOT EXISTS parking_ft varchar,
-    ADD COLUMN IF NOT EXISTS parking_tf varchar,
+    ADD COLUMN IF NOT EXISTS parking_ft boolean,
+    ADD COLUMN IF NOT EXISTS parking_tf boolean,
     ADD COLUMN IF NOT EXISTS pavement varchar,
     ADD COLUMN IF NOT EXISTS width numeric,
     ADD COLUMN IF NOT EXISTS gradient_ft numeric,
@@ -710,4 +762,4 @@ ALTER TABLE network_edge_export ADD PRIMARY KEY (edge_id);
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS network_buffer_20, network_buffer_30;
+DROP TABLE IF EXISTS network_buffer_10, network_buffer_20, network_buffer_30;

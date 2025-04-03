@@ -531,6 +531,56 @@ class OsmImporter(DbStep):
             db.commit()
         h.logEndTask()
 
+        # create dataset "parking"
+        h.logBeginTask('create dataset "parking"')
+        if db.handle_conflicting_output_tables(['parking'], schema):
+            db.execute('''
+            CREATE TABLE parking AS 
+            SELECT ST_Transform(way, %(target_srid)s)::geometry(LineString, %(target_srid)s) AS geom
+            FROM osm_line
+            WHERE highway IS NOT NULL AND ((
+                        tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                    ) OR (
+                        tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                    ) OR (
+                        tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                    ) OR (
+                        tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                    ) OR (
+                        tags -> 'parking:lane' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                    ) OR (
+                        tags -> 'parking:lane:right' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                    ) OR (
+                        tags -> 'parking:lane:left' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                    ) OR (
+                        tags -> 'parking:lane:both' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                    ))
+            UNION ALL
+            SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
+            FROM osm_polygon
+            WHERE access = 'yes' AND ((
+                    tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                ) OR (
+                    tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                ) OR (
+                    tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                ) OR (
+                    tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                ) OR (
+                    tags -> 'parking:lane' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                ) OR (
+                    tags -> 'parking:lane:right' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                ) OR (
+                    tags -> 'parking:lane:left' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                ) OR (
+                    tags -> 'parking:lane:both' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                ));
+
+                CREATE INDEX parking_geom_idx ON parking USING gist (geom); -- 1 s
+            ''', {'target_srid': GlobalSettings.get_target_srid()})
+            db.commit()
+        h.logEndTask()
+
         # close database connection
         h.log('close database connection')
         db.close()

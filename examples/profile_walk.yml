@@ -90,8 +90,6 @@ indicator_mapping:
 
   - indicator: parking
     mapping:
-      "yes": 0
-      "no": 1
       True: 0
       False: 1
 
