@@ -1101,33 +1101,36 @@ DROP TABLE water_intersection;
 
 
 {% if table_parking %}
-CREATE TABLE IF NOT EXISTS network_buffer_10 AS (
+CREATE TABLE IF NOT EXISTS network_buffer_1 AS (
     SELECT edge_id,
            length,
-           ST_Buffer(geom, 10, 'endcap=flat') AS geom,
-           ST_Area(ST_Buffer(geom, 10, 'endcap=flat'))::numeric AS buffer_area
+           ST_Buffer(geom, 1, 'endcap=flat') AS geom,
+           ST_Area(ST_Buffer(geom, 1, 'endcap=flat'))::numeric AS buffer_area
     FROM network_edge
 );
 
-CREATE INDEX IF NOT EXISTS network_buffer_10_geom_idx ON network_buffer_10 USING gist (geom);
+CREATE INDEX IF NOT EXISTS network_buffer_1_geom_idx ON network_buffer_1 USING gist (geom);
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS parking_intersection;
 CREATE TABLE parking_intersection AS ( -- 57 s
-    SELECT b.edge_id
+    SELECT b.edge_id, a.parking
     FROM {{ table_parking | sqlsafe }} a
-        JOIN network_buffer_10 b ON ST_Intersects(a.geom, b.geom)
+        JOIN network_buffer_1 b ON ST_Intersects(a.geom, b.geom)
         JOIN network_edge c ON b.edge_id = c.edge_id
     WHERE ST_GeometryType(a.geom) = 'ST_LineString' AND
           ST_Length(ST_Intersection(a.geom, b.geom)) / c.length BETWEEN 0.8 AND 1.6
+    --GROUP BY b.edge_id
 
-    UNION
+    -- UNION ALL
 
-    SELECT b.edge_id
-    FROM {{ table_parking | sqlsafe }} a
-        JOIN network_buffer_10 b ON ST_Intersects(a.geom, b.geom)
-    WHERE ST_GeometryType(a.geom) = 'ST_Polygon'
+    -- SELECT b.edge_id, STRING_AGG(DISTINCT a.parking, ', ') AS parking
+    -- FROM {{ table_parking | sqlsafe }} a
+    --     JOIN network_buffer_1 b ON ST_Intersects(a.geom, b.geom)
+    -- WHERE ST_GeometryType(a.geom) = 'ST_Polygon'
+    -- GROUP BY b.edge_id
+
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -1135,45 +1138,12 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS parking;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
-    SELECT a.*,
-           --CASE WHEN b.edge_id IS NOT NULL THEN true ELSE false END::boolean AS parking
-           b.parking::varchar AS parking
-
-        --    CASE WHEN (tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}') AND tags -> 'oneway=yes'
-        --             ) OR (
-        --                 tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:lane' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:lane:right' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:lane:left' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}') AND tags -> 'oneway=yes'
-        --             ) OR (
-        --                 tags -> 'parking:lane:both' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}'))
-        --         THEN true::boolean
-        --    END::boolean AS parking_ft,
-    
-        --     CASE WHEN (tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}') AND tags -> 'oneway=yes'
-        --             ) OR (
-        --                 tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:lane' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:lane:right' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}') AND tags -> 'oneway=yes'
-        --             ) OR (
-        --                 tags -> 'parking:lane:left' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-        --             ) OR (
-        --                 tags -> 'parking:lane:both' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}'))
-        --         THEN true::boolean
-        --    END::boolean AS parking_tf
+    SELECT a.*, b.parking::varchar AS parking
+            -- CASE WHEN b.parking like 'allowed' THEN 'allowed'
+            --      WHEN b.parking like 'forbidden' THEN 'forbidden'
+            --      WHEN b.parking like 'implicit' THEN 'implicit'
+            --      ELSE NULL
+            --   END::varchar AS parking
 
     FROM network_edge_attributes a
         LEFT JOIN parking_intersection b USING (edge_id)

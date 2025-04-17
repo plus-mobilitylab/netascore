@@ -590,23 +590,6 @@ class OsmImporter(DbStep):
                         )) THEN 'forbidden'
                        END AS parking
             FROM osm_line
-            -- WHERE highway IS NOT NULL AND ((
-            --             tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --         ) OR (
-            --             tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --         ) OR (
-            --             tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --         ) OR (
-            --             tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --         ) OR (
-            --             tags -> 'parking:lane' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-            --         ) OR (
-            --             tags -> 'parking:lane:right' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-            --         ) OR (
-            --             tags -> 'parking:lane:left' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-            --         ) OR (
-            --             tags -> 'parking:lane:both' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-            --         ))
             UNION ALL
             SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom,
                         CASE WHEN  highway IS NOT NULL AND ((
@@ -648,15 +631,6 @@ class OsmImporter(DbStep):
                         )) THEN 'forbidden'
                        END AS parking
             FROM osm_polygon);
-            -- WHERE ((
-            --         tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --     ) OR (
-            --         tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --     ) OR (
-            --         tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --     ) OR (
-            --         tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-            --     ));
 
                 CREATE INDEX parking_geom_idx ON parking USING gist (geom); -- 1 s
             ''', {'target_srid': GlobalSettings.get_target_srid()})
