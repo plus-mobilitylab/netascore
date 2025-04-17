@@ -1136,7 +1136,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS parking;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           CASE WHEN b.edge_id IS NOT NULL THEN true ELSE false END::boolean AS parking
+           --CASE WHEN b.edge_id IS NOT NULL THEN true ELSE false END::boolean AS parking
+           b.parking::varchar AS parking
 
         --    CASE WHEN (tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
         --             ) OR (
@@ -1249,7 +1250,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS max_speed_ft numeric,
     ADD COLUMN IF NOT EXISTS max_speed_tf numeric,
     ADD COLUMN IF NOT EXISTS max_speed_greatest numeric,
-    ADD COLUMN IF NOT EXISTS parking numeric,
+    ADD COLUMN IF NOT EXISTS parking varchar,
     ADD COLUMN IF NOT EXISTS pavement varchar,
     ADD COLUMN IF NOT EXISTS width numeric,
     ADD COLUMN IF NOT EXISTS gradient_ft numeric,
