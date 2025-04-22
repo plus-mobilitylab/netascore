@@ -590,48 +590,17 @@ class OsmImporter(DbStep):
                         )) THEN 'forbidden'
                        END AS parking
             FROM osm_line
+                WHERE osm_id > -1 -- filter to exclude routes (e.g. bus lines etc.)
+                       AND NOT highway IS NULL
             UNION ALL
             SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom,
-                        CASE WHEN  highway IS NOT NULL AND ((
-                            tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        ) OR (
-                            tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        ) OR (
-                            tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        ) OR (
-                            tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        )) THEN 'allowed'
-                       WHEN((
-                       ((tags -> 'parking' IS NULL) 
-                        OR (tags -> 'parking:right' IS NULL) 
-                        OR (tags -> 'parking:left' IS NULL) 
-                        OR (tags -> 'parking:both' IS NULL) 
-                        OR (tags -> 'parking:lane' IS NULL) 
-                        OR (tags -> 'parking:lane:right' IS NULL) 
-                        OR (tags -> 'parking:lane:left' IS NULL) 
-                        OR (tags -> 'parking:lane:both' IS NULL))
-                       AND
-                       (access = ANY ('{designated,destination,yes, private, customers, delivery}') OR access IS NULL) 
-                       AND
-                       highway = ANY ('{residential, unclassified, tertiary, secondary, primary, primary_link, secondary_link, motorway_junction}')
-                       OR (
-                        tags -> 'motor_vehicle' = ANY ('{yes, designated, private, destination, customers, delivery}'))
-                       )) THEN 'implicit' -- cars are permitted but parking is not given
-                        
-                        WHEN ((-- for all: 
-                            (access = ANY ('{designated,destination,yes}') OR access IS NULL) 
-                            AND ((
-                                ((tags -> 'parking' IS NULL OR tags -> 'parking' = 'no') 
-                                OR (tags -> 'parking:right' IS NULL OR tags -> 'parking:right' = 'no') 
-                                OR (tags -> 'parking:left' IS NULL OR tags -> 'parking:left' = 'no') 
-                                OR (tags -> 'parking:both' IS NULL OR tags -> 'parking:both' = 'no'))           
-                            ) AND
-                            (tags -> 'motor_vehicle' = ANY ('{no, discouraged}') OR tags -> 'motor_vehicle' IS NULL)  
-                        )
-                        )) THEN 'forbidden'
-                       END AS parking
-            FROM osm_polygon);
-
+                        'allowed' AS parking -- dedicated parking
+            FROM osm_polygon
+             WHERE amenity LIKE 'parking' AND (
+				(tags -> 'parking' IS NULL OR tags -> 'parking' != 'underground') AND
+				(tags -> 'level' IS NULL OR tags -> 'level' != '-1') AND
+				(tags -> 'parking' IS NULL OR tags -> 'parking' != 'multi-storey')
+			));
                 CREATE INDEX parking_geom_idx ON parking USING gist (geom); -- 1 s
             ''', {'target_srid': GlobalSettings.get_target_srid()})
             db.commit()
