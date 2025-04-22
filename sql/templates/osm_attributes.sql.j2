@@ -1109,7 +1109,7 @@ CREATE TABLE IF NOT EXISTS network_buffer_2 AS (
     FROM network_edge
 );
 
-CREATE INDEX IF NOT EXISTS network_buffer_1_geom_idx ON network_buffer_1 USING gist (geom);
+CREATE INDEX IF NOT EXISTS network_buffer_2_geom_idx ON network_buffer_2 USING gist (geom);
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
