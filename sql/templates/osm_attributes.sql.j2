@@ -1101,11 +1101,11 @@ DROP TABLE water_intersection;
 
 
 {% if table_parking %}
-CREATE TABLE IF NOT EXISTS network_buffer_1 AS (
+CREATE TABLE IF NOT EXISTS network_buffer_2 AS (
     SELECT edge_id,
            length,
-           ST_Buffer(geom, 1, 'endcap=flat') AS geom,
-           ST_Area(ST_Buffer(geom, 1, 'endcap=flat'))::numeric AS buffer_area
+           ST_Buffer(geom, 2, 'endcap=flat') AS geom,
+           ST_Area(ST_Buffer(geom, 2, 'endcap=flat'))::numeric AS buffer_area
     FROM network_edge
 );
 
@@ -1113,24 +1113,37 @@ CREATE INDEX IF NOT EXISTS network_buffer_1_geom_idx ON network_buffer_1 USING g
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS parking_intersection;
-CREATE TABLE parking_intersection AS ( -- 57 s
-    SELECT b.edge_id, a.parking
-    FROM {{ table_parking | sqlsafe }} a
-        JOIN network_buffer_1 b ON ST_Intersects(a.geom, b.geom)
-        JOIN network_edge c ON b.edge_id = c.edge_id
-    WHERE ST_GeometryType(a.geom) = 'ST_LineString' AND
-          ST_Length(ST_Intersection(a.geom, b.geom)) / c.length BETWEEN 0.8 AND 1.6
-    --GROUP BY b.edge_id
+DROP TABLE IF EXISTS parking_intersection_edges;
+-- get value from geometry with highest overlap --
+CREATE TABLE parking_intersection_edges AS ( -- 57 s
+    SELECT DISTINCT ON (b.edge_id) edge_id, parking
+    FROM parking a
+        JOIN network_buffer_2 b ON ST_Intersects(a.geom, b.geom)
+    WHERE ST_GeometryType(a.geom) = 'ST_LineString' 
+	ORDER BY
+          b.edge_id, ST_Length(ST_Intersection(a.geom, b.geom)) DESC
+);
 
-    -- UNION ALL
-
-    -- SELECT b.edge_id, STRING_AGG(DISTINCT a.parking, ', ') AS parking
-    -- FROM {{ table_parking | sqlsafe }} a
-    --     JOIN network_buffer_1 b ON ST_Intersects(a.geom, b.geom)
-    -- WHERE ST_GeometryType(a.geom) = 'ST_Polygon'
-    -- GROUP BY b.edge_id
-
+DROP TABLE IF EXISTS parking_intersection_polys;
+-- intersect with polygon geometries - choose category with highest overlap, ignore overlap below threshold --
+CREATE TABLE parking_intersection_polys AS ( 
+	WITH polys AS(
+		SELECT parking, st_union(geom) as geom
+		FROM parking
+		WHERE parking IS NOT NULL and ST_GeometryType(geom) = 'ST_Polygon'
+		GROUP BY parking
+	),
+	joined as(
+		SELECT b.edge_id, parking, ST_Area(ST_Intersection(a.geom, b.geom)) / c.length as overlap, b.geom
+		FROM polys a
+			JOIN network_buffer_2 b ON ST_Intersects(a.geom, b.geom)
+		 	JOIN network_edge c ON b.edge_id = c.edge_id
+	)
+	SELECT DISTINCT ON (edge_id) edge_id, parking, overlap, geom
+	FROM joined
+	WHERE overlap > 0.33
+	ORDER BY
+		  edge_id, overlap DESC
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -1138,21 +1151,16 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS parking;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
-    SELECT a.*, b.parking::varchar AS parking
-            -- CASE WHEN b.parking like 'allowed' THEN 'allowed'
-            --      WHEN b.parking like 'forbidden' THEN 'forbidden'
-            --      WHEN b.parking like 'implicit' THEN 'implicit'
-            --      ELSE NULL
-            --   END::varchar AS parking
-
+    SELECT a.*, CASE WHEN c.parking IS NULL THEN b.parking::varchar ELSE c.parking::varchar END AS parking
     FROM network_edge_attributes a
-        LEFT JOIN parking_intersection b USING (edge_id)
+        LEFT JOIN parking_intersection_edges b USING (edge_id)
+        LEFT JOIN parking_intersection_polys c USING (edge_id)
 );
 
 DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
-DROP TABLE parking_intersection;
+-- TODO: cleanup for parking -- DROP TABLE parking_intersection_edges, parking_intersection_polys;
 {% endif %}
 
 
@@ -1265,4 +1273,4 @@ ALTER TABLE network_edge_export ADD PRIMARY KEY (edge_id);
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS network_buffer_10, network_buffer_20, network_buffer_30;
+DROP TABLE IF EXISTS network_buffer_10, network_buffer_20, network_buffer_30, network_buffer_2;
