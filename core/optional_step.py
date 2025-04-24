@@ -56,7 +56,19 @@ class NoiseImporter(DbStep):
         h.logBeginTask('import noise')
         if db.handle_conflicting_output_tables(['noise'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='noise', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
+                table='noise_import', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
+        h.logEndTask()
+        # split (subdivide) noise polygons to enable spatial indexing
+        h.logBeginTask('postprocess noise')
+        db.execute("""
+            DROP TABLE IF EXISTS noise;
+            CREATE TABLE noise AS(
+                SELECT row_number() over() as id, ST_Subdivide(n.geom, 200) as geom, noise
+                FROM noise_import n
+            );
+            CREATE INDEX noise_geom_idx ON noise USING gist (geom);
+        """)
+        db.commit()
         h.logEndTask()
 
         # close database connection
