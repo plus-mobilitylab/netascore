@@ -563,6 +563,81 @@ class OsmImporter(DbStep):
             db.commit()
         h.logEndTask()
 
+        # create dataset "parking"
+        h.logBeginTask('create dataset "parking"')
+        if db.handle_conflicting_output_tables(['parking'], schema):
+            db.execute('''
+            CREATE TABLE parking AS (
+            SELECT ST_Transform(way, %(target_srid)s)::geometry(LineString, %(target_srid)s) AS geom,
+                       CASE WHEN  highway IS NOT NULL AND ((
+                            tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                        ) OR (
+                            tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                        ) OR (
+                            tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                        ) OR (
+                            tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
+                        ) OR (
+                            tags -> 'parking:lane' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                        ) OR (
+                            tags -> 'parking:lane:right' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                        ) OR (
+                            tags -> 'parking:lane:left' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                        ) OR (
+                            tags -> 'parking:lane:both' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
+                        )) THEN 'allowed'
+                       WHEN((
+                       ((tags -> 'parking' IS NULL) 
+                        OR (tags -> 'parking:right' IS NULL) 
+                        OR (tags -> 'parking:left' IS NULL) 
+                        OR (tags -> 'parking:both' IS NULL) 
+                        OR (tags -> 'parking:lane' IS NULL) 
+                        OR (tags -> 'parking:lane:right' IS NULL) 
+                        OR (tags -> 'parking:lane:left' IS NULL) 
+                        OR (tags -> 'parking:lane:both' IS NULL))
+                       AND
+                       (access = ANY ('{designated,destination,yes, private, customers, delivery}') OR access IS NULL) 
+                       AND
+                       highway = ANY ('{residential, unclassified, tertiary, secondary, primary, primary_link, secondary_link, motorway_junction}')
+                       OR (
+                        tags -> 'motor_vehicle' = ANY ('{yes, designated, private, destination, customers, delivery}'))
+                       )) THEN 'implicit' -- cars are permitted but parking is not given
+                        
+                        WHEN ((-- for all: 
+                            (access = ANY ('{designated,destination,yes}') OR access IS NULL) 
+                            AND ((
+                                ((tags -> 'parking' IS NULL OR tags -> 'parking' = 'no') 
+                                OR (tags -> 'parking:right' IS NULL OR tags -> 'parking:right' = 'no') 
+                                OR (tags -> 'parking:left' IS NULL OR tags -> 'parking:left' = 'no') 
+                                OR (tags -> 'parking:both' IS NULL OR tags -> 'parking:both' = 'no') 
+                                OR (tags -> 'parking:lane' IS NULL OR tags -> 'parking:lane' = 'no') 
+                                OR (tags -> 'parking:lane:right' IS NULL OR tags -> 'parking:lane:right' = 'no') 
+                                OR (tags -> 'parking:lane:left' IS NULL OR tags -> 'parking:lane:left' = 'no') 
+                                OR (tags -> 'parking:lane:both' IS NULL OR tags -> 'parking:lane:both' = 'no'))           
+                            ) AND
+                            (tags -> 'motor_vehicle' = ANY ('{no, discouraged}') OR tags -> 'motor_vehicle' IS NULL)
+                            OR
+                            highway = ANY ('{cycleway, pedestrian, bridleway, footway}')   
+                        )
+                        )) THEN 'forbidden'
+                       END AS parking
+            FROM osm_line
+                WHERE osm_id > -1 -- filter to exclude routes (e.g. bus lines etc.)
+                       AND NOT highway IS NULL
+            UNION ALL
+            SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom,
+                        'allowed' AS parking -- dedicated parking
+            FROM osm_polygon
+             WHERE amenity LIKE 'parking' AND (
+				(tags -> 'parking' IS NULL OR tags -> 'parking' != 'underground') AND
+				(tags -> 'level' IS NULL OR tags -> 'level' != '-1') AND
+				(tags -> 'parking' IS NULL OR tags -> 'parking' != 'multi-storey')
+			));
+                CREATE INDEX parking_geom_idx ON parking USING gist (geom); -- 1 s
+            ''', {'target_srid': GlobalSettings.get_target_srid()})
+            db.commit()
+        h.logEndTask()
+        
         # create dataset "sights"
         h.logBeginTask('create dataset "sights"')
         if db.handle_conflicting_output_tables(['sights'], schema):

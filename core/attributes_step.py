@@ -41,6 +41,7 @@ class GipAttributesStep(DbStep):
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
+                'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema),
                 'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema)
             }
             if params["table_dem"] is not None:
@@ -92,6 +93,7 @@ class OsmAttributesStep(DbStep):
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
+                'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema), #TODO: check if this works with file import
                 'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema),
                 'target_srid': GlobalSettings.get_target_srid()
             }

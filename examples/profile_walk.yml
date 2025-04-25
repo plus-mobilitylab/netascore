@@ -91,10 +91,9 @@ indicator_mapping:
 
   - indicator: parking
     mapping:
-      "yes": 0
-      "no": 1
-      True: 0
-      False: 1
+      allowed: 0
+      implicit: 0.5
+      forbidden: 1
 
   - indicator: pavement
     mapping:
