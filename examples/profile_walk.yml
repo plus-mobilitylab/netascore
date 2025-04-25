@@ -55,6 +55,7 @@ indicator_mapping:
       "stairs": 0.7
       "sidewalk": 0.5
       "no": 0
+      "no_separate": 0 
 
   - indicator: road_category
     mapping:
