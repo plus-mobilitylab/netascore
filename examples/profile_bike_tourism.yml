@@ -19,10 +19,10 @@ weights:
   facilities: NULL
   crossings: NULL
   buildings: NULL
-  greenness: NULL
-  water: NULL
-  sights: NULL
-  noise: NULL
+  greenness: 0.3
+  water: 0.2
+  sights: 0.4
+  noise: 0.1
 
 
 # =================================================================== #

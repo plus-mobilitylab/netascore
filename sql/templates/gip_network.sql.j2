@@ -90,7 +90,7 @@ CREATE TABLE network_edge AS ( -- 20 s, 1.894.917
         GROUP BY link_id)
     SELECT a.link_id AS edge_id,
            a.*,
-           ST_Length(a.geom) AS length,
+           ST_Length(a.geom)::numeric AS length,
            b.use_id,
            b.basetype,
            b.offset_,

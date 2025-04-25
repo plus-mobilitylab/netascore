@@ -563,6 +563,22 @@ class OsmImporter(DbStep):
             db.commit()
         h.logEndTask()
 
+        # create dataset "sights"
+        h.logBeginTask('create dataset "sights"')
+        if db.handle_conflicting_output_tables(['sights'], schema):
+            db.execute('''
+                CREATE TABLE sights AS (
+                    SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom, name, historic, tourism
+                    FROM osm_point
+                    WHERE historic <> 'no'
+                       OR tourism IN ('attraction', 'museum', 'artwork', 'viewpoint', 'picnic_site', 'zoo', 'theme_park', 'gallery')
+                );
+
+                CREATE INDEX sights_geom_idx ON sights USING gist (geom); -- 1 s
+            ''', {'target_srid': GlobalSettings.get_target_srid()})
+            db.commit()
+        h.logEndTask()
+
         # close database connection
         h.log('close database connection')
         db.close()

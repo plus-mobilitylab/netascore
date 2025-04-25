@@ -189,6 +189,31 @@ class WaterImporter(DbStep):
         db.close()
 
 
+class SightsImporter(DbStep):
+    def run_step(self, settings: dict):
+        h.log('importing sights:')
+        h.log(f"using settings: {str(settings)}")
+
+        schema = self.db_settings.entities.data_schema
+        directory = GlobalSettings.data_directory
+
+        # open database connection
+        h.info('open database connection')
+        db = PostgresConnection.from_settings_object(self.db_settings)
+        db.init_extensions_and_schema(schema)
+
+        # import sights
+        h.logBeginTask('import sights')
+        if db.handle_conflicting_output_tables(['sights'], schema):
+            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema,
+                table='sights', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'POLYGON'])
+        h.logEndTask()
+
+        # close database connection
+        h.log('close database connection')
+        db.close()
+
+
 def create_optional_importer(db_settings: DbSettings, import_type: str):
     if import_type == 'dem':
         return DemImporter(db_settings)
@@ -206,6 +231,8 @@ def create_optional_importer(db_settings: DbSettings, import_type: str):
         return GreennessImporter(db_settings)
     if import_type == 'water':
         return WaterImporter(db_settings)
+    if import_type == 'sights':
+        return SightsImporter(db_settings)
     raise NotImplementedError(f"import type '{import_type}' not implemented")
 
 
