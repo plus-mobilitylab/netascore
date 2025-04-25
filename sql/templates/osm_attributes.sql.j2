@@ -448,7 +448,7 @@ CREATE TABLE bicycle_infrastructure AS ( -- 7 s
                WHEN tags -> 'bicycle_road' = 'yes' THEN 'bicycle_road' -- Fahrradstraße
                WHEN tags -> 'cyclestreet' = 'yes' THEN 'cyclestreet'
                ELSE 'no'
-           END AS bicycle_infrastructure
+           END::varchar AS bicycle_infrastructure
     FROM network_edge
 );
 
@@ -489,7 +489,7 @@ CREATE TABLE pedestrian_infrastructure AS ( -- 10 s
               WHEN a.highway = 'steps' THEN 'stairs'
               WHEN b.access_pedestrian_ft THEN 'sidewalk'
               ELSE 'no'
-           END AS pedestrian_infrastructure
+           END::varchar AS pedestrian_infrastructure
     FROM network_edge a
         LEFT JOIN network_edge_attributes b USING (edge_id)
 );
@@ -598,7 +598,7 @@ CREATE TABLE road_category AS ( -- 8 s
                     (highway = 'path' AND foot = 'yes' AND (bicycle != ALL ('{yes,designated}') OR bicycle IS NULL)) OR
                     highway = 'steps' OR
                     (highway = 'track' AND tracktype = ANY ('{grade3,grade4,grade5}') AND (surface != ALL ('{paved,gravel,asphalt}') OR surface IS NULL)) THEN 'path'
-           END AS road_category
+           END::varchar AS road_category
     FROM network_edge
 );
 
@@ -1165,6 +1165,45 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- calculate indicator "sights"
+-- ---------------------------------------------------------------------------------------------------------------------
+{% if table_sights %}
+DROP TABLE IF EXISTS sights_count;
+CREATE TABLE sights_count AS (
+    SELECT b.edge_id,
+           count(a.*) AS sights_count
+    FROM {{ table_sights | sqlsafe }} a,
+         network_edge b
+    WHERE ST_DWithin(a.geom, b.geom, 30)
+    GROUP BY edge_id
+);
+
+DROP TABLE IF EXISTS sights_ratio;
+CREATE TABLE sights_ratio AS (
+    SELECT a.edge_id,
+           (a.sights_count / b.length * 100.0)::numeric AS sights_ratio
+    FROM sights_count a
+         LEFT JOIN network_edge b USING (edge_id)
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS sights;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           coalesce(round(b.sights_ratio, 2), 0)::numeric AS sights
+    FROM network_edge_attributes a
+        LEFT JOIN sights_ratio b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+DROP TABLE sights_count, sights_ratio;
+{% endif %}
+-- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "noise"
 -- ---------------------------------------------------------------------------------------------------------------------
 {% if table_noise %}
@@ -1240,6 +1279,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS buildings numeric,
     ADD COLUMN IF NOT EXISTS greenness numeric,
     ADD COLUMN IF NOT EXISTS water boolean,
+    ADD COLUMN IF NOT EXISTS sights numeric,
     ADD COLUMN IF NOT EXISTS noise numeric;
 
 ALTER TABLE network_edge_attributes ADD PRIMARY KEY (edge_id);

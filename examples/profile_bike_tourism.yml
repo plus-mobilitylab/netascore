@@ -1,60 +1,73 @@
-# This is the default walkability mode profile provided with NetAScore,
+# This is the default bikeability mode profile provided with NetAScore,
 # developed and tested by the MobilityLab at University of Salzburg.
 # Feel free to copy, edit and adjust for specific use cases.
 
 version: 1.1
 
 weights:
-  bicycle_infrastructure: NULL
-  pedestrian_infrastructure: 0.4
-  designated_route: NULL
+  bicycle_infrastructure: 0.2
+  pedestrian_infrastructure: NULL
+  designated_route: 0.1
   road_category: 0.3
-  max_speed: NULL
-  max_speed_greatest: 0.3
-  parking: NULL
-  pavement: NULL
+  max_speed: 0.1
+  max_speed_greatest: NULL
+  parking: 0.1
+  pavement: 0.1
   width: NULL
-  gradient: 0.3
-  number_lanes: 0.1
-  facilities: 0.3
-  crossings: 0.2
-  buildings: 0.1
+  gradient: 0.1
+  number_lanes: NULL
+  facilities: NULL
+  crossings: NULL
+  buildings: NULL
   greenness: 0.3
-  water: 0.4
-  sights: NULL
-  noise: 0.3
+  water: 0.2
+  sights: 0.4
+  noise: 0.1
 
 
 # =================================================================== #
 # In the following section advanced settings can be defined.          #
 # Only edit the contents below if you really know what you are doing. #
 # =================================================================== #
-
+      
 
 # OVERRIDES - here, weights and/or index values can be overridden #
 
 overrides:
-  - description: fixed index value for sidewalk on primary/secondary roads (pedestrian_infrastructure/road_category)
-    indicator: pedestrian_infrastructure
+  - description: combination of gradient and pavement (steep and loose/rough)
+    indicator: pavement
     output:
-      type: index
-    mapping:
-      "sidewalk":
-        indicator: road_category
+      type: weight
+      for: [pavement, gradient]
+    mapping: 
+      "{gravel, soft, cobble}":  
+        indicator: gradient
         mapping:
-          "{'secondary', 'primary'}": 0.2
+          "{-4, -3, 3, 4}": 1.6
 
 
 # INDICATOR attribute mappings #
 
 indicator_mapping:
-  - indicator: pedestrian_infrastructure
+  - indicator: bicycle_infrastructure
     mapping:
-      "pedestrian_area": 1
-      "pedestrian_way": 1
-      "mixed_way": 0.85
-      "stairs": 0.7
-      "sidewalk": 0.5
+      "bicycle_way": 1
+      "mixed_way": 0.9
+      "bicycle_road": 0.85
+      "cyclestreet": 0.8
+      "bicycle_lane": 0.75
+      "bus_lane": 0.75
+      "shared_lane": 0.5
+      "undefined": 0.2
+      "no": 0
+
+  - indicator: designated_route
+    mapping:
+      "international": 1
+      "national": 0.9
+      "regional": 0.85
+      "local": 0.8
+      "unknown": 0.8
       "no": 0
 
   - indicator: road_category
@@ -65,7 +78,7 @@ indicator_mapping:
       "service": 0.85
       "calmed": 0.9
       "no_mit": 1
-      "path": 1
+      "path": 0
 
   - indicator: max_speed
     classes:
@@ -91,16 +104,17 @@ indicator_mapping:
 
   - indicator: parking
     mapping:
-      allowed: 0
-      implicit: 0.5
-      forbidden: 1
+      "yes": 0
+      "no": 1
+      True: 0
+      False: 1
 
   - indicator: pavement
     mapping:
-      "asphalt": 1
-      "gravel": 0.75
-      "soft": 0.4
-      "cobble": 0
+      asphalt: 1
+      gravel: 0.75
+      soft: 0.4
+      cobble: 0
   
   - indicator: width
     classes:
@@ -112,15 +126,15 @@ indicator_mapping:
   
   - indicator: gradient
     mapping:
-      4: 0.25
-      3: 0.5
-      2: 0.7
-      1: 1
-      0: 1
+      4: 0
+      3: 0.25
+      2: 0.4
+      1: 0.5
+      0: 0.9
       -1: 1
-      -2: 0.7
-      -3: 0.5
-      -4: 0.25
+      -2: 0.95
+      -3: 0.35
+      -4: 0
 
   - indicator: number_lanes
     classes:
@@ -135,18 +149,6 @@ indicator_mapping:
       g0: 1
       e0: 0
 
-  - indicator: crossings
-    classes:
-      e0:
-        indicator: road_category
-        mapping:
-          "primary": 0
-          "secondary": 0
-          NULL: 0
-          "residential": 0.5
-          _default_: 1
-      g0: 1
-  
   - indicator: buildings
     classes:
       ge80: 0
@@ -180,4 +182,3 @@ indicator_mapping:
       g55: 0.6
       g10: 0.8
       ge0: 1
-      

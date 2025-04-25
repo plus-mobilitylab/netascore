@@ -17,6 +17,8 @@ Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., 
 
 Details regarding the **bikeability assessment method** as well as results of an **evaluation study** are provided in the following **scientific publication**, which is openly available via [doi.org/10.1016/j.jcmr.2024.100040](https://doi.org/10.1016/j.jcmr.2024.100040): Werner, C., van der Meer, L., Kaziyeva, D., Stutz, P., Wendel, R., & Loidl, M. (2024). Bikeability of road segments: An open, adjustable and extendible model. *Journal of Cycling and Micromobility Research*, *2*, 100040.
 
+Details on the **walkability index** together with results from a large **evaluation study** are published Open Access: [doi.org/10.3390/su17083634](https://doi.org/10.3390/su17083634): Stutz, P., Kaziyeva, D., Traun, C., Werner, C. & Loidl, M. (2025). Walkability at Street Level: An Indicator-Based Assessment Model. *Sustainability*, *17(8)*, 3634.
+
 **Examples:** You find example output files of NetAScore at [doi.org/10.5281/zenodo.10886961](https://doi.org/10.5281/zenodo.10886961).
 
 You find **more information** on NetAScore in the **[wiki](https://github.com/plus-mobilitylab/netascore/wiki)**:

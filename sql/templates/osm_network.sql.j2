@@ -353,7 +353,7 @@ CREATE TABLE network_edge AS ( -- 1 m 13 s, 3.875.334
     SELECT a.*,
            c.node_id as from_node,
            d.node_id as to_node,
-           ST_Length(a.geom) AS length
+           ST_Length(a.geom)::numeric AS length
     FROM network_tmp a
         JOIN network_point b ON a.edge_id = b.edge_id
         JOIN network_node c ON b.geom_startpoint = c.geom

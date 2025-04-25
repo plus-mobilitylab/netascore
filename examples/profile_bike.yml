@@ -21,6 +21,7 @@ weights:
   buildings: NULL
   greenness: NULL
   water: NULL
+  sights: NULL
   noise: NULL
 
 
@@ -168,6 +169,11 @@ indicator_mapping:
     mapping:
       True: 1
       False: 0
+
+  - indicator: sights
+    classes:
+      g0: 1
+      e0: 0
 
   - indicator: noise
     classes:
