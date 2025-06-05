@@ -9,6 +9,8 @@ from toolbox.dbhelper import PostgresConnection
 
 
 def import_raster(connection_string: str, path: str, schema: str, table: str, input_srid: int = 0) -> None:
+    if not os.path.exists(path):
+        raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
     """Takes in a path to a geotiff raster file and imports it to a database raster table."""
     subprocess.run(f"raster2pgsql -s {input_srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", 
         shell=True, check=True)
