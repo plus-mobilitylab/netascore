@@ -1104,8 +1104,8 @@ DROP TABLE water_intersection;
 CREATE TABLE IF NOT EXISTS network_buffer_2 AS (
     SELECT edge_id,
            length,
-           ST_Buffer(geom, 2, 'endcap=flat') AS geom,
-           ST_Area(ST_Buffer(geom, 2, 'endcap=flat'))::numeric AS buffer_area
+           ST_Buffer(geom, 1.75, 'endcap=flat') AS geom,
+           ST_Area(ST_Buffer(geom, 1.75, 'endcap=flat'))::numeric AS buffer_area
     FROM network_edge
 );
 
