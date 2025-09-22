@@ -8,6 +8,7 @@ dependencies:
   - gdal
   - igraph
   - jinja2
+  - libgdal-pg
   - pandas
   - psycopg2
   - pyyaml
