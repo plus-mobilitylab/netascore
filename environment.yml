@@ -3,13 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.13
-  - flask
-  - gdal
-  - igraph
-  - jinja2
-  - libgdal-pg
-  - pandas
+  - python=3.13.7
+  - gdal=3.10.3
+  - libgdal=3.10.3
   - psycopg2
   - pyyaml
   - requests

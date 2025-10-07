@@ -1,10 +1,6 @@
-flask
-gdal
-igraph
-jinja2
+gdal==3.10.3
 jinjasql2
 osm2geojson
-pandas
 psycopg2
 pyyaml
 requests
