@@ -16,7 +16,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         gdal-bin=3.10.3+dfsg-1 \
         libgdal-dev=3.10.3+dfsg-1 \
-        postgresql-client \
+        postgresql-client-17 \
         osm2pgsql && \
     rm -rf /var/lib/apt/lists/*
 
