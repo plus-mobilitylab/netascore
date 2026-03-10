@@ -19,7 +19,7 @@ DROP FUNCTION IF EXISTS calculate_index(varchar, numeric,
     numeric, numeric,
     numeric, numeric,
     numeric, numeric,
-    boolean, numeric,
+    numeric, numeric,
     numeric, numeric,
     numeric, numeric);
 DROP FUNCTION IF EXISTS calculate_index;
@@ -40,7 +40,7 @@ CREATE OR REPLACE FUNCTION calculate_index(
     IN crossings numeric, IN crossings_weight numeric,
     IN buildings numeric, IN buildings_weight numeric,
     IN greenness numeric, IN greenness_weight numeric,
-    IN water boolean, IN water_weight numeric,
+    IN water numeric, IN water_weight numeric,
     IN sights numeric, IN sights_weight numeric,
     IN noise numeric, IN noise_weight numeric,
     OUT index numeric,

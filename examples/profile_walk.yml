@@ -165,9 +165,9 @@ indicator_mapping:
       e0: 0
   
   - indicator: water
-    mapping:
-      True: 1
-      False: 0
+    classes:
+      g0: 1
+      e0: 0
 
   - indicator: sights
     classes:

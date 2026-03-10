@@ -1032,23 +1032,64 @@ CREATE TABLE IF NOT EXISTS network_buffer_30 AS (
 
 CREATE INDEX IF NOT EXISTS network_buffer_30_geom_idx ON network_buffer_30 USING gist (geom);
 
+DROP TABLE IF EXISTS water_polygons_union;
+CREATE TABLE water_polygons_union AS (
+    SELECT ST_Union(geom) AS geom
+    FROM {{ table_water | sqlsafe }} a
+    WHERE ST_GeometryType(a.geom) = 'ST_Polygon'
+);
+
+CREATE INDEX IF NOT EXISTS water_polygons_union_geom_idx ON water_polygons_union USING gist (geom);
+
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS water_intersection;
-CREATE TABLE water_intersection AS ( -- 57 s
-    SELECT b.edge_id
-    FROM {{ table_water | sqlsafe }} a
-        JOIN network_buffer_30 b ON ST_Intersects(a.geom, b.geom)
-        JOIN network_edge c ON b.edge_id = c.edge_id
-    WHERE ST_GeometryType(a.geom) = 'ST_LineString' AND
-          ST_Length(ST_Intersection(a.geom, b.geom)) / c.length BETWEEN 0.8 AND 1.6
-
-    UNION
-
-    SELECT b.edge_id
+CREATE TABLE water_intersection AS (
+    SELECT b.edge_id,
+           b.buffer_area,
+           b.length AS edge_length,
+           ST_Area(ST_Intersection(a.geom, b.geom))::numeric AS area_contribution,
+           ST_Length(ST_Intersection(ST_Boundary(a.geom), b.geom))::numeric AS boundary_contribution,
+           0.0::numeric AS length_contribution
     FROM {{ table_water | sqlsafe }} a
         JOIN network_buffer_30 b ON ST_Intersects(a.geom, b.geom)
     WHERE ST_GeometryType(a.geom) = 'ST_Polygon'
+
+    UNION ALL
+
+    SELECT b.edge_id,
+           b.buffer_area,
+           b.length AS edge_length,
+           0.0::numeric AS area_contribution,
+           0.0::numeric AS boundary_contribution,
+           ST_Length(ST_Intersection(ST_Difference(a.geom, c.geom), b.geom))::numeric AS length_contribution
+    FROM {{ table_water | sqlsafe }} a
+        JOIN network_buffer_30 b ON ST_Intersects(a.geom, b.geom)
+        CROSS JOIN water_polygons_union c
+    WHERE ST_GeometryType(a.geom) = 'ST_LineString' AND
+          ST_Length(ST_Intersection(a.geom, b.geom)) / b.length BETWEEN 0.8 AND 1.6
+);
+
+DROP TABLE IF EXISTS water_ratio;
+CREATE TABLE water_ratio AS (
+    WITH water_intersection_sum AS (
+        SELECT edge_id,
+               SUM(area_contribution) AS area_sum,
+               SUM(boundary_contribution) AS boundary_sum,
+               SUM(length_contribution) AS length_sum
+        FROM water_intersection
+        GROUP BY edge_id
+    )
+    SELECT b.edge_id,
+           least(
+               greatest(
+                   coalesce(a.area_sum, 0) / b.buffer_area * 100.0,
+                   coalesce(a.boundary_sum, 0) / b.length * 100.0
+               ) + coalesce(a.length_sum, 0) / b.length * 100.0,
+               100.0
+           )::numeric AS water_ratio
+    FROM network_buffer_30 b
+        LEFT JOIN water_intersection_sum a USING (edge_id)
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -1058,17 +1099,16 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS water;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           CASE WHEN b.edge_id IS NOT NULL THEN true ELSE false END::boolean AS water
+           coalesce(round(b.water_ratio, 2), 0)::numeric AS water
     FROM network_edge_attributes a
-        LEFT JOIN water_intersection b USING (edge_id)
+        LEFT JOIN water_ratio b USING (edge_id)
 );
 
 DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
-DROP TABLE water_intersection;
+DROP TABLE water_polygons_union, water_intersection, water_ratio;
 {% endif %}
-
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "parking"
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -1278,7 +1318,7 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS crossings numeric,
     ADD COLUMN IF NOT EXISTS buildings numeric,
     ADD COLUMN IF NOT EXISTS greenness numeric,
-    ADD COLUMN IF NOT EXISTS water boolean,
+    ADD COLUMN IF NOT EXISTS water numeric,
     ADD COLUMN IF NOT EXISTS sights numeric,
     ADD COLUMN IF NOT EXISTS noise numeric;
 
