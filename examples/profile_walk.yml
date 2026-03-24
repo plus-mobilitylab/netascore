@@ -56,7 +56,7 @@ indicator_mapping:
       "stairs": 0.7
       "sidewalk": 0.5
       "no": 0
-      "no_separate": 0 
+      "no_separate": 0
 
   - indicator: road_category
     mapping:
@@ -98,10 +98,10 @@ indicator_mapping:
 
   - indicator: pavement
     mapping:
-      "asphalt": 1
-      "gravel": 0.75
-      "soft": 0.4
-      "cobble": 0
+      asphalt: 1
+      gravel: 0.75
+      soft: 0.4
+      cobble: 0
   
   - indicator: width
     classes:
@@ -141,10 +141,10 @@ indicator_mapping:
       e0:
         indicator: road_category
         mapping:
-          "primary": 0
-          "secondary": 0
+          primary: 0
+          secondary: 0
           NULL: 0
-          "residential": 0.5
+          residential: 0.5
           _default_: 1
       g0: 1
   
@@ -181,4 +181,3 @@ indicator_mapping:
       g55: 0.6
       g10: 0.8
       ge0: 1
-      

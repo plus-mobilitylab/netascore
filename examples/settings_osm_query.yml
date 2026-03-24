@@ -35,6 +35,10 @@ profiles:
     filename: profile_bike.yml
     filter_access_bike: True
   -
+    profile_name: bike_tourism
+    filename: profile_bike_tourism.yml
+    filter_access_bike: True
+  -
     profile_name: walk
     filename: profile_walk.yml
     filter_access_walk: True
