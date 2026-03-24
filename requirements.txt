@@ -1,8 +1,7 @@
 gdal==3.10.3
+geopandas
 jinjasql2
 osm2geojson
-pandas
-geopandas
 psycopg2
-requests
 pyyaml
+requests

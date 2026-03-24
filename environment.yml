@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.13.7
   - gdal=3.10.3
+  - geopandas
   - libgdal=3.10.3
   - psycopg2
   - pyyaml
