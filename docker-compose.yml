@@ -17,7 +17,7 @@ services:
         condition: service_healthy
 
   netascore-db:
-    image: postgis/postgis:13-3.2
+    image: postgis/postgis:17-3.4
     ports:
     - "5433:5432"
     environment:
@@ -25,7 +25,7 @@ services:
     - POSTGRES_PASSWORD=postgres
     - POSTGRES_DB=postgres
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-U", "postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 20s
       retries: 120

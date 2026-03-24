@@ -143,14 +143,14 @@ def is_numeric(value) -> bool:
     return type(value) in [int, float]
 
 def get_safe_name(value: str) -> str:
-    return re.sub("[^a-zA-Z0-9_]", "", value)
+    return re.sub(r"[^a-zA-Z0-9_]", "", value)
 
 def get_safe_string(value) -> str:
     v = str(value)
-    return re.sub("[^a-zA-Z0-9_.: \-]", "", v)
+    return re.sub(r"[^a-zA-Z0-9_.: \-]", "", v)
 
 def str_to_numeric(value: str, throw_error: bool = False):
-    v = re.sub("[^0-9.\-]", "", value) # extract value
+    v = re.sub(r"[^0-9.\-]", "", value) # extract value
     if v.find(".") > -1:
         return float(v)
     elif len(v) > 0:
@@ -160,4 +160,4 @@ def str_to_numeric(value: str, throw_error: bool = False):
     return None
 
 def str_is_numeric_only(value: str) -> bool:
-    return True if re.fullmatch("[ 0-9.\-]+" ,value) else False
+    return True if re.fullmatch(r"[ 0-9.\-]+" ,value) else False

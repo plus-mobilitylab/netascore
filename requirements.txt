@@ -1,10 +1,6 @@
-gdal==3.2.2
-igraph
-pandas
-Flask==2.0.3
-psycopg2
-Jinja2<3.1.0
-JinjaSql
-requests
+gdal==3.10.3
+jinjasql2
 osm2geojson
-PyYaml
+psycopg2
+pyyaml
+requests
