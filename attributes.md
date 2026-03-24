@@ -96,7 +96,7 @@ Describes the existence of dedicated pedestrian infrastructure: `pedestrian_area
 
 ### road_category
 
-Describes the road category of a road segment: `primary`, `secondary`, `residential`, `service`, `calmed`, `no_mit`, `path`.
+Describes the road category of a road segment: `primary`, `secondary`, `residential`, `service`, `calmed`, `no_mit`, `track`.
 
 
 ### water

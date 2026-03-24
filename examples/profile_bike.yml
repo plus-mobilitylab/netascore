@@ -53,6 +53,7 @@ indicator_mapping:
     mapping:
       "bicycle_way": 1
       "mixed_way": 0.9
+      "mixed_way_non_designated": 0.9
       "bicycle_road": 0.85
       "cyclestreet": 0.8
       "bicycle_lane": 0.75
@@ -60,6 +61,7 @@ indicator_mapping:
       "shared_lane": 0.5
       "undefined": 0.2
       "no": 0
+      "no_separate": 0
 
   - indicator: designated_route
     mapping:
@@ -78,7 +80,7 @@ indicator_mapping:
       "service": 0.85
       "calmed": 0.9
       "no_mit": 1
-      "path": 0
+      "track": 0
 
   - indicator: max_speed
     classes:
