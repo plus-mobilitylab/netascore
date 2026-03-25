@@ -227,20 +227,30 @@ CREATE TABLE intersecting_links AS ( -- 12 s, 1.573.644
 -- split links at intersections and add the rest of the links to new table. osm_id will not stay unique.
 CREATE TABLE network_corrected AS ( -- 32 s, 3.876.291
     SELECT a.osm_id,
-           (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom::geometry(LineString, {{target_srid}}) AS geom,
+           s.geom,
            highway, railway, aerialway, access, addr_housename, addr_housenumber, addr_interpolation, admin_level,
            amenity, area, barrier, bicycle, boundary, brand, building, construction, covered, culvert, cutting,
            denomination, disused, embankment, foot, generator_source, harbour, historic, horse, intermittent, junction,
            landuse, layer, leisure, lock, man_made, military, motorcar, name, "natural", office, oneway, operator,
            place, population, power, power_source, public_transport, ref, religion, route, service, shop, sport,
            surface, tags, toll, tourism, tower_type, tracktype, water, way_area, wetland, width, wood, z_order, bridge,
-           tunnel
+           tunnel,
+           LEAST(s.start_pos, s.end_pos) AS seg_pos_lo,
+           GREATEST(s.start_pos, s.end_pos) AS seg_pos_hi
     FROM network_init a
         JOIN intersecting_links b USING (osm_id)
+        CROSS JOIN LATERAL (
+            SELECT seg.geom::geometry(LineString, {{target_srid}}) AS geom,
+                   ST_LineLocatePoint(a.geom, ST_StartPoint(seg.geom)) AS start_pos,
+                   ST_LineLocatePoint(a.geom, ST_EndPoint(seg.geom)) AS end_pos
+            FROM (SELECT (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom AS geom) seg
+        ) s
 
     UNION
 
-    SELECT *
+    SELECT c.*,
+           0::double precision AS seg_pos_lo,
+           1::double precision AS seg_pos_hi
     FROM network_init c
     WHERE NOT exists(SELECT FROM intersecting_links d WHERE c.osm_id = d.osm_id)
 );
@@ -309,7 +319,7 @@ ALTER TABLE network_corrected DROP COLUMN IF EXISTS id;
 
 DROP TABLE IF EXISTS network_tmp;
 CREATE TABLE network_tmp AS ( -- 17 s, 3.875.173
-    SELECT row_number() OVER (ORDER BY osm_id) AS edge_id,
+    SELECT (osm_id::bigint * 10000 + row_number() OVER (PARTITION BY osm_id ORDER BY seg_pos_lo, seg_pos_hi, ST_Length(geom)))::bigint AS edge_id,
            osm_id, geom, highway, railway, aerialway, access, addr_housename, addr_housenumber, addr_interpolation,
            admin_level, amenity, area, barrier, bicycle, boundary, brand, building, construction, covered, culvert,
            cutting, denomination, disused, embankment, foot, generator_source, harbour, historic, horse, intermittent,
