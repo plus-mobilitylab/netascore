@@ -695,8 +695,8 @@ CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
            CASE
                 WHEN b.surface = ANY ('{asphalt,paved,concrete,chipseal,metal}') THEN 'asphalt'
-                WHEN b.surface = ANY ('{paving_stones,bricks,brick,compacted,fine_gravel,gravel, pebblestone,unpaved,grass_paver}') THEN 'gravel'
-                WHEN b.surface = ANY ('{dirt,earth,grass,sand,wood,woodchips, ground,soil,dirt/sand}') THEN 'soft'
+                WHEN b.surface = ANY ('{paving_stones,bricks,brick,compacted,fine_gravel,gravel,pebblestone,unpaved,grass_paver}') THEN 'gravel'
+                WHEN b.surface = ANY ('{dirt,earth,grass,sand,wood,woodchips,ground,ground;grass,soil,dirt/sand}') THEN 'soft'
                 WHEN b.surface = ANY ('{sett,unhewn_coblestone,cobblestone}') THEN 'cobble'
            END::varchar AS pavement
     FROM network_edge_attributes a
