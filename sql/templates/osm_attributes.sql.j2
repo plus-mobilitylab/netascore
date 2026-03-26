@@ -581,23 +581,39 @@ DROP TABLE route, route_network, designated_route;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS road_category;
-CREATE TABLE road_category AS ( -- 8 s
+CREATE TABLE road_category AS (
     SELECT edge_id,
            CASE
-                WHEN highway = ANY ('{primary,primary_link,motorway,motorway_link}') THEN 'primary'
-                WHEN (highway = ANY ('{secondary,secondary_link}')) OR (tags -> 'maxspeed' = ANY ('{100,90,80,70}')) THEN 'secondary'
-                WHEN (highway = ANY ('{residential,tertiary,tertiary_link, unclassified}')) OR ((tags -> 'maxspeed' = ANY ('{50,40}')) AND ((tags -> 'motor_vehicle' = ANY ('{yes,designated}')) OR (tags -> 'motor_vehicle' IS NULL))) THEN 'residential'
-                WHEN (highway = 'service' AND (((tags -> 'motor_vehicle' != 'no') OR (tags -> 'motor_vehicle' IS NULL)) AND ((bicycle = ANY ('{yes,designated}') AND foot = ANY ('{yes,designated}')) OR (bicycle IS NULL AND foot is NULL)))) THEN 'service'
+                WHEN highway = ANY ('{primary,primary_link,motorway,motorway_link}')
+                    THEN 'primary'
 
-                WHEN highway = 'living_street' OR (tags -> 'maxspeed' = ANY ('{30,20,15,10,7,5,5.4,4}') AND ((tags -> 'motor_vehicle' = ANY ('{yes,designated}') OR tags -> 'motor_vehicle' IS NULL) AND (bicycle = 'yes' AND foot = 'yes'))) THEN 'calmed'
+                WHEN (highway = ANY ('{secondary,secondary_link}')) OR
+                     (tags -> 'maxspeed' = ANY ('{100,90,80,70}') AND (NOT tags -> 'motor_vehicle' = 'no' OR tags -> 'motor_vehicle' IS NULL))
+                    THEN 'secondary'
 
-                WHEN highway = ANY ('{footway,cycleway,pedestrian}') OR (
+                WHEN (highway = ANY ('{residential,tertiary,tertiary_link}') AND (NOT tags -> 'motor_vehicle' = 'no' OR tags -> 'motor_vehicle' IS NULL)) OR
+                     ((tags -> 'maxspeed' = ANY ('{50,40}') AND (NOT tags -> 'motor_vehicle' = 'no' OR tags -> 'motor_vehicle' IS NULL)) AND
+                         (tags -> 'motor_vehicle' = ANY ('{yes,designated}') OR (tags -> 'motor_vehicle' IS NULL))) OR
+                     (highway = ANY ('{unclassified}') AND (NOT tags -> 'motor_vehicle' = 'no' OR tags -> 'motor_vehicle' IS NULL))
+                    THEN 'residential'
+
+                WHEN (highway = 'service' AND (((tags -> 'motor_vehicle' != 'no') OR (tags -> 'motor_vehicle' IS NULL)) AND ((bicycle = ANY ('{yes,designated,official}') OR foot = ANY ('{yes,designated,official}')) OR (bicycle IS NULL OR foot is NULL))))
+                    THEN 'service'
+
+                WHEN highway = 'living_street' OR (tags -> 'maxspeed' = ANY ('{30,20,15,10,7,5,5.4,4}') AND ((tags -> 'motor_vehicle' = ANY ('{yes,designated}') OR (tags -> 'motor_vehicle' IS NULL AND NOT access = 'no')) AND (bicycle = 'yes' AND foot = 'yes')))
+                    THEN 'calmed'
+
+                WHEN highway = 'service' AND tags -> 'motor_vehicle' = 'no' OR
+                     highway = ANY ('{footway,cycleway,pedestrian}') OR (
                     (highway = 'bridleway' AND (bicycle = 'designated' OR foot = 'designated')) OR
-                    (highway = 'path' AND surface = ANY ('{paved,asphalt,chipseal, concrete, paving_stones, brick, bricks, compacted}')) OR
-                    ((highway = 'track' AND tracktype = ANY ('{grade1,grade2}'))) AND (width >= '1.5' OR width IS NULL)) THEN 'no_mit'
+                    (highway = 'path' AND (
+                        surface = ANY ('{paved,asphalt,chipseal,concrete,paving_stones,brick,bricks,compacted}') OR
+                        bicycle = ANY ('{designated,official}'))) OR
+                    ((highway = 'track' AND tracktype = ANY ('{grade1,grade2}'))) AND (width >= '1.5' OR width IS NULL))
+                    THEN 'no_mit'
 
-                WHEN (highway = 'path' AND ((surface != ALL ('{paved,asphalt,chipseal, concrete, paving_stones, brick, bricks, compacted}')) OR surface IS NULL)) OR
-                    (highway = 'track' AND ((tags -> 'motor_vehicle' = 'no') OR tags -> 'motor_vehicle' IS NULL) AND tracktype != ALL ('{grade1,grade2}') ) OR
+                WHEN (highway = 'path' AND ((surface != ALL ('{paved,asphalt,chipseal,concrete,paving_stones,brick,bricks,compacted}')) OR surface IS NULL)) OR
+                    (highway = 'track' AND ((tags -> 'motor_vehicle' = 'no') OR tags -> 'motor_vehicle' IS NULL) AND tracktype != ALL ('{grade1,grade2}')) OR
                     (highway = 'steps') OR
                     (highway = 'platform') OR
                     (highway = ANY ('{bridleway,path,track,service,residential,unclassified}') AND ((bicycle != 'no' OR foot != 'no') OR (bicycle IS NULL OR foot is NULL)))
