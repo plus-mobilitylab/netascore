@@ -53,6 +53,7 @@ indicator_mapping:
       "pedestrian_area": 1
       "pedestrian_way": 1
       "mixed_way": 0.85
+      "mixed_way_non_designated": 0.85
       "stairs": 0.7
       "sidewalk": 0.5
       "no": 0
