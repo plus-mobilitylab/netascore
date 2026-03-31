@@ -1,5 +1,6 @@
 gdal==3.10.3
 geopandas
+geopy
 jinjasql2
 osm2geojson
 psycopg2
