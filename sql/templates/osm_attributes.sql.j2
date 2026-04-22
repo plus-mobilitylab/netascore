@@ -909,6 +909,47 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 DROP TABLE facility_count, facility_ratio;
 {% endif %}
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- calculate indicator "benches"
+-- ---------------------------------------------------------------------------------------------------------------------
+{% if table_bench %}
+DROP TABLE IF EXISTS bench_count;
+CREATE TABLE bench_count AS ( -- 30 s
+    SELECT b.edge_id,
+           count(a.*) AS bench_count
+    FROM {{ table_bench | sqlsafe }} a,
+         network_edge b
+    WHERE ST_DWithin(a.geom, b.geom, 30)
+    GROUP BY edge_id
+);
+
+DROP TABLE IF EXISTS bench_ratio;
+CREATE TABLE bench_ratio AS ( -- 4 s
+    SELECT a.edge_id,
+           (a.bench_count / b.length * 100.0)::numeric AS bench_ratio
+    FROM bench_count a
+         LEFT JOIN network_edge b USING (edge_id)
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS benches;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           coalesce(round(b.bench_ratio, 2), 0)::numeric AS benches
+    FROM network_edge_attributes a
+        LEFT JOIN bench_ratio b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+DROP TABLE bench_count, bench_ratio;
+{% endif %}
+
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "crossings"
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -1383,13 +1424,13 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS number_lanes_ft numeric,
     ADD COLUMN IF NOT EXISTS number_lanes_tf numeric,
     ADD COLUMN IF NOT EXISTS facilities numeric,
+    ADD COLUMN IF NOT EXISTS benches numeric,
     ADD COLUMN IF NOT EXISTS crossings numeric,
     ADD COLUMN IF NOT EXISTS buildings numeric,
     ADD COLUMN IF NOT EXISTS greenness numeric,
     ADD COLUMN IF NOT EXISTS water numeric,
     ADD COLUMN IF NOT EXISTS sights numeric,
     ADD COLUMN IF NOT EXISTS noise numeric,
-    ADD COLUMN IF NOT EXISTS bench boolean,
     ADD COLUMN IF NOT EXISTS lighting varchar;
 
 
