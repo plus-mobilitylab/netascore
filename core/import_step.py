@@ -12,6 +12,10 @@ from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
 
+class FileContentException(Exception):
+    def __init__(self, message, code):
+        self.message = message
+        self.code = code
 
 def create_csv(file_txt: str) -> None:
     """Takes in a path to an ogd gip txt file and converts it to a csv file."""
@@ -319,7 +323,7 @@ class OsmImporter(DbStep):
 
     def _load_osm_data_from_bbox(self, bbox: str, settings: dict):
         q_template: str = """
-            [timeout:900][maxsize:1073741824];
+            [timeout:150][maxsize:500M];
             nwr[!"boundary"][!"place"][!power]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"](__bbox__);
             (._;>;);
             out;"""
@@ -346,14 +350,30 @@ class OsmImporter(DbStep):
                 file_name, headers = urllib.request.urlretrieve(
                     GlobalSettings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
                     os.path.join(GlobalSettings.data_directory, net_file))
+                # check file contents
+                with open(os.path.join(GlobalSettings.data_directory, net_file)) as f:
+                    line_limit = 10
+                    lc = 0
+                    for line in f:
+                        lc += 1
+                        if lc > 10:
+                            break
+                        print(line)
+                        if line.find("<!DOCTYPE html") > -1:
+                            raise FileContentException("Received HTML instead of expected OSM XML file content.", 101)
+                        if line.find("<remark> runtime error:") > -1:
+                            raise FileContentException("Received error message in OSM XML file content.", 102)
             except HTTPError as e:
-                h.log(f"HTTPError while trying to download OSM data from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
+                h.majorInfo(f"HTTPError while trying to download OSM data from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
                 curEndpointIndex+=1
             except KeyboardInterrupt:
                 h.majorInfo(f"OSM download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}' interrupted by user. Terminating.")
                 exit()
+            except FileContentException:
+                h.majorInfo(f"OSM download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}' returned error or corrupted OSM XML file. Retrying with different Overpass API server.")
+                curEndpointIndex+=1
             except BaseException as e:
-                h.log(f"An unexpected ERROR occured during OSM data download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
+                h.majorInfo(f"An unexpected ERROR occured during OSM data download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
                 curEndpointIndex+=1
             else:
                 success = True
