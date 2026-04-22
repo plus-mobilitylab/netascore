@@ -54,12 +54,14 @@ CREATE TABLE network_edge_index_tmp AS (
             b.gradient_ft, {{ gradient }},
             b.number_lanes_ft, {{ number_lanes }},
             b.facilities, {{ facilities }},
+            b.benches, {{ benches }},
             b.crossings, {{ crossings }},
             b.buildings, {{ buildings }},
             b.greenness, {{ greenness }},
             b.water, {{ water }},
             b.sights, {{ sights }},
-            b.noise, {{ noise }}
+            b.noise, {{ noise }},
+            b.lighting, {{ lighting }}
         ) ft,
         LATERAL calculate_index(
             b.bicycle_infrastructure_tf, {{ bicycle_infrastructure }},
@@ -74,12 +76,14 @@ CREATE TABLE network_edge_index_tmp AS (
             b.gradient_tf, {{ gradient }},
             b.number_lanes_tf, {{ number_lanes }},
             b.facilities, {{ facilities }},
+            b.benches, {{ benches }},
             b.crossings, {{ crossings }},
             b.buildings, {{ buildings }},
             b.greenness, {{ greenness }},
             b.water, {{ water }},
             b.sights, {{ sights }},
-            b.noise, {{ noise }}
+            b.noise, {{ noise }},
+            b.lighting, {{ lighting }}
         ) tf
     WHERE 
         false

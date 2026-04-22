@@ -21,7 +21,9 @@ DROP FUNCTION IF EXISTS calculate_index(varchar, numeric,
     numeric, numeric,
     numeric, numeric,
     numeric, numeric,
-    numeric, numeric);
+    numeric, numeric,
+    numeric, numeric,
+    varchar, numeric);
 DROP FUNCTION IF EXISTS calculate_index;
 
 CREATE OR REPLACE FUNCTION calculate_index(
@@ -37,12 +39,14 @@ CREATE OR REPLACE FUNCTION calculate_index(
     IN gradient numeric, IN gradient_weight numeric,
     IN number_lanes numeric, IN number_lanes_weight numeric,
     IN facilities numeric, IN facilities_weight numeric,
+    IN benches numeric, IN benches_weight numeric,
     IN crossings numeric, IN crossings_weight numeric,
     IN buildings numeric, IN buildings_weight numeric,
     IN greenness numeric, IN greenness_weight numeric,
     IN water numeric, IN water_weight numeric,
     IN sights numeric, IN sights_weight numeric,
     IN noise numeric, IN noise_weight numeric,
+    IN lighting varchar, IN lighting_weight numeric,
     OUT index numeric,
     OUT index_robustness numeric,
     OUT index_explanation json
@@ -72,12 +76,14 @@ BEGIN
         CASE WHEN gradient_weight IS NOT NULL THEN gradient_weight ELSE 0 END +
         CASE WHEN number_lanes_weight IS NOT NULL THEN number_lanes_weight ELSE 0 END +
         CASE WHEN facilities_weight IS NOT NULL THEN facilities_weight ELSE 0 END +
+        CASE WHEN benches_weight IS NOT NULL THEN benches_weight ELSE 0 END +
         CASE WHEN crossings_weight IS NOT NULL THEN crossings_weight ELSE 0 END +
         CASE WHEN buildings_weight IS NOT NULL THEN buildings_weight ELSE 0 END +
         CASE WHEN greenness_weight IS NOT NULL THEN greenness_weight ELSE 0 END +
         CASE WHEN water_weight IS NOT NULL THEN water_weight ELSE 0 END +
         CASE WHEN sights_weight IS NOT NULL THEN sights_weight ELSE 0 END +
-        CASE WHEN noise_weight IS NOT NULL THEN noise_weight ELSE 0 END;
+        CASE WHEN noise_weight IS NOT NULL THEN noise_weight ELSE 0 END +
+        CASE WHEN lighting_weight IS NOT NULL THEN lighting_weight ELSE 0 END;
 
     weights_sum := 0;
     weights_sum :=
@@ -93,12 +99,14 @@ BEGIN
         CASE WHEN gradient IS NOT NULL AND gradient_weight IS NOT NULL THEN gradient_weight ELSE 0 END +
         CASE WHEN number_lanes IS NOT NULL AND number_lanes_weight IS NOT NULL THEN number_lanes_weight ELSE 0 END +
         CASE WHEN facilities IS NOT NULL AND facilities_weight IS NOT NULL THEN facilities_weight ELSE 0 END +
+        CASE WHEN benches IS NOT NULL AND benches_weight IS NOT NULL THEN benches_weight ELSE 0 END +
         CASE WHEN crossings IS NOT NULL AND crossings_weight IS NOT NULL THEN crossings_weight ELSE 0 END +
         CASE WHEN buildings IS NOT NULL AND buildings_weight IS NOT NULL THEN buildings_weight ELSE 0 END +
         CASE WHEN greenness IS NOT NULL AND greenness_weight IS NOT NULL THEN greenness_weight ELSE 0 END +
         CASE WHEN water IS NOT NULL AND water_weight IS NOT NULL THEN water_weight ELSE 0 END +
         CASE WHEN sights IS NOT NULL AND sights_weight IS NOT NULL THEN sights_weight ELSE 0 END +
-        CASE WHEN noise IS NOT NULL AND noise_weight IS NOT NULL THEN noise_weight ELSE 0 END;
+        CASE WHEN noise IS NOT NULL AND noise_weight IS NOT NULL THEN noise_weight ELSE 0 END +
+        CASE WHEN lighting IS NOT NULL AND lighting_weight IS NOT NULL THEN lighting_weight ELSE 0 END;
 
     IF weights_sum > 0 THEN
         index := 0;
