@@ -1315,6 +1315,42 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 DROP TABLE noise_intersection, noise_sum;
 {% endif %}
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- calculate indicator "lighting"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS lighting;
+CREATE TABLE lighting AS ( -- 8 s
+    SELECT edge_id,
+           CASE
+               WHEN (tags -> 'lit'= ANY ('{yes,24/7}')) THEN 'yes'
+               WHEN (tags -> 'lit'= ANY ('{no,disused}')) THEN 'no'
+               WHEN (tags -> 'lit'= ANY ('{automatic,limited}')) THEN 'interminttent'
+        
+
+           END AS lighting
+    FROM network_edge
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS lighting;
+
+DROP TABLE IF EXISTS network_edge_attributes_tmp;
+CREATE TABLE network_edge_attributes_tmp AS (
+    SELECT a.*,
+           b.lighting
+    FROM network_edge_attributes a
+        LEFT JOIN lighting b USING (edge_id)
+);
+
+DROP TABLE network_edge_attributes;
+ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
+
+DROP TABLE lighting;
+
+
 -- ---------------------------------------------------------------------------------------------------------------------
 -- add missing columns and primary keys
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -1352,7 +1388,10 @@ ALTER TABLE network_edge_attributes
     ADD COLUMN IF NOT EXISTS greenness numeric,
     ADD COLUMN IF NOT EXISTS water numeric,
     ADD COLUMN IF NOT EXISTS sights numeric,
-    ADD COLUMN IF NOT EXISTS noise numeric;
+    ADD COLUMN IF NOT EXISTS noise numeric,
+    ADD COLUMN IF NOT EXISTS bench boolean,
+    ADD COLUMN IF NOT EXISTS lighting varchar;
+
 
 ALTER TABLE network_edge_attributes ADD PRIMARY KEY (edge_id);
 
