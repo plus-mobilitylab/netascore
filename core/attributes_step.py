@@ -39,6 +39,7 @@ class GipAttributesStep(DbStep):
                 'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
                 'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
+                'table_bench': db.use_if_exists('bench', self.db_settings.entities.data_schema),
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
                 'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema),
@@ -91,6 +92,7 @@ class OsmAttributesStep(DbStep):
                 'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
                 'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
+                'table_bench': db.use_if_exists('bench', self.db_settings.entities.data_schema),
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
                 'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema), #TODO: check if this works with file import

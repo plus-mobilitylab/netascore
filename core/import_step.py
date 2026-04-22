@@ -554,6 +554,21 @@ class OsmImporter(DbStep):
             ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
         h.logEndTask()
+        
+        # create datasets for individual facility types
+        # Create dataset "bench"
+        h.logBeginTask('create dataset "bench"')
+        if db.handle_conflicting_output_tables(['bench'], schema):
+            db.execute('''
+                CREATE TABLE bench AS (
+                    SELECT
+                        ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom
+                    FROM osm_point
+                    WHERE amenity = 'bench'
+                );
+            ''', {'target_srid': GlobalSettings.get_target_srid()})
+            db.commit()
+        h.logEndTask()
 
         # create dataset "greenness"
         h.logBeginTask('create dataset "greenness"')
