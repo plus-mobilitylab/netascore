@@ -55,9 +55,11 @@ indicator_mapping:
       "pedestrian_area": 1
       "pedestrian_way": 1
       "mixed_way": 0.85
+      "mixed_way_non_designated": 0.85
       "stairs": 0.7
       "sidewalk": 0.5
       "no": 0
+      "no_separate": 0
 
   - indicator: road_category
     mapping:
@@ -190,6 +192,6 @@ indicator_mapping:
 
   - indicator: lighting
     mapping:
-      "Yes": 1
-      "No": 0
-      Intermittent: 0.5
+      "yes": 1
+      "no": 0
+      intermittent: 0.5
