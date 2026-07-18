@@ -319,7 +319,7 @@ class OsmImporter(DbStep):
 
     def _load_osm_data_from_bbox(self, bbox: str, settings: dict):
         q_template: str = """
-            [timeout:900][maxsize:1073741824];
+            [timeout:180];
             nwr[!"boundary"][!"place"][!power]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"](__bbox__);
             (._;>;);
             out;"""
