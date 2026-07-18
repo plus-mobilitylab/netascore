@@ -8,11 +8,14 @@ class GipAttributesStep(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
 
-    def run_step(self, settings: dict):
+    def run_step(self, settings: dict, export_settings: dict = None):
         h.info('attributes step')
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
+        include_source_attributes = bool(
+            export_settings and export_settings.get('include_source_attributes', False)
+        )
 
         # open database connection
         h.log('connecting to database...')
@@ -42,7 +45,8 @@ class GipAttributesStep(DbStep):
                 'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
                 'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
                 'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema),
-                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema)
+                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema),
+                'include_source_attributes': include_source_attributes
             }
             if params["table_dem"] is not None:
                 h.majorInfo("WARNING: You provided a DEM file. However, for GIP attribute calculation only the elevation data contained in the GIP dataset is used. Your provided DEM is ignored.")
@@ -59,7 +63,7 @@ class OsmAttributesStep(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
 
-    def run_step(self, settings: dict):
+    def run_step(self, settings: dict, export_settings: dict = None):
         h.info('attributes step')
         h.log(f"using import settings: {str(settings)}")
 

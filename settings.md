@@ -263,3 +263,12 @@ export:
   filename: netascore_<case_id>.gpkg
 ```
 
+For **GIP** you can optionally include source attributes in the edge export layer by setting `include_source_attributes: True`.
+
+```yaml
+export:
+  type: geopackage
+  filename: gip_network.gpkg
+  include_source_attributes: True
+```
+

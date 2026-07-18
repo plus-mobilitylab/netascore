@@ -109,7 +109,7 @@ with settings_stream:
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         attributes_step: DbStep = create_attributes_step(db_settings, import_settings['type'])
-        attributes_step.run_step(import_settings)
+        attributes_step.run_step(import_settings, settings.get('export'))
 
     if 'index' not in skip_steps:
         h.majorInfo(' === generating index ===')

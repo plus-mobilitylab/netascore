@@ -41,7 +41,8 @@ CREATE TABLE gip_link_tmp AS ( -- 14 s, 1.894.917
            ST_Transform(a.geom, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
            b.name1, b.from_node, b.to_node, b.speed_tow_car, b.speed_bkw_car, b.speed_tow_truck, b.speed_bkw_truck,
            b.maxspeed_tow_car, b.maxspeed_bkw_car, b.maxspeed_tow_truck, b.maxspeed_bkw_truck, b.access_tow,
-           b.access_bkw, b.funcroadclass, b.lanes_tow, b.lanes_bkw, b.formofway, b.width, b.oneway, b.streetcat
+           b.access_bkw, b.funcroadclass, b.lanes_tow, b.lanes_bkw, b.formofway, b.urban, b.width, b.oneway,
+           b.streetcat, b.regcode
     FROM gip_network_tmp a
         JOIN gip_link b USING (link_id)
     WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian
@@ -54,7 +55,8 @@ DROP TABLE IF EXISTS gip_linkuse_tmp;
 CREATE TABLE gip_linkuse_tmp AS ( -- 17 s, 2.306.250
     SELECT b.*,
            ST_LineSubstring(ST_OffsetCurve(a.geom, b.offset_), b.from_percent / 100, b.to_percent / 100) AS geom,
-           c.bikeenvironment, c.bikesignedtow, c.bikesignedbkw, c.bikefeaturetow, c.bikefeaturebkw
+           c.bikeenvironment, c.bikesignedtow, c.bikesignedbkw, c.bikefeaturetow, c.bikefeaturebkw, c.walkfeaturetow,
+           c.walkfeaturebkw
     FROM gip_link_tmp a
         JOIN gip_linkuse b USING (link_id)
         LEFT JOIN gip_bikehike c USING (use_id)
@@ -85,7 +87,9 @@ CREATE TABLE network_edge AS ( -- 20 s, 1.894.917
                array_to_string(array_agg(bikesignedtow), ';', '*') AS bikesignedtow,
                array_to_string(array_agg(bikesignedbkw), ';', '*') AS bikesignedbkw,
                array_to_string(array_agg(bikefeaturetow), ';', '*') AS bikefeaturetow,
-               array_to_string(array_agg(bikefeaturebkw), ';', '*') AS bikefeaturebkw
+               array_to_string(array_agg(bikefeaturebkw), ';', '*') AS bikefeaturebkw,
+               array_to_string(array_agg(walkfeaturetow), ';', '*') AS walkfeaturetow,
+               array_to_string(array_agg(walkfeaturebkw), ';', '*') AS walkfeaturebkw
         FROM gip_linkuse_tmp
         GROUP BY link_id)
     SELECT a.link_id AS edge_id,
@@ -98,7 +102,9 @@ CREATE TABLE network_edge AS ( -- 20 s, 1.894.917
            b.bikesignedtow,
            b.bikesignedbkw,
            b.bikefeaturetow,
-           b.bikefeaturebkw
+           b.bikefeaturebkw,
+           b.walkfeaturetow,
+           b.walkfeaturebkw
     FROM gip_link_tmp a
         LEFT JOIN gip_linkuse_tmp_agg b USING (link_id)
 );
