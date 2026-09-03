@@ -56,7 +56,7 @@ class NoiseImporter(DbStep):
 
         # import noise
         h.logBeginTask('import noise')
-        if db.handle_conflicting_output_tables(['noise'], schema):
+        if db.handle_conflicting_output_tables(['noise', 'noise_import'], schema):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
                 table='noise_import', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
         h.logEndTask()
