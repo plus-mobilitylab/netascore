@@ -1,0 +1,163 @@
+-- ---------------------------------------------------------------------------------------------------------------------
+-- gip2_network
+-- ---------------------------------------------------------------------------------------------------------------------
+
+SET search_path =
+    {{ schema_network | sqlsafe }},
+    {{ schema_data | sqlsafe }},
+    public;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create tables "gip2_network_tmp", "gip2_link_width", "gip2_link_tmp", "gip2_linkuse_tmp", "gip2_node_tmp"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_network_tmp;
+CREATE TABLE gip2_network_tmp AS (
+    WITH count AS (
+        SELECT a.short_id AS link_short_id, 1 AS "order", NULL::integer AS seq, b.x, b.y
+        FROM gip2_link a JOIN gip2_node b ON a.node_from_short_id = b.short_id
+
+        UNION ALL
+
+        SELECT link_short_id, 2 AS "order", sequence AS seq, x, y
+        FROM gip2_linkcoordinate
+
+        UNION ALL
+
+        SELECT a.short_id AS link_short_id, 3 AS "order", NULL::integer AS seq, b.x, b.y
+        FROM gip2_link a JOIN gip2_node b ON a.node_to_short_id = b.short_id
+    )
+    SELECT link_short_id,
+           ST_SetSRID(ST_MakeLine(ST_MakePoint(x, y) ORDER BY "order", seq), 4326)::geometry(LineString, 4326) AS geom
+    FROM count
+    GROUP BY link_short_id
+);
+
+-- LINK.WIDTH was removed in GIP 2.0; use LINEAR_USE_PART widths instead.
+DROP TABLE IF EXISTS gip2_link_width;
+CREATE TABLE gip2_link_width AS (
+    SELECT link_short_id,
+           MAX(width_average) FILTER (WHERE base_type = 1 AND width_average > 0) AS width_carriageway,
+           MAX(width_average) FILTER (WHERE width_average > 0) AS width_any
+    FROM gip2_linear_use_part
+    GROUP BY link_short_id
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_link_tmp;
+CREATE TABLE gip2_link_tmp AS (
+    SELECT a.link_short_id,
+           ST_Transform(a.geom, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
+           b.name_text_hr, b.node_from_short_id AS from_node, b.node_to_short_id AS to_node,
+           b.speed_tow_car, b.speed_bkw_car, b.maxspeed_tow_car, b.maxspeed_bkw_car,
+           b.access_tow, b.access_bkw, b.functional_class,
+           b.lanes_tow_min, b.lanes_bkw_min,
+           b.form_of_way, b.urban,
+           COALESCE(w.width_carriageway, w.width_any) AS width,
+           b.oneway_car, b.oneway_bike, b.oneway_pedestrian, b.edge_category, b.regional_code
+    FROM gip2_network_tmp a
+        JOIN gip2_link b ON a.link_short_id = b.short_id
+        LEFT JOIN gip2_link_width w ON w.link_short_id = b.short_id
+    WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian (LSB bits 0-2)
+      AND b.form_of_way <> 7 -- Parkgarage
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_linkuse_tmp;
+CREATE TABLE gip2_linkuse_tmp AS (
+    SELECT b.short_id AS linear_use_part_short_id,
+           b.link_short_id,
+           b.offset_average,
+           b.width_average AS width,
+           b.link_percentage_from,
+           b.link_percentage_to,
+           b.base_type,
+           ST_LineSubstring(
+               ST_OffsetCurve(a.geom, COALESCE(b.offset_average, 0)),
+               b.link_percentage_from / 100,
+               b.link_percentage_to / 100
+           ) AS geom,
+           c.surface,
+           c.bike_signed_tow,
+           c.bike_signed_bkw,
+           c.bike_feature_tow,
+           c.bike_feature_bkw,
+           c.walk_feature_tow,
+           c.walk_feature_bkw
+    FROM gip2_link_tmp a
+        JOIN gip2_linear_use_part b ON b.link_short_id = a.link_short_id
+        LEFT JOIN gip2_bikehike c ON c.short_id = b.short_id
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_node_tmp;
+CREATE TABLE gip2_node_tmp AS (
+    SELECT short_id AS node_id,
+           ST_Transform(ST_SetSRID(ST_MakePoint(x, y), 4326), {{target_srid}})::geometry(Point, {{target_srid}}) AS geom,
+           z::numeric AS elevation
+    FROM gip2_node
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create table "network_edge"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_edge;
+CREATE TABLE network_edge AS (
+    WITH gip2_linkuse_tmp_agg AS (
+        SELECT link_short_id,
+               array_to_string(array_agg(linear_use_part_short_id), ';', '*') AS linear_use_part_short_id,
+               array_to_string(array_agg(base_type), ';', '*') AS base_type,
+               array_to_string(array_agg(offset_average), ';', '*') AS offset_average,
+               array_to_string(array_agg(surface), ';', '*') AS surface,
+               array_to_string(array_agg(bike_signed_tow), ';', '*') AS bike_signed_tow,
+               array_to_string(array_agg(bike_signed_bkw), ';', '*') AS bike_signed_bkw,
+               array_to_string(array_agg(bike_feature_tow), ';', '*') AS bike_feature_tow,
+               array_to_string(array_agg(bike_feature_bkw), ';', '*') AS bike_feature_bkw,
+               array_to_string(array_agg(walk_feature_tow), ';', '*') AS walk_feature_tow,
+               array_to_string(array_agg(walk_feature_bkw), ';', '*') AS walk_feature_bkw
+        FROM gip2_linkuse_tmp
+        GROUP BY link_short_id)
+    SELECT a.link_short_id AS edge_id,
+           a.*,
+           ST_Length(a.geom)::numeric AS length,
+           b.linear_use_part_short_id,
+           b.base_type,
+           b.offset_average,
+           b.surface,
+           b.bike_signed_tow,
+           b.bike_signed_bkw,
+           b.bike_feature_tow,
+           b.bike_feature_bkw,
+           b.walk_feature_tow,
+           b.walk_feature_bkw
+    FROM gip2_link_tmp a
+        LEFT JOIN gip2_linkuse_tmp_agg b USING (link_short_id)
+);
+
+ALTER TABLE network_edge ADD PRIMARY KEY (edge_id);
+CREATE INDEX network_edge_geom_idx ON network_edge USING gist(geom);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create table "network_node"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_node;
+CREATE TABLE network_node AS (
+    SELECT *
+    FROM gip2_node_tmp
+    WHERE node_id IN (SELECT from_node AS node_id FROM network_edge UNION
+                      SELECT to_node AS node_id FROM network_edge)
+);
+
+ALTER TABLE network_node ADD PRIMARY KEY (node_id);
+CREATE INDEX network_node_geom_idx ON network_node USING gist(geom);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- drop tables
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_network_tmp, gip2_link_width, gip2_link_tmp, gip2_linkuse_tmp, gip2_node_tmp;

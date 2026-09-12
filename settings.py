@@ -6,6 +6,7 @@ from enum import Enum
 class InputType(Enum):
     OSM = "OSM"
     GIP = "GIP"
+    GIP2 = "GIP2"
 
 
 class GlobalSettings:

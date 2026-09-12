@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------------------------------------------------
--- gip_attributes
+-- gip2_attributes
 -- ---------------------------------------------------------------------------------------------------------------------
 
 SET search_path =
@@ -12,7 +12,7 @@ SET search_path =
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS network_edge_attributes;
-CREATE TABLE network_edge_attributes AS ( -- 2 s, 1.885.895
+CREATE TABLE network_edge_attributes AS (
     SELECT edge_id
     FROM network_edge
 );
@@ -20,7 +20,7 @@ CREATE TABLE network_edge_attributes AS ( -- 2 s, 1.885.895
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS network_node_attributes;
-CREATE TABLE network_node_attributes AS ( -- 2 s, 1.595.844
+CREATE TABLE network_node_attributes AS (
     SELECT node_id
     FROM network_node
 );
@@ -58,20 +58,20 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 DROP TABLE IF EXISTS bridge;
 CREATE TABLE bridge AS (
-    SELECT DISTINCT a.link_id,
+    SELECT DISTINCT a.link_short_id,
                     true AS bridge
-    FROM gip_link2referenceobject a
-        JOIN gip_referenceobject b USING (refobj_id)
-    WHERE b.reftype IN (5002)
+    FROM gip2_link2referenceobject a
+        JOIN gip2_referenceobject b ON a.reference_object_id = b.object_id
+    WHERE b.reference_type IN (5002)
 );
 
 DROP TABLE IF EXISTS tunnel;
 CREATE TABLE tunnel AS (
-    SELECT DISTINCT a.link_id,
+    SELECT DISTINCT a.link_short_id,
                     true AS tunnel
-    FROM gip_link2referenceobject a
-        JOIN gip_referenceobject b USING (refobj_id)
-    WHERE b.reftype IN (5023, 5025, 5027, 5028, 5040)
+    FROM gip2_link2referenceobject a
+        JOIN gip2_referenceobject b ON a.reference_object_id = b.object_id
+    WHERE b.reference_type IN (5006, 5023, 5025, 5027, 5028, 5040)
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -85,8 +85,8 @@ CREATE TABLE network_edge_attributes_tmp AS (
            coalesce(b.bridge, false)::boolean AS bridge,
            coalesce(c.tunnel, false)::boolean AS tunnel
         FROM network_edge_attributes a
-            LEFT JOIN bridge b ON a.edge_id = b.link_id
-            LEFT JOIN tunnel c ON a.edge_id = c.link_id
+            LEFT JOIN bridge b ON a.edge_id = b.link_short_id
+            LEFT JOIN tunnel c ON a.edge_id = c.link_short_id
 );
 
 DROP TABLE network_edge_attributes;
@@ -103,7 +103,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS stairs;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           CASE WHEN formofway IN (18) OR funcroadclass IN (46, 47) THEN true ELSE false END::boolean AS stairs -- 18: Stiege; 46: Rolltreppe; 47: Aufzug
+           CASE WHEN form_of_way IN (18) OR functional_class IN (46, 47) THEN true ELSE false END::boolean AS stairs -- 18: Stiege; 46: Rolltreppe; 47: Aufzug
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -121,8 +121,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS bicycle_infrastructure
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_bicycle_infrastructure(b.basetype, b.bikefeaturetow) AS bicycle_infrastructure_ft,
-           calculate_bicycle_infrastructure(b.basetype, b.bikefeaturebkw) AS bicycle_infrastructure_tf
+           calculate_gip2_bicycle_infrastructure(b.base_type, b.bike_feature_tow) AS bicycle_infrastructure_ft,
+           calculate_gip2_bicycle_infrastructure(b.base_type, b.bike_feature_bkw) AS bicycle_infrastructure_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -140,8 +140,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS pedestrian_infrastruct
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturetow, b.formofway, a.access_pedestrian_ft) AS pedestrian_infrastructure_ft,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturebkw, b.formofway, a.access_pedestrian_tf) AS pedestrian_infrastructure_tf
+           calculate_gip2_pedestrian_infrastructure(b.base_type, b.bike_feature_tow, b.form_of_way, a.access_pedestrian_ft) AS pedestrian_infrastructure_ft,
+           calculate_gip2_pedestrian_infrastructure(b.base_type, b.bike_feature_bkw, b.form_of_way, a.access_pedestrian_tf) AS pedestrian_infrastructure_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -156,17 +156,17 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 DROP TABLE IF EXISTS route;
 CREATE TABLE route AS (
     SELECT DISTINCT ON (1)
-        a.link_id, b.nametext AS name,
+        a.link_short_id, b.name_text AS name,
         CASE
-            WHEN b.namecat_l = 'Lokale Radroute' THEN 1 -- local
-            WHEN b.namecat_l = 'Regionale Radroute' THEN 2 -- regional
-            WHEN b.namecat_l = 'Österreich Radroute' THEN 3 -- national
-            WHEN b.namecat_l = 'Euro Velo Radroute' THEN 4 -- international
+            WHEN b.name_category_long = 'Lokale Radroute' THEN 1 -- local
+            WHEN b.name_category_long = 'Regionale Radroute' THEN 2 -- regional
+            WHEN b.name_category_long = 'Österreich Radroute' THEN 3 -- national
+            WHEN b.name_category_long = 'Euro Velo Radroute' THEN 4 -- international
             ELSE 0 -- unknown
         END AS route
-    FROM gip_link2referenceobject a
-        JOIN gip_referenceobject b USING (refobj_id)
-    WHERE b.reftype IN (5019)
+    FROM gip2_link2referenceobject a
+        JOIN gip2_referenceobject b ON a.reference_object_id = b.object_id
+    WHERE b.reference_type IN (5019)
     ORDER BY 1, 3 DESC
 );
 
@@ -195,7 +195,7 @@ CREATE TABLE network_edge_attributes_tmp AS (
                ELSE 'no'
            END::varchar AS designated_route_tf
     FROM network_edge_attributes a
-        LEFT JOIN route b ON a.edge_id = b.link_id
+        LEFT JOIN route b ON a.edge_id = b.link_short_id
 );
 
 DROP TABLE network_edge_attributes;
@@ -212,7 +212,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS road_category;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_road_category(a.access_car_ft, a.access_car_tf, a.access_bicycle_ft, a.access_bicycle_tf, b.funcroadclass, b.streetcat, b.basetype, b.bikefeaturetow, b.bikefeaturebkw) AS road_category
+           calculate_gip2_road_category(a.access_car_ft, a.access_car_tf, a.access_bicycle_ft, a.access_bicycle_tf, b.functional_class, b.edge_category, b.base_type, b.bike_feature_tow, b.bike_feature_bkw) AS road_category
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -225,7 +225,7 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS max_speed;
-CREATE TABLE max_speed AS ( -- 7 s
+CREATE TABLE max_speed AS (
     SELECT edge_id,
            CASE
                WHEN maxspeed_tow_car <> -1 THEN maxspeed_tow_car
@@ -273,10 +273,10 @@ DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
            CASE
-               WHEN '4' = ANY (string_to_array(b.bikeenvironment, ';')) OR b.funcroadclass IN (0, 1, 2, 3, 4, 5, 6, 7, 8) THEN 'asphalt'
-               WHEN '3' = ANY (string_to_array(b.bikeenvironment, ';')) THEN 'gravel'
-               WHEN '6' = ANY (string_to_array(b.bikeenvironment, ';')) THEN 'cobble'
-               WHEN '8' = ANY (string_to_array(b.bikeenvironment, ';')) THEN 'soft'
+               WHEN '4' = ANY (string_to_array(b.surface, ';')) OR b.functional_class IN (0, 1, 2, 3, 4, 5, 6, 7, 8) THEN 'asphalt'
+               WHEN '3' = ANY (string_to_array(b.surface, ';')) THEN 'gravel'
+               WHEN '6' = ANY (string_to_array(b.surface, ';')) THEN 'cobble'
+               WHEN '8' = ANY (string_to_array(b.surface, ';')) THEN 'soft'
            END::varchar AS pavement
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
@@ -307,7 +307,7 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS gradient;
-CREATE TABLE gradient AS ( -- 6 s
+CREATE TABLE gradient AS (
     SELECT a.edge_id,
            round((((d.elevation - c.elevation) / a.length) * 100)::numeric, 2) AS gradient
     FROM network_edge a
@@ -318,7 +318,7 @@ CREATE TABLE gradient AS ( -- 6 s
 );
 
 DROP TABLE IF EXISTS gradient_class;
-CREATE TABLE gradient_class AS ( -- 3 s
+CREATE TABLE gradient_class AS (
     SELECT edge_id,
         CASE
             WHEN gradient < 1.5 AND gradient > -1.5 THEN 0
@@ -364,11 +364,11 @@ DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
         CASE
-            WHEN b.lanes_tow > 0 THEN b.lanes_tow
+            WHEN b.lanes_tow_min > 0 THEN b.lanes_tow_min
             ELSE 1 -- TODO: -1 in GIP means not applicable
         END::numeric AS number_lanes_ft,
         CASE
-            WHEN b.lanes_bkw > 0 THEN b.lanes_bkw
+            WHEN b.lanes_bkw_min > 0 THEN b.lanes_bkw_min
             ELSE 1
         END::numeric AS number_lanes_tf
     FROM network_edge_attributes a
@@ -383,7 +383,7 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 -- ---------------------------------------------------------------------------------------------------------------------
 {% if table_facility %}
 DROP TABLE IF EXISTS facility_count;
-CREATE TABLE facility_count AS ( -- 13 s
+CREATE TABLE facility_count AS (
     SELECT b.edge_id,
            count(a.*) AS facility_count
     FROM {{ table_facility | sqlsafe }} a,
@@ -393,7 +393,7 @@ CREATE TABLE facility_count AS ( -- 13 s
 );
 
 DROP TABLE IF EXISTS facility_ratio;
-CREATE TABLE facility_ratio AS ( -- 5 s
+CREATE TABLE facility_ratio AS (
     SELECT a.edge_id,
            (a.facility_count / b.length * 100.0)::numeric AS facility_ratio
     FROM facility_count a
@@ -422,7 +422,7 @@ DROP TABLE facility_count, facility_ratio;
 -- ---------------------------------------------------------------------------------------------------------------------
 {% if table_crossing %}
 DROP TABLE IF EXISTS crossing_count;
-CREATE TABLE crossing_count AS ( -- 17 s
+CREATE TABLE crossing_count AS (
     SELECT b.edge_id,
            count(a.*) AS crossing_count
     FROM {{ table_crossing | sqlsafe }} a,
@@ -432,7 +432,7 @@ CREATE TABLE crossing_count AS ( -- 17 s
 );
 
 DROP TABLE IF EXISTS crossing_ratio;
-CREATE TABLE crossing_ratio AS ( -- 10 s
+CREATE TABLE crossing_ratio AS (
     SELECT a.edge_id,
            (a.crossing_count / b.length * 100.0)::numeric AS crossing_ratio
     FROM crossing_count a
@@ -460,7 +460,7 @@ DROP TABLE crossing_count, crossing_ratio;
 -- calculate indicator "buildings"
 -- ---------------------------------------------------------------------------------------------------------------------
 {% if table_building %}
-CREATE TABLE IF NOT EXISTS network_buffer_20 AS ( -- 1 m 6 s
+CREATE TABLE IF NOT EXISTS network_buffer_20 AS (
     SELECT edge_id,
            length,
            ST_Buffer(geom, 20, 'endcap=flat') AS geom,
@@ -468,12 +468,12 @@ CREATE TABLE IF NOT EXISTS network_buffer_20 AS ( -- 1 m 6 s
     FROM network_edge
 );
 
-CREATE INDEX IF NOT EXISTS network_buffer_20_geom_idx ON network_buffer_20 USING gist (geom); -- 13 s
+CREATE INDEX IF NOT EXISTS network_buffer_20_geom_idx ON network_buffer_20 USING gist (geom);
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS building_intersection;
-CREATE TABLE building_intersection AS ( -- 1 m 42 s
+CREATE TABLE building_intersection AS (
     SELECT b.edge_id,
            b.buffer_area,
            ST_Intersection(a.geom, b.geom) AS geom
@@ -483,7 +483,7 @@ CREATE TABLE building_intersection AS ( -- 1 m 42 s
 );
 
 DROP TABLE IF EXISTS building_ratio;
-CREATE TABLE building_ratio AS ( -- 1 m 55 s
+CREATE TABLE building_ratio AS (
     SELECT edge_id,
            least(ST_Area(ST_Union(geom)) / buffer_area * 100.0, 100.0)::numeric AS building_ratio
     FROM building_intersection
@@ -511,7 +511,7 @@ DROP TABLE building_intersection, building_ratio;
 -- calculate indicator "greenness"
 -- ---------------------------------------------------------------------------------------------------------------------
 {% if table_greenness %}
-CREATE TABLE IF NOT EXISTS network_buffer_30 AS ( -- 44 s
+CREATE TABLE IF NOT EXISTS network_buffer_30 AS (
     SELECT edge_id,
            length,
            ST_Buffer(geom, 30, 'endcap=flat') AS geom,
@@ -519,12 +519,12 @@ CREATE TABLE IF NOT EXISTS network_buffer_30 AS ( -- 44 s
     FROM network_edge
 );
 
-CREATE INDEX IF NOT EXISTS network_buffer_30_geom_idx ON network_buffer_30 USING gist (geom); -- 10 s
+CREATE INDEX IF NOT EXISTS network_buffer_30_geom_idx ON network_buffer_30 USING gist (geom);
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS greenness_intersection;
-CREATE TABLE greenness_intersection AS ( -- 2 m 43 s
+CREATE TABLE greenness_intersection AS (
     SELECT b.edge_id,
            b.buffer_area,
            ST_Intersection(a.geom, b.geom) AS geom
@@ -534,7 +534,7 @@ CREATE TABLE greenness_intersection AS ( -- 2 m 43 s
 );
 
 DROP TABLE IF EXISTS greenness_ratio;
-CREATE TABLE greenness_ratio AS ( -- 1 m 22 s
+CREATE TABLE greenness_ratio AS (
     SELECT edge_id,
            least(ST_Area(ST_Union(geom)) / buffer_area * 100.0, 100.0)::numeric AS greenness_ratio
     FROM greenness_intersection
@@ -695,7 +695,7 @@ CREATE INDEX IF NOT EXISTS network_buffer_2_geom_idx ON network_buffer_2 USING g
 
 DROP TABLE IF EXISTS parking_intersection_edges;
 -- get value from geometry with highest overlap --
-CREATE TABLE parking_intersection_edges AS ( -- 57 s
+CREATE TABLE parking_intersection_edges AS (
     SELECT DISTINCT ON (b.edge_id) edge_id, parking
     FROM parking a
         JOIN network_buffer_2 b ON ST_Intersects(a.geom, b.geom)
@@ -786,7 +786,7 @@ DROP TABLE sights_count, sights_ratio;
 -- ---------------------------------------------------------------------------------------------------------------------
 {% if table_noise %}
 DROP TABLE IF EXISTS noise_intersection;
-CREATE TABLE noise_intersection AS ( -- 6 m 48 s
+CREATE TABLE noise_intersection AS (
     SELECT b.edge_id,
            a.{{ column_noise | sqlsafe }} AS noise,
            ST_Intersection(a.geom, b.geom) AS geom
@@ -796,7 +796,7 @@ CREATE TABLE noise_intersection AS ( -- 6 m 48 s
 );
 
 DROP TABLE IF EXISTS noise_sum;
-CREATE TABLE noise_sum AS ( -- 2 s
+CREATE TABLE noise_sum AS (
     SELECT b.edge_id,
            sum(ST_Length(a.geom) / b.length * a.noise)::numeric AS noise
     FROM noise_intersection a
@@ -872,12 +872,12 @@ ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS network_edge_export;
-CREATE TABLE network_edge_export AS ( -- 13 s, 1.885.895
-    SELECT edge_id, link_id AS gip_id, from_node, to_node, geom, length, 'road' AS net_type
+CREATE TABLE network_edge_export AS (
+    SELECT edge_id, link_short_id AS gip_id, from_node, to_node, geom, length, 'road' AS net_type
 {% if include_source_attributes %}
-         , speed_tow_car, speed_bkw_car, maxspeed_tow_car, maxspeed_bkw_car, access_tow, access_bkw, funcroadclass,
-           formofway, urban, oneway, streetcat, regcode, use_id, basetype, offset_, bikeenvironment, bikesignedtow,
-           bikesignedbkw, bikefeaturetow, bikefeaturebkw, walkfeaturetow, walkfeaturebkw
+         , speed_tow_car, speed_bkw_car, maxspeed_tow_car, maxspeed_bkw_car, access_tow, access_bkw, functional_class,
+           form_of_way, urban, oneway_car, oneway_bike, oneway_pedestrian, edge_category, regional_code, linear_use_part_short_id, base_type, offset_average, surface, bike_signed_tow,
+           bike_signed_bkw, bike_feature_tow, bike_feature_bkw, walk_feature_tow, walk_feature_bkw
 {% endif %}
     FROM network_edge
 );

@@ -179,6 +179,225 @@ class GipImporter(DbStep):
         db.close()
 
 
+GIP2_IMPORT_TABLES = [
+    {'name': 'NODE', 'table': 'gip2_node', 'pk': ['short_id']},
+    {'name': 'LINK', 'table': 'gip2_link', 'pk': ['short_id'], 'indexes': [['node_from_short_id'], ['node_to_short_id']]},
+    {'name': 'LINK_COORDINATE', 'table': 'gip2_linkcoordinate', 'pk': ['object_id'], 'indexes': [['link_short_id', 'sequence']]},
+    {'name': 'LINEAR_USE_PART', 'table': 'gip2_linear_use_part', 'pk': ['short_id'], 'indexes': [['link_short_id']]},
+    {'name': 'BIKE_HIKE', 'table': 'gip2_bikehike', 'pk': ['short_id']},
+    {'name': 'REFERENCE_OBJECT', 'table': 'gip2_referenceobject', 'pk': ['short_id']},
+    {'name': 'LINK_2_REFERENCE_OBJECT', 'table': 'gip2_link2referenceobject', 'pk': ['short_id'], 'indexes': [['link_short_id'], ['reference_object_id']]},
+]
+
+GIP2_IDF_TYPE_MAP = {
+    'uuid': 'uuid',
+    'integer': 'integer',
+    'double': 'double precision',
+    'text': 'text',
+}
+
+GIP2_SQL_RESERVED = {'offset': 'offset_'}
+
+
+def _gip2_sql_type(frm: str) -> str:
+    """Map a GIP 2.0 IDF format token to a PostgreSQL type."""
+    frm = frm.strip().lower()
+    if frm in GIP2_IDF_TYPE_MAP:
+        return GIP2_IDF_TYPE_MAP[frm]
+    if frm == 'string':
+        return 'varchar'
+    if m := re.search(r"^(string)[(]([0-9]*)[)]", frm):
+        return f"varchar({m.group(2)})"
+    if m := re.search(r"^(decimal)[(]([0-9]*)[,]([0-9]*)[)]", frm):
+        return f"numeric({m.group(2)},{m.group(3)})"
+    if m := re.search(r"^(decimal)[(]([0-9]*)[)]", frm):
+        precision = int(m.group(2))
+        if precision <= 4:
+            return "smallint"
+        if precision <= 10:
+            return "integer"
+        if precision <= 18:
+            return "bigint"
+        return f"numeric({precision})"
+    return frm
+
+
+def _gip2_column_name(name: str) -> str:
+    name = name.strip().lower()
+    return GIP2_SQL_RESERVED.get(name, name)
+
+
+def create_gip2_sql(table: str, attributes: List[str], formats: List[str], sql_path: str) -> None:
+    """Write a CREATE TABLE statement for a GIP 2.0 IDF table."""
+    columns = [f"{_gip2_column_name(atr)} {_gip2_sql_type(frm)}" for atr, frm in zip(attributes, formats)]
+    with open(sql_path, 'w', encoding='utf-8') as file_sql:
+        file_sql.write(f"CREATE TABLE {table} ({', '.join(columns)});")
+
+
+def _gip2_csv_record(line: str) -> str:
+    """Strip the IDF rec; prefix and turn empty quoted fields into COPY NULLs."""
+    return line[4:].replace('""', '').replace('" "', '')
+
+
+def split_gip2_idf(idf_path: str, output_dir: str, tables: List[dict]) -> None:
+    """Stream-split a GIP 2.0 routingexport IDF into per-table CSV + SQL files."""
+    wanted = {item['name']: item for item in tables}
+    os.makedirs(output_dir, exist_ok=True)
+
+    current_name = None
+    csv_file = None
+    attributes = None
+    formats = None
+    record_count = 0
+
+    def close_current():
+        nonlocal csv_file, record_count
+        if csv_file is not None:
+            csv_file.close()
+            csv_file = None
+            h.log(f"wrote {record_count} records for {current_name}")
+        record_count = 0
+
+    try:
+        with open(idf_path, 'r', encoding='utf-8-sig') as idf:
+            for line in idf:
+                if line.startswith('tbl;'):
+                    close_current()
+                    current_name = line[4:].strip()
+                    attributes = None
+                    formats = None
+                    continue
+
+                if current_name not in wanted:
+                    continue
+
+                item = wanted[current_name]
+                stem = current_name.lower()
+                csv_path = os.path.join(output_dir, f"{stem}.csv")
+                sql_path = os.path.join(output_dir, f"{stem}.sql")
+
+                if line.startswith('atr;'):
+                    attributes = line[4:].strip().split(';')
+                    csv_file = open(csv_path, 'w', encoding='utf-8')
+                    csv_file.write(';'.join(_gip2_column_name(atr) for atr in attributes) + '\n')
+                elif line.startswith('frm;'):
+                    formats = line[4:].strip().split(';')
+                    if attributes is None:
+                        raise Exception(f"GIP 2.0 table '{current_name}' is missing an atr; line before frm;")
+                    create_gip2_sql(item['table'], attributes, formats, sql_path)
+                elif line.startswith('rec;'):
+                    if csv_file is None:
+                        raise Exception(f"GIP 2.0 table '{current_name}' is missing an atr; line before rec;")
+                    csv_file.write(_gip2_csv_record(line))
+                    record_count += 1
+    finally:
+        close_current()
+
+
+def resolve_gip2_idf_path(directory: str, filename: str) -> str:
+    """Resolve a GIP 2.0 zip or txt path to the IDF file, extracting the zip if needed."""
+    source_path = os.path.join(directory, filename)
+    if not os.path.exists(source_path):
+        raise Exception(f"The provided GIP 2.0 input file could not be found: '{source_path}'")
+
+    if filename.lower().endswith('.txt'):
+        return source_path
+
+    if filename.lower().endswith('.zip'):
+        stem = os.path.splitext(filename)[0]
+        sibling_txt = os.path.join(directory, stem + '.txt')
+        if os.path.isfile(sibling_txt):
+            h.log(f"using already extracted IDF '{sibling_txt}'")
+            return sibling_txt
+
+        extract_dir = os.path.join(directory, stem)
+        os.makedirs(extract_dir, exist_ok=True)
+        with zipfile.ZipFile(source_path, 'r') as zf:
+            txt_members = [name for name in zf.namelist() if name.lower().endswith('.txt')]
+            if not txt_members:
+                raise Exception(f"No .txt IDF found inside '{source_path}'")
+            member = txt_members[0]
+            extracted = os.path.join(extract_dir, os.path.basename(member))
+            if not os.path.isfile(extracted):
+                h.log(f"extracting '{member}' from '{filename}'")
+                source = zf.open(member)
+                try:
+                    with open(extracted, 'wb') as target:
+                        while True:
+                            chunk = source.read(1024 * 1024 * 8)
+                            if not chunk:
+                                break
+                            target.write(chunk)
+                finally:
+                    source.close()
+            return extracted
+
+    raise Exception(f"GIP 2.0 import expects a .zip or .txt file, got '{filename}'")
+
+
+class Gip2Importer(DbStep):
+    def __init__(self, db_settings: DbSettings):
+        super().__init__(db_settings)
+
+    def run_step(self, settings: dict):
+        h.info('importing gip 2.0')
+        h.log(f"using import settings: {str(settings)}")
+
+        schema = self.db_settings.entities.data_schema
+        directory = GlobalSettings.data_directory
+        filename = settings['filename_A']
+
+        # open database connection
+        h.log('connecting to database...')
+        db = PostgresConnection.from_settings_object(self.db_settings)
+        db.connect()
+        db.init_extensions_and_schema(schema)
+
+        h.logBeginTask('resolve GIP 2.0 IDF')
+        idf_path = resolve_gip2_idf_path(directory, filename)
+        tables_dir = os.path.join(directory, os.path.splitext(os.path.basename(filename))[0] + '_tables')
+        h.log(f"IDF: {idf_path}")
+        h.log(f"split directory: {tables_dir}")
+        h.logEndTask()
+
+        h.logBeginTask('split GIP 2.0 IDF into tables')
+        missing = [
+            item for item in GIP2_IMPORT_TABLES
+            if not os.path.isfile(os.path.join(tables_dir, f"{item['name'].lower()}.csv"))
+            or not os.path.isfile(os.path.join(tables_dir, f"{item['name'].lower()}.sql"))
+        ]
+        if missing:
+            h.log(f"creating CSV/SQL for: {', '.join(item['name'] for item in missing)}")
+            # Always rewrite all required tables together so a partial previous split cannot mix versions
+            split_gip2_idf(idf_path, tables_dir, GIP2_IMPORT_TABLES)
+        else:
+            h.log('CSV/SQL files already exist, skipping split')
+        h.logEndTask()
+
+        for item in GIP2_IMPORT_TABLES:
+            h.logBeginTask(f"create table \"{item['table']}\"")
+            stem = item['name'].lower()
+            db.drop_table(item['table'], schema=schema)
+            db.execute_sql_from_file(stem, tables_dir)
+            db.commit()
+
+            import_csv(
+                db.connection_string,
+                os.path.join(tables_dir, f"{stem}.csv"),
+                schema,
+                table=item['table']
+            )
+
+            db.add_primary_key(item['table'], item['pk'], schema=schema)
+            for columns in item.get('indexes', []):
+                db.add_index(item['table'], columns, schema=schema)
+            db.commit()
+            h.logEndTask()
+
+        h.log('closing database connection')
+        db.close()
+
+
 class OsmImporter(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
@@ -665,6 +884,8 @@ class OsmImporter(DbStep):
 def create_importer(db_settings: DbSettings, import_type: str):
     if import_type.lower() == InputType.GIP.value.lower():
         return GipImporter(db_settings)
+    if import_type.lower() == InputType.GIP2.value.lower():
+        return Gip2Importer(db_settings)
     if import_type.lower() == InputType.OSM.value.lower():
         return OsmImporter(db_settings)
     raise NotImplementedError(f"import type '{import_type}' not implemented")

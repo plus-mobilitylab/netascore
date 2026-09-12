@@ -96,7 +96,8 @@ Specify the type of geodata you want to import. At the moment, the following fil
 are supported:
 
 - value `osm`: OpenStreetMap
-- value `gip`: Austrian authoritative dataset *"Graphenintegrations-Plattform GIP"* - see also: [http://www.gip.gv.at](http://www.gip.gv.at/en/index.html)
+- value `gip`: Austrian authoritative dataset *"Graphenintegrations-Plattform GIP"* (previous OGD routing export) - see also: [http://www.gip.gv.at](http://www.gip.gv.at/en/index.html)
+- value `gip2`: Austrian authoritative dataset *"Graphenintegrations-Plattform GIP"* (GIP 2.0 OGD export) - see also: [http://www.gip.gv.at](http://www.gip.gv.at/en/index.html)
 
 ### Property `filename`
 
@@ -104,6 +105,8 @@ Refers to the file containing the geodata.
 
 - OSM data can be imported from `PBF` format, which can be downloaded e.g. from https://download.geofabrik.de. For directly downloading a small AOI with NetAScore, use one of the options outlined in the following section "Additional options for OSM".
 - GIP data for Austria can be imported from the `IDF` export files which can be downloaded from [https://www.data.gv.at](https://www.data.gv.at/katalog/dataset/3fefc838-791d-4dde-975b-a4131a54e7c5)
+  - Previous export (`type: gip`): split `IDF` package (`filename_A`, typically `A_routingexport_ogd_split.zip`)
+  - GIP 2.0 (`type: gip2`): single `IDF` file (`filename_A`, typically `A_routingexport_ogd.zip` or `A_routingexport_ogd.txt`)
 
 ### Additional options for OSM
 

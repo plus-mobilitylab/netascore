@@ -59,6 +59,61 @@ class GipAttributesStep(DbStep):
         db.close()
 
 
+class Gip2AttributesStep(DbStep):
+    def __init__(self, db_settings: DbSettings):
+        super().__init__(db_settings)
+
+    def run_step(self, settings: dict, export_settings: dict = None):
+        h.info('attributes step')
+        h.log(f"using import settings: {str(settings)}")
+
+        schema = self.db_settings.entities.network_schema
+        include_source_attributes = bool(
+            export_settings and export_settings.get('include_source_attributes', False)
+        )
+
+        # open database connection
+        h.log('connecting to database...')
+        db = PostgresConnection.from_settings_object(self.db_settings)
+        db.connect()
+        db.schema = schema
+
+        # create functions
+        h.log('create functions')
+        db.execute_sql_from_file("gip2_calculate_bicycle_infrastructure", "sql/functions")
+        db.execute_sql_from_file("gip2_calculate_pedestrian_infrastructure", "sql/functions")
+        db.execute_sql_from_file("gip2_calculate_road_category", "sql/functions")
+        db.commit()
+
+        # execute "gip2_attributes"
+        h.logBeginTask('execute "gip2_attributes"')
+        if db.handle_conflicting_output_tables(['network_edge_attributes', 'network_edge_export', 'network_node_attributes']):
+            params = {  # TODO: @CW: check hard-coded vs. dynamic table names -> settings; also preferably use common data schema - e.g. to avoid providing combined schema + table identifiers
+                'schema_network': schema,
+                'schema_data': self.db_settings.entities.data_schema,
+                'table_dem': db.use_if_exists('dem', self.db_settings.entities.data_schema),
+                'table_noise': db.use_if_exists('noise', self.db_settings.entities.data_schema),
+                'column_noise': 'noise',  # TODO: get from settings file
+                'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
+                'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
+                'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
+                'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
+                'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
+                'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema),
+                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema),
+                'include_source_attributes': include_source_attributes
+            }
+            if params["table_dem"] is not None:
+                h.majorInfo("WARNING: You provided a DEM file. However, for GIP attribute calculation only the elevation data contained in the GIP dataset is used. Your provided DEM is ignored.")
+            db.execute_template_sql_from_file("gip2_attributes", params)
+            db.commit()
+        h.logEndTask()
+
+        # close database connection
+        h.log('closing database connection')
+        db.close()
+
+
 class OsmAttributesStep(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
@@ -113,6 +168,8 @@ class OsmAttributesStep(DbStep):
 def create_attributes_step(db_settings: DbSettings, import_type: str):
     if import_type.lower() == InputType.GIP.value.lower():
         return GipAttributesStep(db_settings)
+    if import_type.lower() == InputType.GIP2.value.lower():
+        return Gip2AttributesStep(db_settings)
     if import_type.lower() == InputType.OSM.value.lower():
         return OsmAttributesStep(db_settings)
     raise NotImplementedError(f"import type '{import_type}' not implemented")

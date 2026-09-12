@@ -37,6 +37,43 @@ class GipNetworkStep(DbStep):
         db.close()
 
 
+class Gip2NetworkStep(DbStep):
+    def __init__(self, db_settings: DbSettings):
+        super().__init__(db_settings)
+
+    def run_step(self, settings: dict):
+        h.info('network step')
+        h.log(f"using import settings: {str(settings)}")
+
+        schema = self.db_settings.entities.network_schema
+
+        # open database connection
+        h.log('connecting to database...')
+        db = PostgresConnection.from_settings_object(self.db_settings)
+        db.connect()
+        db.init_extensions_and_schema(schema)
+        db.verify_input_tables_exist(
+            ['gip2_node', 'gip2_link', 'gip2_linkcoordinate', 'gip2_linear_use_part', 'gip2_bikehike'],
+            schema=self.db_settings.entities.data_schema
+        )
+
+        # execute "gip2_network"
+        h.logBeginTask('execute "gip2_network"')
+        if db.handle_conflicting_output_tables(['network_edge', 'network_node']):
+            params = {
+                'schema_network': schema,
+                'schema_data': self.db_settings.entities.data_schema,
+                'target_srid': GlobalSettings.get_target_srid()
+            }
+            db.execute_template_sql_from_file("gip2_network", params)
+            db.commit()
+        h.logEndTask()
+
+        # close database connection
+        h.log('closing database connection')
+        db.close()
+
+
 class OsmNetworkStep(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
@@ -80,6 +117,8 @@ class OsmNetworkStep(DbStep):
 def create_network_step(db_settings: DbSettings, import_type: str):
     if import_type.lower() == InputType.GIP.value.lower():
         return GipNetworkStep(db_settings)
+    if import_type.lower() == InputType.GIP2.value.lower():
+        return Gip2NetworkStep(db_settings)
     if import_type.lower() == InputType.OSM.value.lower():
         return OsmNetworkStep(db_settings)
     raise NotImplementedError(f"import type '{import_type}' not implemented")

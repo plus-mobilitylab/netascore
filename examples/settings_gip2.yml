@@ -1,0 +1,48 @@
+version: 1.2
+# this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
+database:
+  host: gateway.docker.internal
+  port: 5432
+  dbname: netascore
+  on_existing: abort # skip, delete, abort
+  # user and password to be specified as ENV variables
+# -- end of optional db part --
+import:
+  type: gip2
+  filename_A: A_routingexport_ogd.zip # triggers unzip + db import (following standard file structure of GIP 2.0 files)
+optional:
+  noise:
+    filename: noise.gpkg # GeoPackage
+    # column_noise: noise # TODO: set from settings file
+  osm:
+    filename: austria-latest.osm.pbf # required mainly for walkability indicators
+    # NOTE: if an OSM file is provided, the layers 'building', 'crossing', 'facility', 'greennesss' and 'water' are extracted from OSM
+  # building:
+    # filename: building.gpkg # GeoPackage
+  # crossing:
+    # filename: crossing.gpkg # GeoPackage
+  # facility:
+    # filename: facility.gpkg # GeoPackage
+  # greenness:
+    # filename: greenness.gpkg # GeoPackage
+  # water:
+    # filename: water.gpkg # GeoPackage
+index:
+  compute_explanation: False
+profiles:
+  -
+    profile_name: bike
+    filename: profile_bike.yml
+    filter_access_bike: True
+  -
+    profile_name: bike_tourism
+    filename: profile_bike_tourism.yml
+    filter_access_bike: True
+  -
+    profile_name: walk
+    filename: profile_walk.yml
+    filter_access_walk: True
+export:
+  type: geopackage
+  filename: gip2_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
+  # include_source_attributes: True  # optional (GIP): include source attributes in the edge export

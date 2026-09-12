@@ -242,6 +242,13 @@ class PostgresConnection:
         else:
             self.ex(f"ALTER TABLE {schema}.{table} ADD PRIMARY KEY ({', '.join(columns)});")
 
+    def add_index(self, table: str, columns: List[str], name: str = None, schema: str = None):
+        if name is None:
+            name = f"{table}_{'_'.join(columns)}_idx"
+        qualified = f"{schema}.{table}" if schema else table
+        h.log(f"Creating index {name} on {qualified} ({', '.join(columns)})")
+        self.ex(f"CREATE INDEX IF NOT EXISTS {name} ON {qualified} ({', '.join(columns)});")
+
     def drop_table(self, table, cascade: bool = True, schema: str = None):
         casc = "CASCADE" if cascade else ""
         h.log(f"Dropping table {table} if exists {casc}")
