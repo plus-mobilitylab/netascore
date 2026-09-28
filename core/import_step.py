@@ -537,6 +537,9 @@ class OsmImporter(DbStep):
         self._load_osm_data_from_bbox(str(bbox)[1:-1], settings)
 
     def _load_osm_data_from_bbox(self, bbox: str, settings: dict):
+        opener = urllib.request.build_opener()
+        opener.addheaders = [('User-agent', GlobalSettings.overpass_api_user)]
+        urllib.request.install_opener(opener)
         q_template: str = """
             [timeout:180];
             nwr[!"boundary"][!"place"][!power]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"](__bbox__);

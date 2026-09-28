@@ -19,6 +19,7 @@ class GlobalSettings:
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         "https://overpass.kumi.systems/api/interpreter"
     ]
+    overpass_api_user = "NetAScore-Python"
     default_srid: int = 32633
     custom_srid = None
     def get_target_srid()->int:
