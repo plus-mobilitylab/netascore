@@ -70,7 +70,8 @@ CREATE TABLE gip2_linkuse_tmp AS (
     SELECT b.short_id AS linear_use_part_short_id,
            b.link_short_id,
            b.offset_average,
-           b.width_average AS width,
+           b.width_average,
+           b.width_minimal,
            b.link_percentage_from,
            b.link_percentage_to,
            b.base_type,
@@ -85,7 +86,9 @@ CREATE TABLE gip2_linkuse_tmp AS (
            c.bike_feature_tow,
            c.bike_feature_bkw,
            c.walk_feature_tow,
-           c.walk_feature_bkw
+           c.walk_feature_bkw,
+           c.bike_difficulty_tow,
+           c.bike_difficulty_bkw
     FROM gip2_link_tmp a
         JOIN gip2_linear_use_part b ON b.link_short_id = a.link_short_id
         LEFT JOIN gip2_bikehike c ON c.short_id = b.short_id
@@ -109,16 +112,23 @@ DROP TABLE IF EXISTS network_edge;
 CREATE TABLE network_edge AS (
     WITH gip2_linkuse_tmp_agg AS (
         SELECT link_short_id,
-               array_to_string(array_agg(linear_use_part_short_id), ';', '*') AS linear_use_part_short_id,
-               array_to_string(array_agg(base_type), ';', '*') AS base_type,
-               array_to_string(array_agg(offset_average), ';', '*') AS offset_average,
-               array_to_string(array_agg(surface), ';', '*') AS surface,
-               array_to_string(array_agg(bike_signed_tow), ';', '*') AS bike_signed_tow,
-               array_to_string(array_agg(bike_signed_bkw), ';', '*') AS bike_signed_bkw,
-               array_to_string(array_agg(bike_feature_tow), ';', '*') AS bike_feature_tow,
-               array_to_string(array_agg(bike_feature_bkw), ';', '*') AS bike_feature_bkw,
-               array_to_string(array_agg(walk_feature_tow), ';', '*') AS walk_feature_tow,
-               array_to_string(array_agg(walk_feature_bkw), ';', '*') AS walk_feature_bkw
+               -- Same ORDER BY on every aggregate so the semicolon lists stay aligned.
+               array_to_string(array_agg(linear_use_part_short_id ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS linear_use_part_short_id,
+               array_to_string(array_agg(base_type ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS base_type,
+               array_to_string(array_agg(offset_average ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS offset_average,
+               array_to_string(array_agg(width_average ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS width_average,
+               array_to_string(array_agg(width_minimal ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS width_minimal,
+               array_to_string(array_agg(link_percentage_from ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS link_percentage_from,
+               array_to_string(array_agg(link_percentage_to ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS link_percentage_to,
+               array_to_string(array_agg(surface ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS surface,
+               array_to_string(array_agg(bike_signed_tow ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS bike_signed_tow,
+               array_to_string(array_agg(bike_signed_bkw ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS bike_signed_bkw,
+               array_to_string(array_agg(bike_feature_tow ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS bike_feature_tow,
+               array_to_string(array_agg(bike_feature_bkw ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS bike_feature_bkw,
+               array_to_string(array_agg(walk_feature_tow ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS walk_feature_tow,
+               array_to_string(array_agg(walk_feature_bkw ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS walk_feature_bkw,
+               array_to_string(array_agg(bike_difficulty_tow ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS bike_difficulty_tow,
+               array_to_string(array_agg(bike_difficulty_bkw ORDER BY link_percentage_from, linear_use_part_short_id), ';', '*') AS bike_difficulty_bkw
         FROM gip2_linkuse_tmp
         GROUP BY link_short_id)
     SELECT a.link_short_id AS edge_id,
@@ -127,13 +137,19 @@ CREATE TABLE network_edge AS (
            b.linear_use_part_short_id,
            b.base_type,
            b.offset_average,
+           b.width_average,
+           b.width_minimal,
+           b.link_percentage_from,
+           b.link_percentage_to,
            b.surface,
            b.bike_signed_tow,
            b.bike_signed_bkw,
            b.bike_feature_tow,
            b.bike_feature_bkw,
            b.walk_feature_tow,
-           b.walk_feature_bkw
+           b.walk_feature_bkw,
+           b.bike_difficulty_tow,
+           b.bike_difficulty_bkw
     FROM gip2_link_tmp a
         LEFT JOIN gip2_linkuse_tmp_agg b USING (link_short_id)
 );

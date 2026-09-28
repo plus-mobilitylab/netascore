@@ -875,9 +875,9 @@ DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS (
     SELECT edge_id, link_short_id AS gip_id, from_node, to_node, geom, length, 'road' AS net_type
 {% if include_source_attributes %}
-         , speed_tow_car, speed_bkw_car, maxspeed_tow_car, maxspeed_bkw_car, access_tow, access_bkw, functional_class,
-           form_of_way, urban, oneway_car, oneway_bike, oneway_pedestrian, edge_category, regional_code, linear_use_part_short_id, base_type, offset_average, surface, bike_signed_tow,
-           bike_signed_bkw, bike_feature_tow, bike_feature_bkw, walk_feature_tow, walk_feature_bkw
+         , name_text_hr, speed_tow_car, speed_bkw_car, maxspeed_tow_car, maxspeed_bkw_car, access_tow, access_bkw, functional_class,
+           form_of_way, urban, oneway_car, oneway_bike, oneway_pedestrian, edge_category, regional_code, linear_use_part_short_id, base_type, offset_average, width_average, width_minimal, link_percentage_from, link_percentage_to, surface, bike_signed_tow,
+           bike_signed_bkw, bike_feature_tow, bike_feature_bkw, walk_feature_tow, walk_feature_bkw, bike_difficulty_tow, bike_difficulty_bkw
 {% endif %}
     FROM network_edge
 );
