@@ -54,6 +54,7 @@ def require_on_existing_setting(settings: dict):
 
 with settings_stream:
     settings: dict = yaml.safe_load(settings_stream)
+    h.require_file_version(settings, settings_stream.name, "examples/settings_osm_query.yml")
 
     # process global settings if given
     if h.has_keys(settings, ['global']):
@@ -71,8 +72,10 @@ with settings_stream:
         h.require_keys(settings, ['import'], 'error: section missing:')
     if 'export' not in skip_steps:
         h.require_keys(settings, ['export'], 'error: section missing:')
+    profiles = None
     if 'index' not in skip_steps:
         h.require_keys(settings, ['profiles'], 'error: section missing:')
+        profiles = load_profiles(base_path, settings['profiles'])
 
     # execute processing steps
     if 'import' not in skip_steps:
@@ -113,8 +116,6 @@ with settings_stream:
 
     if 'index' not in skip_steps:
         h.majorInfo(' === generating index ===')
-        mode_profile_settings: dict = settings['profiles']
-        profiles = load_profiles(base_path, mode_profile_settings)
         index_settings: dict = None
         if h.has_keys(settings, ['index']):
             index_settings = settings['index']

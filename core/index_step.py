@@ -35,6 +35,7 @@ class ModeProfile:
             self.access_car = self.access_bike = self.access_walk = True
         with open(filename) as file:
             self.profile = yaml.safe_load(file)
+        h.require_file_version(self.profile, filename, "examples/profile_bike.yml")
 
 
 def load_profiles(base_path: str, profile_definitions: dict):

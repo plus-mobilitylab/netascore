@@ -15,7 +15,7 @@ Besides the settings file, you also need to provide a mode profile file for each
 The settings file can consist of the following **sections**:
 
 - **version**: 
-  mandatory, single value. For compatibility with NetAScore version 1.1, the settings file `version` entry should be `1.2`.
+  mandatory, single value. NetAScore 2.0 requires `2.0`. Older settings files are rejected.
 - **global**: 
   general settings such as target reference system (SRID) to use
 - **database**: 

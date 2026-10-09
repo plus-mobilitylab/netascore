@@ -1,5 +1,3 @@
-version: '4'
-
 services:
   netascore:
     image: plusmobilitylab/netascore:latest

@@ -1,4 +1,4 @@
-version: 1.0
+version: 2.0
 # for local execution without docker container and PostgresDB on localhost
 database:
   host: localhost

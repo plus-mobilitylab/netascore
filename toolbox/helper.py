@@ -49,6 +49,20 @@ def log(msg: str, level=LOG_LEVEL_3_DETAILED, elapsed = None):
 def majorInfo(msg: str):
     log(msg, LOG_LEVEL_1_MAJOR_INFO)
 
+FILE_VERSION = 2.0
+
+def require_file_version(document: dict, filepath: str, example: str) -> None:
+    version = document.get("version") if isinstance(document, dict) else None
+    try:
+        current = float(version)
+    except (TypeError, ValueError):
+        current = None
+    if current is not None and current >= FILE_VERSION:
+        return
+    found = "missing" if version is None else version
+    majorInfo(f"{filepath}: version is {found}. NetAScore 2.0 requires version {FILE_VERSION}. See {example}.")
+    sys.exit(1)
+
 def info(msg: str):
     log(msg, LOG_LEVEL_2_INFO)
 
