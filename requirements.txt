@@ -1,4 +1,4 @@
-gdal==3.10.3
+gdal
 geopandas
 geopy
 jinjasql2

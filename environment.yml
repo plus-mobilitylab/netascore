@@ -1,13 +1,12 @@
 name: netascore
 channels:
   - conda-forge
-  - defaults
 dependencies:
-  - python=3.13.7
-  - gdal=3.10.3
+  - python=3.13
+  - gdal
   - geopandas
   - geopy
-  - libgdal=3.10.3
+  - libgdal
   - psycopg2
   - pyyaml
   - requests
