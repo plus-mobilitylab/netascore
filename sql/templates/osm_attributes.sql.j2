@@ -497,7 +497,7 @@ CREATE TABLE pedestrian_infrastructure AS ( -- 10 s
 					THEN 'mixed_way_non_designated'
 
                 WHEN ((tags -> 'cycleway' = 'separate' OR tags -> 'cycleway:left' = 'separate' OR tags -> 'cycleway:right' = 'separate' OR tags -> 'cycleway:both' = 'separate') AND (foot = 'yes' OR foot = 'designated')) OR
-                    (tags -> 'sidewalk' = 'separate' OR tags -> 'sidewalk:left' = 'separate' OR 'sidewalk:right' = 'separate'  OR 'sidewalk:both' = 'separate')
+                    (tags -> 'sidewalk' = 'separate' OR tags -> 'sidewalk:left' = 'separate' OR tags -> 'sidewalk:right' = 'separate' OR tags -> 'sidewalk:both' = 'separate')
                     THEN 'no_separate'
 
                 ELSE 'no'
