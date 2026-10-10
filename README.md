@@ -34,6 +34,7 @@ More information can be found in the [documentation](https://plus-mobilitylab.gi
 * [Configuration of the Settings](https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html)
 * [Adapting the Mode profiles](https://plus-mobilitylab.github.io/netascore-documentation/Mode-profiles.html)
 * [Implementation details & how to contribute](https://plus-mobilitylab.github.io/netascore-documentation/How-to-contribute.html)
+* [Advanced docker customisations](https://plus-mobilitylab.github.io/netascore-documentation/advanced-docker.html)
 * [Requirements and Limitations](https://plus-mobilitylab.github.io/netascore-documentation/Requirements-and-Limitations.html)
 * [Credits and License](https://plus-mobilitylab.github.io/netascore-documentation/Credits-and-license.html)
 
@@ -53,7 +54,7 @@ Docker will download the NetAScore image and PostgreSQL database image, setup th
 
 #### What it does (example case):
 
-NetAScore first loads an area of interest by place name from Overpass Turbo API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node. These values represent the assessed suitability of a segment for cycling (*bikeability*) and walking (*walkability*).
+NetAScore first loads an area of interest by place name from the Overpass API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node. These values represent the assessed suitability of a segment for cycling (*bikeability*) and walking (*walkability*).
 
 #### What the results look like:
 
@@ -65,12 +66,12 @@ This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
 #### How to proceed?
 
-Most likely, you want to execute an analysis for a specific area of your interest - please have a look at the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project-in-a-Docker-environment.html#run-netascore-for-your-own-area-of-interest) for how to achieve this with just changing one line in the settings file.
+Most likely, you want to execute an analysis for a specific area of your interest - please have a look at the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Quickstart.html#run-netascore-for-your-own-area-of-interest) for how to achieve this with just changing one line in the settings file.
 If you need more detailled instructions or want to know more about the project, please consolidate the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html).
 
 ### Running NetAScore locally (without Docker)
 
-For running NetAScore without Docker you need several software packages and Python libraries installed on your machine. You find all details in the section ["How to run the project"](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project.html).
+For running NetAScore without Docker you need several software packages and Python libraries installed on your machine. You find all details in the section ["Run NetAScore manually with Python"](https://plus-mobilitylab.github.io/netascore-documentation/Run-NetAScore-manually-with-Python.html).
 
 **NetAScore uses the following technologies:**
 
