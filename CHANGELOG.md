@@ -27,10 +27,12 @@ Notable changes since [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 
 ### Fixed
 
+- Frequently failing Overpass API download requests
 - OSM tag lookups for cycle-route scope, bicycle roads, unhewn cobblestone, and `sidewalk:right` / `sidewalk:both`.
 - Noise re-import no longer duplicates values.
 - Settings paths may contain a backslash.
 - Missing input files report a readable error.
+- Several minor bugs
 
 ### Removed
 
