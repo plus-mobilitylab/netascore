@@ -121,8 +121,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS bicycle_infrastructure
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_bicycle_infrastructure(b.basetype, b.bikefeaturetow, a.access_car_ft, a.access_car_tf) AS bicycle_infrastructure_ft,
-           calculate_bicycle_infrastructure(b.basetype, b.bikefeaturebkw, a.access_car_ft, a.access_car_tf) AS bicycle_infrastructure_tf
+           calculate_bicycle_infrastructure(b.lu_basetype, b.bh_bikefeaturetow, a.access_car_ft, a.access_car_tf) AS bicycle_infrastructure_ft,
+           calculate_bicycle_infrastructure(b.lu_basetype, b.bh_bikefeaturebkw, a.access_car_ft, a.access_car_tf) AS bicycle_infrastructure_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -140,8 +140,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS pedestrian_infrastruct
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturetow, b.formofway, a.access_pedestrian_ft) AS pedestrian_infrastructure_ft,
-           calculate_pedestrian_infrastructure(b.basetype, b.bikefeaturebkw, b.formofway, a.access_pedestrian_tf) AS pedestrian_infrastructure_tf
+           calculate_pedestrian_infrastructure(b.lu_basetype, b.bh_bikefeaturetow, b.formofway, a.access_pedestrian_ft) AS pedestrian_infrastructure_ft,
+           calculate_pedestrian_infrastructure(b.lu_basetype, b.bh_bikefeaturebkw, b.formofway, a.access_pedestrian_tf) AS pedestrian_infrastructure_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -212,7 +212,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS road_category;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_road_category(a.access_car_ft, a.access_car_tf, a.access_bicycle_ft, a.access_bicycle_tf, b.funcroadclass, b.streetcat, b.basetype, b.bikefeaturetow, b.bikefeaturebkw) AS road_category
+           calculate_road_category(a.access_car_ft, a.access_car_tf, a.access_bicycle_ft, a.access_bicycle_tf, b.funcroadclass, b.streetcat, b.lu_basetype, b.bh_bikefeaturetow, b.bh_bikefeaturebkw) AS road_category
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
@@ -273,10 +273,10 @@ DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
            CASE
-               WHEN '4' = ANY (string_to_array(b.bikeenvironment, ';')) OR b.funcroadclass IN (0, 1, 2, 3, 4, 5, 6, 7, 8) THEN 'asphalt'
-               WHEN '3' = ANY (string_to_array(b.bikeenvironment, ';')) THEN 'gravel'
-               WHEN '6' = ANY (string_to_array(b.bikeenvironment, ';')) THEN 'cobble'
-               WHEN '8' = ANY (string_to_array(b.bikeenvironment, ';')) THEN 'soft'
+               WHEN '4' = ANY (string_to_array(b.bh_bikeenvironment, ';')) OR b.funcroadclass IN (0, 1, 2, 3, 4, 5, 6, 7, 8) THEN 'asphalt'
+               WHEN '3' = ANY (string_to_array(b.bh_bikeenvironment, ';')) THEN 'gravel'
+               WHEN '6' = ANY (string_to_array(b.bh_bikeenvironment, ';')) THEN 'cobble'
+               WHEN '8' = ANY (string_to_array(b.bh_bikeenvironment, ';')) THEN 'soft'
            END::varchar AS pavement
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
@@ -875,9 +875,16 @@ DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS ( -- 13 s, 1.885.895
     SELECT edge_id, link_id AS gip_id, from_node, to_node, geom, length, 'road' AS net_type
 {% if include_source_attributes %}
-         , speed_tow_car, speed_bkw_car, maxspeed_tow_car, maxspeed_bkw_car, access_tow, access_bkw, funcroadclass,
-           formofway, urban, oneway, streetcat, regcode, use_id, basetype, offset_, bikeenvironment, bikesignedtow,
-           bikesignedbkw, bikefeaturetow, bikefeaturebkw, walkfeaturetow, walkfeaturebkw
+         , name1, name2, speed_tow_car, speed_bkw_car, speed_tow_truck, speed_bkw_truck,
+           maxspeed_tow_car, maxspeed_bkw_car, maxspeed_tow_truck, maxspeed_bkw_truck, access_tow, access_bkw,
+           funcroadclass, cap_tow, cap_bkw, lanes_tow, lanes_bkw, formofway, brunnel, maxheight, maxwidth, maxpressure,
+           abutter_car, abutter_lorry, u_turn, slope, urban, level, baustatus, toll, subnet_id, oneway, blt, blb,
+           streetcat, agg_typ, sustainer, regcode, dbcon,
+           lu_use_id, lu_count, lu_offset, lu_width, lu_minwidth, lu_from_percent, lu_to_percent, lu_basetype,
+           lu_use_access_tow, lu_use_access_bkw, lu_surface, lu_electric,
+           bh_use_access_tow, bh_use_access_bkw, bh_bikeenvironment, bh_bikequalitytow, bh_bikequalitybkw,
+           bh_bikedirecttow, bh_bikedirectbkw, bh_bikesignedtow, bh_bikesignedbkw, bh_bikerecommtow, bh_bikerecommbkw,
+           bh_bikewithfoottow, bh_bikewithfootbkw, bh_bikefeaturetow, bh_bikefeaturebkw, bh_walkfeaturetow, bh_walkfeaturebkw
 {% endif %}
     FROM network_edge
 );
