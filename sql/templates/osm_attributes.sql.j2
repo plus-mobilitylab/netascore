@@ -599,7 +599,7 @@ DROP TABLE IF EXISTS road_category;
 CREATE TABLE road_category AS (
     SELECT edge_id,
            CASE
-                WHEN highway = ANY ('{primary,primary_link,motorway,motorway_link}')
+                WHEN highway = ANY ('{primary,primary_link,trunk,trunk_link,motorway,motorway_link}')
                     THEN 'primary'
 
                 WHEN (highway = ANY ('{secondary,secondary_link}')) OR
