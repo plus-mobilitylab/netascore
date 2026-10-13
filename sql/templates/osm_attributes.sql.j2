@@ -625,6 +625,10 @@ CREATE TABLE road_category AS (
                     THEN 'calmed'
 
                 WHEN highway = 'service' AND tags -> 'motor_vehicle' = 'no' OR
+                     -- roads closed to motor vehicles (paved, or surface unknown except for unclassified roads)
+                     (highway = ANY ('{residential,tertiary,tertiary_link,unclassified}') AND tags -> 'motor_vehicle' = 'no' AND
+                         (surface = ANY ('{paved,asphalt,chipseal,concrete,paving_stones,brick,bricks,compacted}') OR
+                          (surface IS NULL AND highway <> 'unclassified'))) OR
                      highway = ANY ('{footway,cycleway,pedestrian}') OR (
                     (highway = 'bridleway' AND (bicycle = 'designated' OR foot = 'designated')) OR
                     (highway = 'path' AND (
