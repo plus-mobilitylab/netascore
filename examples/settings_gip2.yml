@@ -10,6 +10,7 @@ database:
 import:
   type: gip2
   filename_A: A_routingexport_ogd.zip # triggers unzip + db import (following standard file structure of GIP 2.0 files)
+  # regional_code: AT50101 # optional (GIP): Gemeindekennzahl; Stadt Salzburg: AT50101; List: [AT50101, AT50338]
 optional:
   noise:
     filename: noise.gpkg # GeoPackage

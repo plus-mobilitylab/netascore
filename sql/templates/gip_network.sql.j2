@@ -16,16 +16,25 @@ CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
     WITH count AS (
         SELECT a.link_id, 1 AS "order", NULL AS count, b.x, b.y
         FROM gip_link a JOIN gip_node b ON a.from_node = b.node_id
+        {% if regional_codes %}
+        WHERE a.regcode::text IN {{ regional_codes | inclause }}
+        {% endif %}
 
         UNION ALL
 
         SELECT link_id, 2 AS "order", count, x, y
         FROM gip_linkcoordinate
+        {% if regional_codes %}
+        WHERE link_id IN (SELECT link_id FROM gip_link WHERE regcode::text IN {{ regional_codes | inclause }})
+        {% endif %}
 
         UNION ALL
 
         SELECT a.link_id, 3 AS "order", NULL AS count, b.x, b.y
         FROM gip_link a JOIN gip_node b ON a.to_node = b.node_id
+        {% if regional_codes %}
+        WHERE a.regcode::text IN {{ regional_codes | inclause }}
+        {% endif %}
     )
     SELECT link_id,
            ST_SetSRID(ST_MakeLine(ST_MakePoint(x, y) ORDER BY "order", count), 4326)::geometry(LineString, 4326) AS geom
@@ -47,6 +56,9 @@ CREATE TABLE gip_link_tmp AS ( -- 14 s, 1.894.917
         JOIN gip_link b USING (link_id)
     WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian
       AND b.formofway <> 7 -- Parkgarage
+      {% if regional_codes %}
+      AND b.regcode::text IN {{ regional_codes | inclause }}
+      {% endif %}
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------

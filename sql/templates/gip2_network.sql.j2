@@ -16,16 +16,25 @@ CREATE TABLE gip2_network_tmp AS (
     WITH count AS (
         SELECT a.short_id AS link_short_id, 1 AS "order", NULL::integer AS seq, b.x, b.y
         FROM gip2_link a JOIN gip2_node b ON a.node_from_short_id = b.short_id
+        {% if regional_codes %}
+        WHERE a.regional_code::text IN {{ regional_codes | inclause }}
+        {% endif %}
 
         UNION ALL
 
         SELECT link_short_id, 2 AS "order", sequence AS seq, x, y
         FROM gip2_linkcoordinate
+        {% if regional_codes %}
+        WHERE link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text IN {{ regional_codes | inclause }})
+        {% endif %}
 
         UNION ALL
 
         SELECT a.short_id AS link_short_id, 3 AS "order", NULL::integer AS seq, b.x, b.y
         FROM gip2_link a JOIN gip2_node b ON a.node_to_short_id = b.short_id
+        {% if regional_codes %}
+        WHERE a.regional_code::text IN {{ regional_codes | inclause }}
+        {% endif %}
     )
     SELECT link_short_id,
            ST_SetSRID(ST_MakeLine(ST_MakePoint(x, y) ORDER BY "order", seq), 4326)::geometry(LineString, 4326) AS geom
@@ -40,6 +49,9 @@ CREATE TABLE gip2_link_width AS (
            MAX(width_average) FILTER (WHERE base_type = 1 AND width_average > 0) AS width_carriageway,
            MAX(width_average) FILTER (WHERE width_average > 0) AS width_any
     FROM gip2_linear_use_part
+    {% if regional_codes %}
+    WHERE link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text IN {{ regional_codes | inclause }})
+    {% endif %}
     GROUP BY link_short_id
 );
 
@@ -61,6 +73,9 @@ CREATE TABLE gip2_link_tmp AS (
         LEFT JOIN gip2_link_width w ON w.link_short_id = b.short_id
     WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian (LSB bits 0-2)
       AND b.form_of_way <> 7 -- Parkgarage
+      {% if regional_codes %}
+      AND b.regional_code::text IN {{ regional_codes | inclause }}
+      {% endif %}
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
