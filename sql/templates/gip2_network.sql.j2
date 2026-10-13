@@ -11,29 +11,57 @@ SET search_path =
 -- create tables "gip2_network_tmp", "gip2_link_width", "gip2_link_tmp", "gip2_linkuse_tmp", "gip2_node_tmp"
 -- ---------------------------------------------------------------------------------------------------------------------
 
+{% if bbox %}
+DROP TABLE IF EXISTS gip2_bbox_link;
+CREATE TABLE gip2_bbox_link AS (
+    SELECT link_short_id
+    FROM (
+        SELECT a.short_id AS link_short_id, b.x, b.y
+        FROM gip2_link a
+            JOIN gip2_node b ON a.node_from_short_id = b.short_id
+        UNION ALL
+        SELECT link_short_id, x, y
+        FROM gip2_linkcoordinate
+        UNION ALL
+        SELECT a.short_id, b.x, b.y
+        FROM gip2_link a
+            JOIN gip2_node b ON a.node_to_short_id = b.short_id
+    ) p
+    GROUP BY link_short_id
+    HAVING min(x) <= {{ bbox_xmax }} AND max(x) >= {{ bbox_xmin }}
+       AND min(y) <= {{ bbox_ymax }} AND max(y) >= {{ bbox_ymin }}
+);
+{% endif %}
+
 DROP TABLE IF EXISTS gip2_network_tmp;
 CREATE TABLE gip2_network_tmp AS (
     WITH count AS (
         SELECT a.short_id AS link_short_id, 1 AS "order", NULL::integer AS seq, b.x, b.y
         FROM gip2_link a JOIN gip2_node b ON a.node_from_short_id = b.short_id
-        {% if regional_codes %}
-        WHERE a.regional_code::text IN {{ regional_codes | inclause }}
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regional_code::text IN {{ regional_codes | inclause }}{% else %}TRUE{% endif %}
+            {% if bbox %}AND a.short_id IN (SELECT link_short_id FROM gip2_bbox_link){% endif %}
         {% endif %}
 
         UNION ALL
 
         SELECT link_short_id, 2 AS "order", sequence AS seq, x, y
         FROM gip2_linkcoordinate
-        {% if regional_codes %}
-        WHERE link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text IN {{ regional_codes | inclause }})
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text IN {{ regional_codes | inclause }}){% else %}TRUE{% endif %}
+            {% if bbox %}AND link_short_id IN (SELECT link_short_id FROM gip2_bbox_link){% endif %}
         {% endif %}
 
         UNION ALL
 
         SELECT a.short_id AS link_short_id, 3 AS "order", NULL::integer AS seq, b.x, b.y
         FROM gip2_link a JOIN gip2_node b ON a.node_to_short_id = b.short_id
-        {% if regional_codes %}
-        WHERE a.regional_code::text IN {{ regional_codes | inclause }}
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regional_code::text IN {{ regional_codes | inclause }}{% else %}TRUE{% endif %}
+            {% if bbox %}AND a.short_id IN (SELECT link_short_id FROM gip2_bbox_link){% endif %}
         {% endif %}
     )
     SELECT link_short_id,
@@ -49,8 +77,10 @@ CREATE TABLE gip2_link_width AS (
            MAX(width_average) FILTER (WHERE base_type = 1 AND width_average > 0) AS width_carriageway,
            MAX(width_average) FILTER (WHERE width_average > 0) AS width_any
     FROM gip2_linear_use_part
-    {% if regional_codes %}
-    WHERE link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text IN {{ regional_codes | inclause }})
+    {% if regional_codes or bbox %}
+    WHERE
+        {% if regional_codes %}link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text IN {{ regional_codes | inclause }}){% else %}TRUE{% endif %}
+        {% if bbox %}AND link_short_id IN (SELECT link_short_id FROM gip2_bbox_link){% endif %}
     {% endif %}
     GROUP BY link_short_id
 );
@@ -75,6 +105,9 @@ CREATE TABLE gip2_link_tmp AS (
       AND b.form_of_way <> 7 -- Parkgarage
       {% if regional_codes %}
       AND b.regional_code::text IN {{ regional_codes | inclause }}
+      {% endif %}
+      {% if bbox %}
+      AND ST_Intersects(a.geom, ST_MakeEnvelope({{ bbox_xmin }}, {{ bbox_ymin }}, {{ bbox_xmax }}, {{ bbox_ymax }}, 4326))
       {% endif %}
 );
 
@@ -191,4 +224,4 @@ CREATE INDEX network_node_geom_idx ON network_node USING gist(geom);
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS gip2_network_tmp, gip2_link_width, gip2_link_tmp, gip2_linkuse_tmp, gip2_node_tmp;
+DROP TABLE IF EXISTS gip_bbox_link, gip2_network_tmp, gip2_link_width, gip2_link_tmp, gip2_linkuse_tmp, gip2_node_tmp;

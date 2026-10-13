@@ -11,29 +11,57 @@ SET search_path =
 -- create tables "gip_network_tmp", "gip_link_tmp", "gip_linkuse_tmp", "gip_node_tmp"
 -- ---------------------------------------------------------------------------------------------------------------------
 
+{% if bbox %}
+DROP TABLE IF EXISTS gip_bbox_link;
+CREATE TABLE gip_bbox_link AS (
+    SELECT link_id
+    FROM (
+        SELECT a.link_id, b.x, b.y
+        FROM gip_link a
+            JOIN gip_node b ON a.from_node = b.node_id
+        UNION ALL
+        SELECT link_id, x, y
+        FROM gip_linkcoordinate
+        UNION ALL
+        SELECT a.link_id, b.x, b.y
+        FROM gip_link a
+            JOIN gip_node b ON a.to_node = b.node_id
+    ) p
+    GROUP BY link_id
+    HAVING min(x) <= {{ bbox_xmax }} AND max(x) >= {{ bbox_xmin }}
+       AND min(y) <= {{ bbox_ymax }} AND max(y) >= {{ bbox_ymin }}
+);
+{% endif %}
+
 DROP TABLE IF EXISTS gip_network_tmp;
 CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
     WITH count AS (
         SELECT a.link_id, 1 AS "order", NULL AS count, b.x, b.y
         FROM gip_link a JOIN gip_node b ON a.from_node = b.node_id
-        {% if regional_codes %}
-        WHERE a.regcode::text IN {{ regional_codes | inclause }}
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regcode::text IN {{ regional_codes | inclause }}{% else %}TRUE{% endif %}
+            {% if bbox %}AND a.link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
         {% endif %}
 
         UNION ALL
 
         SELECT link_id, 2 AS "order", count, x, y
         FROM gip_linkcoordinate
-        {% if regional_codes %}
-        WHERE link_id IN (SELECT link_id FROM gip_link WHERE regcode::text IN {{ regional_codes | inclause }})
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}link_id IN (SELECT link_id FROM gip_link WHERE regcode::text IN {{ regional_codes | inclause }}){% else %}TRUE{% endif %}
+            {% if bbox %}AND link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
         {% endif %}
 
         UNION ALL
 
         SELECT a.link_id, 3 AS "order", NULL AS count, b.x, b.y
         FROM gip_link a JOIN gip_node b ON a.to_node = b.node_id
-        {% if regional_codes %}
-        WHERE a.regcode::text IN {{ regional_codes | inclause }}
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regcode::text IN {{ regional_codes | inclause }}{% else %}TRUE{% endif %}
+            {% if bbox %}AND a.link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
         {% endif %}
     )
     SELECT link_id,
@@ -58,6 +86,9 @@ CREATE TABLE gip_link_tmp AS ( -- 14 s, 1.894.917
       AND b.formofway <> 7 -- Parkgarage
       {% if regional_codes %}
       AND b.regcode::text IN {{ regional_codes | inclause }}
+      {% endif %}
+      {% if bbox %}
+      AND ST_Intersects(a.geom, ST_MakeEnvelope({{ bbox_xmin }}, {{ bbox_ymin }}, {{ bbox_xmax }}, {{ bbox_ymax }}, 4326))
       {% endif %}
 );
 
@@ -143,4 +174,4 @@ CREATE INDEX network_node_geom_idx ON network_node USING gist(geom); -- 7 s
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS gip_network_tmp, gip_link_tmp, gip_linkuse_tmp, gip_node_tmp;
+DROP TABLE IF EXISTS gip_bbox_link, gip_network_tmp, gip_link_tmp, gip_linkuse_tmp, gip_node_tmp;
