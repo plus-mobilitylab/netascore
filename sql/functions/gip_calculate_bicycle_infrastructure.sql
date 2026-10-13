@@ -1,5 +1,6 @@
 CREATE OR REPLACE FUNCTION calculate_bicycle_infrastructure(
-    basetype varchar, bikefeature varchar -- bikesigned varchar, designated_route varchar
+    basetype varchar, bikefeature varchar, -- bikesigned varchar, designated_route varchar
+    access_car_ft boolean, access_car_tf boolean
 )
 RETURNS varchar AS $$
 DECLARE
@@ -15,7 +16,8 @@ BEGIN
 
     IF basetype_array IS NOT NULL THEN -- TODO: condition correct?
         FOR i IN 1..array_length(basetype_array, 1) LOOP
-            IF bikefeature_array[i] IN ('RW', 'RWO') THEN
+            IF bikefeature_array[i] IN ('RW', 'RWO') OR
+               (bikefeature_array[i] = 'FRS' AND access_car_ft IS FALSE AND access_car_tf IS FALSE) THEN
                 indicator_values := array_append(indicator_values, 1);
             ELSEIF (bikefeature_array[i] IN ('GRW_T', 'GRW_TO', 'GRW_M', 'GRW_MO') AND basetype_array[i] <> '7') THEN
 				   -- (bikesigned_array[i] = '1' and basetype_array[i] <> '1') OR -- TODO: adaptation to client
@@ -25,6 +27,8 @@ BEGIN
                 indicator_values := array_append(indicator_values, 3);
             ELSEIF bikefeature_array[i] IN ('BS') THEN
                 indicator_values := array_append(indicator_values, 4);
+            ELSEIF bikefeature_array[i] IN ('FRS') THEN
+                indicator_values := array_append(indicator_values, 5);
             END IF;
         END LOOP;
 
@@ -34,6 +38,7 @@ BEGIN
                 WHEN 2 = ANY (indicator_values) THEN 'mixed_way'
                 WHEN 3 = ANY (indicator_values) THEN 'bicycle_lane'
                 WHEN 4 = ANY (indicator_values) THEN 'bus_lane'
+                WHEN 5 = ANY (indicator_values) THEN 'bicycle_road'
                 ELSE 'no'
             END;
     END IF;

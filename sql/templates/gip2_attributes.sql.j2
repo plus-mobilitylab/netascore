@@ -121,8 +121,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS bicycle_infrastructure
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_gip2_bicycle_infrastructure(b.base_type, b.bike_feature_tow) AS bicycle_infrastructure_ft,
-           calculate_gip2_bicycle_infrastructure(b.base_type, b.bike_feature_bkw) AS bicycle_infrastructure_tf
+           calculate_gip2_bicycle_infrastructure(b.base_type, b.bike_feature_tow, a.access_car_ft, a.access_car_tf) AS bicycle_infrastructure_ft,
+           calculate_gip2_bicycle_infrastructure(b.base_type, b.bike_feature_bkw, a.access_car_ft, a.access_car_tf) AS bicycle_infrastructure_tf
     FROM network_edge_attributes a
         LEFT JOIN network_edge b USING (edge_id)
 );
