@@ -395,7 +395,8 @@ CREATE TABLE facility_count AS (
 DROP TABLE IF EXISTS facility_ratio;
 CREATE TABLE facility_ratio AS (
     SELECT a.edge_id,
-           (a.facility_count / b.length * 100.0)::numeric AS facility_ratio
+           -- count per hectare of the search area (buffer of 30 m around the edge, incl. round ends)
+           (a.facility_count / (2 * 30 * b.length + pi() * 30 * 30) * 10000.0)::numeric AS facility_ratio
     FROM facility_count a
          LEFT JOIN network_edge b USING (edge_id)
 );
@@ -434,7 +435,8 @@ CREATE TABLE crossing_count AS (
 DROP TABLE IF EXISTS crossing_ratio;
 CREATE TABLE crossing_ratio AS (
     SELECT a.edge_id,
-           (a.crossing_count / b.length * 100.0)::numeric AS crossing_ratio
+           -- count per hectare of the search area (buffer of 10 m around the edge, incl. round ends)
+           (a.crossing_count / (2 * 10 * b.length + pi() * 10 * 10) * 10000.0)::numeric AS crossing_ratio
     FROM crossing_count a
          LEFT JOIN network_edge b USING (edge_id)
 );
@@ -759,7 +761,8 @@ CREATE TABLE sights_count AS (
 DROP TABLE IF EXISTS sights_ratio;
 CREATE TABLE sights_ratio AS (
     SELECT a.edge_id,
-           (a.sights_count / b.length * 100.0)::numeric AS sights_ratio
+           -- count per hectare of the search area (buffer of 30 m around the edge, incl. round ends)
+           (a.sights_count / (2 * 30 * b.length + pi() * 30 * 30) * 10000.0)::numeric AS sights_ratio
     FROM sights_count a
          LEFT JOIN network_edge b USING (edge_id)
 );
