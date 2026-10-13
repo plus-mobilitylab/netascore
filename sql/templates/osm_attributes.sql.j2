@@ -678,30 +678,24 @@ CREATE TABLE max_speed AS ( -- 7 s
                -- WHEN length(tags -> 'maxspeed') > 3 THEN NULL
                -- WHEN tags -> 'maxspeed' IS NOT NULL THEN (tags -> 'maxspeed')::integer
                WHEN (tags -> 'maxspeed') ~ E'^([0-9]{1,3})$' THEN (tags -> 'maxspeed')::integer
-               WHEN highway = ANY ('{residential,living_street,tertiary}') AND (access = ANY ('{designated,destination,yes}') OR access IS NULL) THEN 50
-               WHEN highway = ANY ('{cycleway,footway,tertiary}') OR
-                    bicycle = ANY ('{yes,designated}') OR
-                    foot = ANY ('{yes,designated,official,permissive}') THEN 0
-               WHEN highway = ANY ('{track,path,unclassified}') AND (bicycle != 'no' OR bicycle IS NULL) AND (foot != 'no' OR foot IS NULL) AND (motorcar != 'yes' OR motorcar IS NULL) AND tracktype = ANY ('{grade3,grade4,grade5}') THEN 0
+               -- no motorized traffic (most specific access tag decides)
+               WHEN highway = ANY ('{cycleway,footway,path,pedestrian,bridleway,steps}') OR
+                    COALESCE(motorcar, tags -> 'motor_vehicle', tags -> 'vehicle', access) = 'no' THEN 0
+               WHEN highway = ANY ('{residential,tertiary,tertiary_link,service}') AND
+                    COALESCE(motorcar, tags -> 'motor_vehicle', tags -> 'vehicle', access) = 'private' THEN 20
+               WHEN highway = ANY ('{residential,tertiary,tertiary_link}') THEN 50
+               WHEN highway = 'track' AND (bicycle != 'no' OR bicycle IS NULL) AND (foot != 'no' OR foot IS NULL) AND (motorcar != 'yes' OR motorcar IS NULL) AND tracktype = ANY ('{grade3,grade4,grade5}') THEN 0
                WHEN highway = 'motorway' THEN 130
-               WHEN highway = 'motorway_link' THEN 100
-               WHEN highway = 'primary_link' THEN 80
-               WHEN access = 'no' OR
-                    motorcar = 'no' OR
-                    highway = 'steps' THEN 0
+               WHEN highway = ANY ('{motorway_link,trunk}') THEN 100
+               WHEN highway = ANY ('{primary_link,trunk_link}') THEN 80
                WHEN motorcar = 'agricultural' OR
-                    highway = 'path' OR
-                    (highway = 'track' AND (access != 'no' OR access IS NULL)) THEN 10
+                    highway = 'track' THEN 10
                WHEN highway = 'living_street' OR
-                    (highway = 'service' AND access = 'private') OR
-                    (highway = 'residential' AND access = 'private') OR
                     (highway = 'construction' AND tracktype IS NOT NULL) THEN 20
                WHEN highway = 'service' THEN 30
-               WHEN highway = 'raceway' THEN 5
                WHEN highway = 'unclassified' OR
                     (highway = 'construction' AND ref IS NULL) THEN 50
-               WHEN highway = 'construction' AND ref = 'B304' THEN 70
-               WHEN highway = ANY ('{primary,secondary}') THEN 100
+               WHEN highway = ANY ('{primary,secondary,secondary_link}') THEN 100
            END AS max_speed
     FROM network_edge
 );
