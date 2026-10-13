@@ -40,7 +40,7 @@ CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
         FROM gip_link a JOIN gip_node b ON a.from_node = b.node_id
         {% if regional_codes or bbox %}
         WHERE
-            {% if regional_codes %}a.regcode::text IN {{ regional_codes | inclause }}{% else %}TRUE{% endif %}
+            {% if regional_codes %}a.regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}]){% else %}TRUE{% endif %}
             {% if bbox %}AND a.link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
         {% endif %}
 
@@ -50,7 +50,7 @@ CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
         FROM gip_linkcoordinate
         {% if regional_codes or bbox %}
         WHERE
-            {% if regional_codes %}link_id IN (SELECT link_id FROM gip_link WHERE regcode::text IN {{ regional_codes | inclause }}){% else %}TRUE{% endif %}
+            {% if regional_codes %}link_id IN (SELECT link_id FROM gip_link WHERE regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}])){% else %}TRUE{% endif %}
             {% if bbox %}AND link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
         {% endif %}
 
@@ -60,7 +60,7 @@ CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
         FROM gip_link a JOIN gip_node b ON a.to_node = b.node_id
         {% if regional_codes or bbox %}
         WHERE
-            {% if regional_codes %}a.regcode::text IN {{ regional_codes | inclause }}{% else %}TRUE{% endif %}
+            {% if regional_codes %}a.regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}]){% else %}TRUE{% endif %}
             {% if bbox %}AND a.link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
         {% endif %}
     )
@@ -85,7 +85,7 @@ CREATE TABLE gip_link_tmp AS ( -- 14 s, 1.894.917
     WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian
       AND b.formofway <> 7 -- Parkgarage
       {% if regional_codes %}
-      AND b.regcode::text IN {{ regional_codes | inclause }}
+      AND b.regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}])
       {% endif %}
       {% if bbox %}
       AND ST_Intersects(a.geom, ST_MakeEnvelope({{ bbox_xmin }}, {{ bbox_ymin }}, {{ bbox_xmax }}, {{ bbox_ymax }}, 4326))
