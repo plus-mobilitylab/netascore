@@ -1242,7 +1242,7 @@ CREATE TABLE network_edge_attributes_tmp AS (
 DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
--- TODO: cleanup for parking -- DROP TABLE parking_intersection_edges, parking_intersection_polys;
+DROP TABLE parking_intersection_edges, parking_intersection_polys;
 {% endif %}
 
 

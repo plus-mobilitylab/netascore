@@ -793,62 +793,41 @@ class OsmImporter(DbStep):
         if db.handle_conflicting_output_tables(['parking'], schema):
             db.execute('''
             CREATE TABLE parking AS (
+            WITH road AS (
+                SELECT way, highway, service,
+                       -- most specific motor vehicle access tag decides
+                       COALESCE(motorcar, tags -> 'motor_vehicle', tags -> 'vehicle', access) AS motor_access,
+                       -- parking per side: side-specific key first, then both sides
+                       COALESCE(tags -> 'parking:left', tags -> 'parking:both', tags -> 'parking',
+                                tags -> 'parking:lane:left', tags -> 'parking:lane:both', tags -> 'parking:lane') AS parking_left,
+                       COALESCE(tags -> 'parking:right', tags -> 'parking:both', tags -> 'parking',
+                                tags -> 'parking:lane:right', tags -> 'parking:lane:both', tags -> 'parking:lane') AS parking_right
+                FROM osm_line
+                WHERE osm_id > -1 -- filter to exclude routes
+                      AND highway IS NOT NULL
+            )
             SELECT ST_Transform(way, %(target_srid)s)::geometry(LineString, %(target_srid)s) AS geom,
-                       CASE WHEN  highway IS NOT NULL AND ((
-                            tags -> 'parking' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        ) OR (
-                            tags -> 'parking:right' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        ) OR (
-                            tags -> 'parking:left' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        ) OR (
-                            tags -> 'parking:both' = ANY ('{surface,street_side,lane,layby,on_kerb,half_on_kerb,shoulder,yes}')
-                        ) OR (
-                            tags -> 'parking:lane' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-                        ) OR (
-                            tags -> 'parking:lane:right' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-                        ) OR (
-                            tags -> 'parking:lane:left' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-                        ) OR (
-                            tags -> 'parking:lane:both' = ANY ('{both,left,right,parallel,perpendicular,marked,diagonal,yes}')
-                        )) THEN 'allowed'
-                       WHEN((
-                       ((tags -> 'parking' IS NULL) 
-                        OR (tags -> 'parking:right' IS NULL) 
-                        OR (tags -> 'parking:left' IS NULL) 
-                        OR (tags -> 'parking:both' IS NULL) 
-                        OR (tags -> 'parking:lane' IS NULL) 
-                        OR (tags -> 'parking:lane:right' IS NULL) 
-                        OR (tags -> 'parking:lane:left' IS NULL) 
-                        OR (tags -> 'parking:lane:both' IS NULL))
-                       AND
-                       (access = ANY ('{designated,destination,yes, private, customers, delivery}') OR access IS NULL) 
-                       AND
-                       highway = ANY ('{residential, unclassified, tertiary, secondary, primary, primary_link, secondary_link, motorway_junction}')
-                       OR (
-                        tags -> 'motor_vehicle' = ANY ('{yes, designated, private, destination, customers, delivery}'))
-                       )) THEN 'implicit' -- cars are permitted but parking is not given
-                        
-                        WHEN ((-- for all: 
-                            (access = ANY ('{designated,destination,yes}') OR access IS NULL) 
-                            AND ((
-                                ((tags -> 'parking' IS NULL OR tags -> 'parking' = 'no') 
-                                OR (tags -> 'parking:right' IS NULL OR tags -> 'parking:right' = 'no') 
-                                OR (tags -> 'parking:left' IS NULL OR tags -> 'parking:left' = 'no') 
-                                OR (tags -> 'parking:both' IS NULL OR tags -> 'parking:both' = 'no') 
-                                OR (tags -> 'parking:lane' IS NULL OR tags -> 'parking:lane' = 'no') 
-                                OR (tags -> 'parking:lane:right' IS NULL OR tags -> 'parking:lane:right' = 'no') 
-                                OR (tags -> 'parking:lane:left' IS NULL OR tags -> 'parking:lane:left' = 'no') 
-                                OR (tags -> 'parking:lane:both' IS NULL OR tags -> 'parking:lane:both' = 'no'))           
-                            ) AND
-                            (tags -> 'motor_vehicle' = ANY ('{no, discouraged}') OR tags -> 'motor_vehicle' IS NULL)
-                            OR
-                            highway = ANY ('{cycleway, pedestrian, bridleway, footway}')   
-                        )
-                        )) THEN 'forbidden'
-                       END AS parking
-            FROM osm_line
-                WHERE osm_id > -1 -- filter to exclude routes (e.g. bus lines etc.)
-                       AND NOT highway IS NULL
+                   CASE
+                       -- parking present on at least one side
+                       WHEN parking_left = ANY ('{lane,street_side,on_kerb,half_on_kerb,shoulder,layby,surface,separate,yes,parallel,diagonal,perpendicular,marked,both,left,right}') OR
+                            parking_right = ANY ('{lane,street_side,on_kerb,half_on_kerb,shoulder,layby,surface,separate,yes,parallel,diagonal,perpendicular,marked,both,left,right}') OR
+                            service = 'parking_aisle'
+                           THEN 'allowed'
+                       -- no parking on both sides
+                       WHEN parking_left = ANY ('{no,no_parking,no_stopping,fire_lane}') AND
+                            parking_right = ANY ('{no,no_parking,no_stopping,fire_lane}')
+                           THEN 'forbidden'
+                       -- roads with unrestricted motor vehicle access: cars are permitted but parking is not specified
+                       WHEN highway = ANY ('{primary,primary_link,secondary,secondary_link,tertiary,tertiary_link,unclassified,residential,service,road}') AND
+                            (motor_access IS NULL OR motor_access = ANY ('{yes,designated,permissive,destination,customers}')) AND
+                            (service IS NULL OR service != ALL ('{driveway,drive-through,emergency_access}'))
+                           THEN 'implicit'
+                       -- all other ways: no motorized traffic, restricted motor vehicle access (e.g. private, agricultural, forestry),
+                       -- parking legally prohibited (motorway, trunk), parking only in marked spots (living_street),
+                       -- or service roads without parking along them (driveway, drive-through, emergency_access)
+                       ELSE 'forbidden'
+                   END AS parking
+            FROM road
             UNION ALL
             SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom,
                         'allowed' AS parking -- dedicated parking
