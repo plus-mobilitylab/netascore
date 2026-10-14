@@ -877,24 +877,7 @@ ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS (
     SELECT edge_id, short_id AS gip_id, from_node, to_node, geom, length, 'road' AS net_type
-{% if include_source_attributes %}
-         , name_text_hr, short_name_hr, name_text_additional, speed_tow_car, speed_bkw_car, maxspeed_tow_car, maxspeed_bkw_car,
-           access_tow, access_bkw, functional_class, lanes_tow_max, lanes_bkw_max, lanes_tow_min, lanes_bkw_min, form_of_way, abutter_car, urban,
-           level_intermediate, construction_state, toll, subnet, oneway_car, edge_category, sustainer, regional_code, connector, owner,
-           oneway_pedestrian, oneway_bike, oneway_bus,
-           lup_short_id,
-           lup_link_percentage_from, lup_link_percentage_to,
-           lup_offset_average, lup_width_average, lup_width_minimal,
-           lup_base_type, lup_access_tow, lup_access_bkw, lup_surface, lup_electric,
-           lup_oneway_pedestrian, lup_oneway_bike, lup_oneway_car, lup_oneway_bus,
-           bh_access_tow, bh_access_bkw, bh_surface,
-           bh_bike_difficulty_tow, bh_bike_difficulty_bkw,
-           bh_bike_signed_tow, bh_bike_signed_bkw,
-           bh_bike_recommendation_tow, bh_bike_recommendation_bkw,
-           bh_bike_feature_tow, bh_bike_feature_bkw,
-           bh_walk_feature_tow, bh_walk_feature_bkw,
-           bh_oneway_pedestrian, bh_oneway_bike
-{% endif %}
+           {{ source_attributes | sqlsafe }}
     FROM network_edge
 );
 

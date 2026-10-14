@@ -877,18 +877,7 @@ ALTER TABLE network_node_attributes ADD PRIMARY KEY (node_id);
 DROP TABLE IF EXISTS network_edge_export;
 CREATE TABLE network_edge_export AS ( -- 13 s, 1.885.895
     SELECT edge_id, link_id AS gip_id, from_node, to_node, geom, length, 'road' AS net_type
-{% if include_source_attributes %}
-         , name1, name2, speed_tow_car, speed_bkw_car, speed_tow_truck, speed_bkw_truck,
-           maxspeed_tow_car, maxspeed_bkw_car, maxspeed_tow_truck, maxspeed_bkw_truck, access_tow, access_bkw,
-           funcroadclass, cap_tow, cap_bkw, lanes_tow, lanes_bkw, formofway, brunnel, maxheight, maxwidth, maxpressure,
-           abutter_car, abutter_lorry, u_turn, slope, urban, level, baustatus, toll, subnet_id, oneway, blt, blb,
-           streetcat, agg_typ, sustainer, regcode, dbcon,
-           lu_use_id, lu_count, lu_offset, lu_width, lu_minwidth, lu_from_percent, lu_to_percent, lu_basetype,
-           lu_use_access_tow, lu_use_access_bkw, lu_surface, lu_electric,
-           bh_use_access_tow, bh_use_access_bkw, bh_bikeenvironment, bh_bikequalitytow, bh_bikequalitybkw,
-           bh_bikedirecttow, bh_bikedirectbkw, bh_bikesignedtow, bh_bikesignedbkw, bh_bikerecommtow, bh_bikerecommbkw,
-           bh_bikewithfoottow, bh_bikewithfootbkw, bh_bikefeaturetow, bh_bikefeaturebkw, bh_walkfeaturetow, bh_walkfeaturebkw
-{% endif %}
+           {{ source_attributes | sqlsafe }}
     FROM network_edge
 );
 

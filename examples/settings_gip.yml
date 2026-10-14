@@ -43,4 +43,5 @@ profiles:
 export:
   type: geopackage
   filename: gip_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
-  # include_source_attributes: True  # optional (GIP): include source attributes in the edge export
+  # include_source_attributes: True  # optional: add GIP source attributes to the edge export (these receive the prefix 'gip_')
+  #                                    True: predefined set of columns / list of column names, e.g. [functional_class, form_of_way]

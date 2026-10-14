@@ -1391,6 +1391,7 @@ CREATE TABLE network_edge_export AS ( -- 18 s, 3.875.173
         WHEN aerialway IS NOT NULL THEN 'aerial'
         ELSE NULL
     END AS net_type
+           {{ source_attributes | sqlsafe }}
     FROM network_edge
 );
 

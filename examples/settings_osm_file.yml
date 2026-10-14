@@ -37,3 +37,5 @@ profiles:
 export:
   type: geopackage
   filename: netascore_<case_id>.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
+  # include_source_attributes: True  # optional: add OSM attributes to the edge export (these receive the prefix 'osm_')
+  #                                    True: predefined set of columns / list of column names or OSM tag keys, e.g. [name, highway, lit, sidewalk:left]
