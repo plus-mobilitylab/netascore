@@ -30,6 +30,7 @@ RUN apt-get update && \
         postgresql-client \
         postgis \
         osm2pgsql \
+        osmium-tool \
         ca-certificates && \
     rm -rf /var/lib/apt/lists/* && \
     python3 -m venv --system-site-packages /opt/netascore

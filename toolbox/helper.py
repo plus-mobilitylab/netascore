@@ -150,6 +150,15 @@ def has_any_key(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
     log(f"None of the following keys were provided: {keys}", loglevel)
     return False
 
+def get_clip_mode(settings: dict) -> str:
+    """Returns the clip mode from the import settings: 'bbox' (default), 'aoi', or 'none'."""
+    clip_mode = 'bbox'
+    if settings and 'clip' in settings:
+        clip_mode = str(settings['clip']).strip().lower()
+    if clip_mode not in ['bbox', 'aoi', 'none']:
+        raise Exception(f"Invalid value '{clip_mode}' for import setting 'clip'. Allowed values: [bbox/aoi/none]")
+    return clip_mode
+
 
 # helper functions for parsing user input / settings values - sqlsafe
 

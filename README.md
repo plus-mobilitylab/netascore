@@ -81,5 +81,6 @@ For running NetAScore without Docker you need several software packages and Pyth
 - psql
 - ogr2ogr
 - osm2pgsql
+- osmium
 - raster2pgsql
 - [several python libraries](../main/requirements.txt)

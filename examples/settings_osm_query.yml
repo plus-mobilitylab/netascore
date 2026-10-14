@@ -24,6 +24,7 @@ import:
   #bbox: 47.7957,13.0117,47.8410,13.0748
   interactive: False # if true, allows for interactive choice in case multiple results were returned for given AOI query (otherwise first is used)
   buffer: 1000
+  clip: bbox # clip the network to the area of interest: 'bbox' (bounding box of the AOI + buffer, default), 'aoi' (AOI geometry + buffer), or 'none'
 
 index:
   compute_explanation: True

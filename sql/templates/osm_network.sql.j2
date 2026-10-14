@@ -8,6 +8,20 @@ SET search_path =
     public;
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- determine clipping area (bounding box of the AOI or AOI geometry, extended by the buffer)
+-- ---------------------------------------------------------------------------------------------------------------------
+{% if clip_mode %}
+DROP TABLE IF EXISTS clip_area;
+CREATE TABLE clip_area AS (
+    SELECT CASE
+               WHEN {{ clip_mode }} = 'aoi' THEN ST_Buffer(ST_Transform(geom, {{ target_srid }}), {{ clip_buffer }})
+               ELSE ST_SetSRID(ST_Expand(box2d(ST_Transform(geom, {{ target_srid }})), {{ clip_buffer }}), {{ target_srid }})
+           END AS geom
+    FROM {{ table_aoi | sqlsafe }}
+    WHERE name = {{ aoi_name }}
+);
+{% endif %}
+-- ---------------------------------------------------------------------------------------------------------------------
 -- calculate network with highways, railways and aerialways
 -- ---------------------------------------------------------------------------------------------------------------------
 
@@ -37,6 +51,10 @@ CREATE TABLE network_init AS ( -- 19 s, 2.162.218
            END AS tunnel
   FROM osm_line
   WHERE osm_id >= 0
+    {% if clip_mode %}
+    -- only ways intersecting the clipping area
+    AND ST_Intersects(way, (SELECT ST_Transform(geom, 4326) FROM clip_area))
+    {% endif %}
     AND (highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
                      'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link', 'living_street',
                      'service', 'pedestrian', 'track', 'bus_guideway', 'escape', 'road', 'footway', 'bridleway',
@@ -329,7 +347,11 @@ CREATE TABLE network_tmp AS ( -- 17 s, 3.875.173
            bridge, tunnel
     FROM network_corrected
 );
-
+{% if clip_mode %}
+-- remove edges outside the clipping area (edges crossing its boundary are kept as a whole)
+DELETE FROM network_tmp
+WHERE NOT ST_Intersects(geom, (SELECT geom FROM clip_area));
+{% endif %}
 -- ---------------------------------------------------------------------------------------------------------------------
 -- create tables "network_edge", "network_node"
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -380,4 +402,4 @@ DROP TABLE network_point;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS indoor_points, intersecting_links, intersections, intersections_all, link_points,
-                     network_corrected, network_corrected_points, network_init, network_tmp;
+                     network_corrected, network_corrected_points, network_init, network_tmp, clip_area;

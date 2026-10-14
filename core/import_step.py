@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 from urllib.error import HTTPError
 import urllib.request
@@ -117,7 +118,15 @@ def import_osm(connection_string: str, path: str, path_style: str, schema: str, 
     """Takes in a path to an osm pbf file and imports it to database tables."""
     prefix = f"--prefix {prefix}" if prefix else ""
 
-    subprocess.run(f"osm2pgsql --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"", 
+    subprocess.run(f"osm2pgsql --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"",
+        shell=True, check=True)
+
+
+def extract_osm(path_in: str, path_out: str, bbox: tuple) -> None:
+    """Extracts a bounding box (min_lon, min_lat, max_lon, max_lat) from an OSM file using osmium.
+    Strategy 'smart' keeps ways and multipolygon relations complete (also beyond the bounding box)."""
+    bbox_str = ",".join(str(v) for v in bbox)
+    subprocess.run(f"osmium extract --bbox {bbox_str} --strategy smart --overwrite --output=\"{path_out}\" \"{path_in}\"",
         shell=True, check=True)
 
 
@@ -507,13 +516,10 @@ class OsmImporter(DbStep):
         # generate AOI entry and insert geometry into AOI table
         db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s, ST_GeomFromText(%s,4326));", (aoi_name, str(geom)))
 
-    def _load_osm_data_for_aoi(self, db: PostgresConnection, data_schema: str, settings: dict):
-        # db settings
-        # first, set target schema
+    def _set_srid_for_aoi(self, db: PostgresConnection, data_schema: str):
         db.schema = data_schema
         aoi_table = self.db_settings.entities.table_aoi
         aoi_name = GlobalSettings.case_id
-
         # determine SRID if not specified manually
         srid = GlobalSettings.custom_srid
         if srid is None:
@@ -522,6 +528,36 @@ class OsmImporter(DbStep):
         else:
             # save cusom SRID to AOI table
             self._save_srid_for_AOI(srid, db, aoi_name, aoi_table, data_schema)
+
+    def _get_extract_bbox(self, db: PostgresConnection, data_schema: str, settings: dict, margin: int = 200) -> tuple:
+        """Returns the bounding box (min_lon, min_lat, max_lon, max_lat) of the clipping area (see 'osm_network' template),
+        extended by a margin (in m) to include surrounding features (e.g. buildings, greenness) for edges at its boundary."""
+        aoi_table = self.db_settings.entities.table_aoi
+        srid = GlobalSettings.get_target_srid()
+        buffer = settings['buffer'] if h.has_keys(settings, ['buffer']) else 0
+        return db.query_one(f"""
+            WITH clip_area AS (
+                SELECT CASE
+                           WHEN %(clip_mode)s = 'aoi' THEN ST_Buffer(ST_Transform(geom, %(srid)s), %(buffer)s)
+                           ELSE ST_SetSRID(ST_Expand(box2d(ST_Transform(geom, %(srid)s)), %(buffer)s), %(srid)s)
+                       END AS geom
+                FROM {data_schema}.{aoi_table}
+                WHERE name = %(aoi_name)s
+            ), extract_area AS (
+                SELECT ST_Transform(ST_SetSRID(ST_Expand(box2d(geom), %(margin)s), %(srid)s), 4326) AS geom
+                FROM clip_area
+            )
+            SELECT ST_XMin(geom), ST_YMin(geom), ST_XMax(geom), ST_YMax(geom) FROM extract_area;""",
+            {'clip_mode': h.get_clip_mode(settings), 'srid': srid, 'buffer': buffer, 'margin': margin, 'aoi_name': GlobalSettings.case_id})
+
+    def _load_osm_data_for_aoi(self, db: PostgresConnection, data_schema: str, settings: dict):
+        # db settings
+        # first, set target schema
+        db.schema = data_schema
+        aoi_table = self.db_settings.entities.table_aoi
+        aoi_name = GlobalSettings.case_id
+
+        srid = GlobalSettings.get_target_srid()
 
         # get BBox for network coverage (larger than chosen AOI -> prevent edge effects)
         buffer = 0
@@ -614,13 +650,24 @@ class OsmImporter(DbStep):
             srid  integer
         );""")
 
-        # if needed, download OSM data
+        # an AOI (bbox, AOI file, or place name) is required for OSM download; for OSM file imports it is optional and
+        # (if given) used for clipping the network to the area of interest (see import setting 'clip')
+        has_aoi = h.has_any_key(settings, ['place_name', 'bbox', 'aoi_filename'])
         if not h.has_keys(settings, ['filename']):
             h.info("no OSM file provided. Checking for OSM query settings instead...")
-            if not h.has_any_key(settings, ['place_name', 'bbox', 'aoi_filename']):
-                raise Exception("neither 'aoi_name', 'aoi_filename', nor 'bbox' parameter specified for OSM download. Terminating.")
+            if not has_aoi:
+                raise Exception("neither 'place_name', 'aoi_filename', nor 'bbox' parameter specified for OSM download. Terminating.")
             use_overpass_api = True
-            
+        else:
+            h.info("using existing OSM file for import step.")
+
+        # clipping to the area of interest (requires an AOI and osmium)
+        clip = has_aoi and h.get_clip_mode(settings) != 'none'
+        if clip and shutil.which('osmium') is None:
+            raise Exception("osmium is required for clipping OSM data to the area of interest, but was not found. "
+                            "Please install osmium-tool (e.g. 'conda install -c conda-forge osmium-tool') or set the import setting 'clip: none'.")
+
+        if has_aoi:
             ### handle conflicts (existing AOI entry with same caseID)
             # check whether an AOI with the given name already exists
             excnt = db.query_one("SELECT COUNT(*) FROM " + aoi_table + " WHERE name = %s;", (aoi_name,))[0]
@@ -657,11 +704,12 @@ class OsmImporter(DbStep):
                 elif h.has_keys(settings, ['place_name']):       # import from place name
                     self._load_osm_aoi_from_placename(db, schema, settings)
 
-                # finally, query OSM data based on previously defined AOI
+            # determine target SRID based on the AOI (unless specified manually)
+            self._set_srid_for_aoi(db, schema)
+
+            # finally, query OSM data based on previously defined AOI
+            if use_overpass_api and not skip_download:
                 self._load_osm_data_for_aoi(db, schema, settings)
-        else:
-            h.info("using existing OSM file for import step.")
-            # TODO: determine bbox of OSM data (from available OSM file) and add entry to AOI table
 
         # import osm file
         h.logBeginTask('import osm file')
@@ -677,7 +725,20 @@ class OsmImporter(DbStep):
         filename = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
         if not use_overpass_api:
             filename = settings['filename']
-        import_osm(db.connection_string, os.path.join(directory, filename), os.path.join('resources', 'default.style'), schema, prefix='osm')  # 12 m 35 s
+        osm_path = os.path.join(directory, filename)
+
+        # if the network is clipped to the AOI, only import the relevant part of the OSM data
+        extract_path = None
+        if clip:
+            bbox = self._get_extract_bbox(db, schema, settings)
+            h.log(f"extracting OSM data for bounding box {bbox}")
+            extract_path = os.path.join(directory, f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}_extract.osm.pbf")
+            extract_osm(osm_path, extract_path, bbox)
+            osm_path = extract_path
+
+        import_osm(db.connection_string, osm_path, os.path.join('resources', 'default.style'), schema, prefix='osm')  # 12 m 35 s
+        if extract_path:
+            os.remove(extract_path)
 
         db.drop_table("osm_nodes", schema=schema)
         db.drop_table("osm_rels", schema=schema)

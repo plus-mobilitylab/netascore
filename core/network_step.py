@@ -95,6 +95,23 @@ class OsmNetworkStep(DbStep):
         db.execute_sql_from_file("osm_delete_dangling_edges", "sql/functions")
         db.commit()
 
+        # determine clipping of the network to the area of interest (requires an AOI entry, e.g. from OSM download)
+        clip_mode = h.get_clip_mode(settings)
+        if clip_mode != 'none':
+            data_schema = self.db_settings.entities.data_schema
+            aoi_table = self.db_settings.entities.table_aoi
+            has_aoi_table = db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{data_schema}.{aoi_table}",))[0]
+            has_aoi = has_aoi_table and db.query_one(f"SELECT COUNT(*) FROM {data_schema}.{aoi_table} WHERE name = %s AND geom IS NOT NULL;",
+                                                     (GlobalSettings.case_id,))[0] > 0
+            if not has_aoi:
+                h.info(f"No AOI found for case '{GlobalSettings.case_id}' - network is not clipped. Specify 'bbox', 'place_name', or 'aoi_filename' in the import settings to enable clipping.")
+                clip_mode = 'none'
+            else:
+                h.info(f"clipping network to the area of interest (clip mode: '{clip_mode}')")
+        buffer = 0
+        if settings and h.has_keys(settings, ['buffer']):
+            buffer = settings['buffer']
+
         # execute "osm_network"
         h.logBeginTask('execute "osm_network"')
         if db.handle_conflicting_output_tables(['network_edge', 'network_node']):
@@ -103,7 +120,11 @@ class OsmNetworkStep(DbStep):
                 'schema_data': self.db_settings.entities.data_schema,
                 'target_srid': GlobalSettings.get_target_srid(),
                 'include_rail': settings and h.has_keys(settings, ['include_rail']) and settings['include_rail'],
-                'include_aerialway': settings and h.has_keys(settings, ['include_aerialway']) and settings['include_aerialway']
+                'include_aerialway': settings and h.has_keys(settings, ['include_aerialway']) and settings['include_aerialway'],
+                'clip_mode': None if clip_mode == 'none' else clip_mode,
+                'clip_buffer': buffer,
+                'table_aoi': self.db_settings.entities.table_aoi,
+                'aoi_name': GlobalSettings.case_id
             }
             db.execute_template_sql_from_file("osm_network", params)
             db.commit()

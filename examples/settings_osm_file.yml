@@ -1,4 +1,6 @@
 version: 2.0
+global:
+  case_id: salzburg # unique id (name) - useful if working with different datasets / areas of interest
 # this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
 database:
   host: gateway.docker.internal
@@ -10,6 +12,10 @@ database:
 import:
   type: osm
   filename: austria-latest.osm.pbf
+  # optional: clip the network to an area of interest ('place_name', 'bbox', or 'aoi_filename' as for OSM download)
+  #place_name: Salzburg
+  #buffer: 1000
+  #clip: bbox # 'bbox' (bounding box of the AOI + buffer, default), 'aoi' (AOI geometry + buffer), or 'none'
 optional:
   dem:
     filename: austria.tif # GeoTIFF
@@ -30,4 +36,4 @@ profiles:
     filter_access_walk: True
 export:
   type: geopackage
-  filename: osm_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
+  filename: netascore_<case_id>.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
