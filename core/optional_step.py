@@ -273,7 +273,7 @@ def create_optional_importer(db_settings: DbSettings, import_type: str):
     if import_type == 'sights':
         return SightsImporter(db_settings)
     raise NotImplementedError(f"optional import type '{import_type}' not implemented. "
-                              "Available types: dem, noise, building, crossing, facility, greenness, water, parking, sights")
+                              "Available types: dem, noise, osm, building, crossing, facility, greenness, water, parking, sights")
 
 
 def run_optional_importers(db_settings: DbSettings, optional_importer_settings: dict):

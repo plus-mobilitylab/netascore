@@ -131,6 +131,27 @@ def extract_osm(path_in: str, path_out: str, bbox: tuple) -> None:
         shell=True, check=True)
 
 
+def get_stored_aoi_srid(db_settings: DbSettings):
+    """Returns the target SRID stored with the AOI of the current case (determined during a previous import), if any."""
+    db = PostgresConnection.from_settings_object(db_settings)
+    try:
+        db.connect()
+    except Exception as e:
+        h.log(f"could not connect to the database to read the target SRID of the AOI: {e}")
+        return None
+    try:
+        aoi_table = f"{db_settings.entities.data_schema}.{db_settings.entities.table_aoi}"
+        if not db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (aoi_table,))[0]:
+            return None
+        row = db.query_one(f"SELECT srid FROM {aoi_table} WHERE name = %s;", (GlobalSettings.case_id,))
+        return row[0] if row else None
+    except Exception as e:
+        h.log(f"could not read the target SRID from the AOI table: {e}")
+        return None
+    finally:
+        db.close()
+
+
 class GipImporter(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
@@ -650,7 +671,7 @@ class OsmImporter(DbStep):
         db.schema = schema
         aoi_table = self.db_settings.entities.table_aoi
         aoi_name = GlobalSettings.case_id
-        on_existing = settings['on_existing']
+        on_existing = settings.get('on_existing', 'skip')  # not set when used as optional importer (GIP)
         # create AOI table if it not already exists
         db.ex(f"""CREATE TABLE IF NOT EXISTS {aoi_table} (
             id    serial NOT NULL PRIMARY KEY,

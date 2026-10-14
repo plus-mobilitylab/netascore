@@ -8,7 +8,7 @@ import toolbox.helper as h
 from core.attributes_step import create_attributes_step
 from core.db_step import DbStep
 from core.export_step import create_exporter
-from core.import_step import create_importer
+from core.import_step import create_importer, get_stored_aoi_srid
 from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
@@ -69,6 +69,14 @@ with settings_stream:
     
     db_settings: DbSettings = DbSettings.from_dict(settings.get('database'))
 
+    # without a custom target SRID, re-use the SRID determined for the AOI of this case in a previous import
+    # (keeps the same CRS for all steps, e.g. when skipping the import step); otherwise the default SRID is used
+    if GlobalSettings.custom_srid is None:
+        aoi_srid = get_stored_aoi_srid(db_settings)
+        if aoi_srid:
+            GlobalSettings.default_srid = aoi_srid
+            h.info(f"using the target SRID stored for the AOI of case '{GlobalSettings.case_id}': EPSG:{aoi_srid}")
+
     # check if all required sections are present first before taking any actions
     if 'import' not in skip_steps:
         h.require_keys(settings, ['import'], 'error: section missing:')
@@ -98,10 +106,7 @@ with settings_stream:
         run_optional_importers(db_settings, h.get_section(settings, 'optional'))
 
     if 'network' not in skip_steps and 'import' in settings:
-        # TODO: specify settings key that is needed by the network step
         h.majorInfo(' === running network step ===')
-        # TODO: add error handling for import_settings
-        # TODO: code repetition
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
@@ -109,10 +114,7 @@ with settings_stream:
         network_step.run_step(import_settings)
 
     if 'attributes' not in skip_steps and 'import' in settings:
-        # TODO: specify settings key that is needed by the attributes step
         h.majorInfo(' === running attributes step ===')
-        # TODO: add error handling for import_settings
-        # TODO: code repetition
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
