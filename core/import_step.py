@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from urllib.error import HTTPError
 import urllib.request
 import zipfile
@@ -137,7 +138,10 @@ class GipImporter(DbStep):
     def run_step(self, settings: dict):
         h.info('importing gip')
         h.log(f"using import settings: {str(settings)}")
-        h.require_keys(settings, ['filename_A'], "error: GIP import requires the key 'filename_A' (zip file of the GIP export) in the import section.")
+        if h.has_keys(settings, ['filename_A']) and not h.has_keys(settings, ['filename']):
+            h.majorInfo("error: the import setting 'filename_A' was renamed to 'filename'. Please update your settings file.")
+            sys.exit(1)
+        h.require_keys(settings, ['filename'], "error: GIP import requires the key 'filename' (zip file of the GIP export) in the import section.")
 
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
@@ -160,25 +164,25 @@ class GipImporter(DbStep):
 
         # extract zip files
         h.logBeginTask('extract zip files')
-        with zipfile.ZipFile(os.path.join(directory, settings['filename_A']), 'r') as zf:
+        with zipfile.ZipFile(os.path.join(directory, settings['filename']), 'r') as zf:
             for file in files_A:
-                if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename'])):
-                    zf.extract(file['filename'], os.path.join(directory, os.path.splitext(settings['filename_A'])[0]))
+                if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename'])[0], file['filename'])):
+                    zf.extract(file['filename'], os.path.join(directory, os.path.splitext(settings['filename'])[0]))
         h.logEndTask()
 
         # create tables from files_A
         for file in files_A:
             h.logBeginTask(f"create table \"{file['table']}\"")
-            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], f"{os.path.splitext(file['filename'])[0]}.csv")):
-                create_csv(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename']))
-            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], f"{os.path.splitext(file['filename'])[0]}.sql")):
-                create_sql(os.path.join(directory, os.path.splitext(settings['filename_A'])[0], file['filename']))
+            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.csv")):
+                create_csv(os.path.join(directory, os.path.splitext(settings['filename'])[0], file['filename']))
+            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.sql")):
+                create_sql(os.path.join(directory, os.path.splitext(settings['filename'])[0], file['filename']))
 
             db.drop_table(file['table'], schema=schema)
-            db.execute_sql_from_file(f"{os.path.splitext(file['filename'])[0]}", os.path.join(directory, os.path.splitext(settings['filename_A'])[0]))
+            db.execute_sql_from_file(f"{os.path.splitext(file['filename'])[0]}", os.path.join(directory, os.path.splitext(settings['filename'])[0]))
             db.commit()
 
-            import_csv(db.connection_string, os.path.join(directory, os.path.splitext(settings['filename_A'])[0], f"{os.path.splitext(file['filename'])[0]}.csv"), schema, table=file['table'])
+            import_csv(db.connection_string, os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.csv"), schema, table=file['table'])
 
             db.add_primary_key(file['table'], file['columns'], schema=schema)
             db.commit()
@@ -352,11 +356,14 @@ class Gip2Importer(DbStep):
     def run_step(self, settings: dict):
         h.info('importing gip 2.0')
         h.log(f"using import settings: {str(settings)}")
-        h.require_keys(settings, ['filename_A'], "error: GIP 2.0 import requires the key 'filename_A' (zip file of the GIP 2.0 export) in the import section.")
+        if h.has_keys(settings, ['filename_A']) and not h.has_keys(settings, ['filename']):
+            h.majorInfo("error: the import setting 'filename_A' was renamed to 'filename'. Please update your settings file.")
+            sys.exit(1)
+        h.require_keys(settings, ['filename'], "error: GIP 2.0 import requires the key 'filename' (zip file of the GIP 2.0 export) in the import section.")
 
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
-        filename = settings['filename_A']
+        filename = settings['filename']
 
         # open database connection
         h.log('connecting to database...')
