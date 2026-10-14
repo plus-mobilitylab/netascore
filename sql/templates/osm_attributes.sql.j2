@@ -250,6 +250,16 @@ DROP TABLE access_bicycle;
 
 DROP TABLE IF EXISTS access_pedestrian;
 CREATE TABLE access_pedestrian AS ( -- 8 s, 3.875.334
+    WITH edge AS (
+        SELECT edge_id, access, foot, highway,
+               -- pedestrian infrastructure on the way itself (not separate way):
+               -- sidewalk=yes/both/left/right, sidewalk:both/left/right=yes, footway=both/left/right (deprecated tagging),
+               -- or any other footway value except no/none/separate
+               (tags -> 'sidewalk' = ANY ('{yes,both,left,right}') OR tags -> 'sidewalk:both' = 'yes' OR
+                tags -> 'sidewalk:left' = 'yes' OR tags -> 'sidewalk:right' = 'yes' OR
+                tags -> 'footway' != ALL ('{no,none,separate}')) IS TRUE AS sidewalk_on_way
+        FROM network_edge
+    )
     SELECT edge_id,
            CASE
                WHEN access IS NULL THEN NULL
@@ -259,25 +269,17 @@ CREATE TABLE access_pedestrian AS ( -- 8 s, 3.875.334
            END AS access,
            CASE
                WHEN foot IS NULL THEN NULL
+               WHEN foot = ANY ('{no,discouraged,use_sidewalk,use_sidepath}') AND sidewalk_on_way THEN NULL
                WHEN foot = ANY ('{no,discouraged,private,workers,use_sidepath,use_sidewalk}') THEN 'no'
                ELSE 'yes'
            END AS foot,
-           CASE
-               WHEN tags -> 'footway' IS NULL THEN NULL
-               WHEN tags -> 'footway' = ANY ('{no}') THEN 'no'
-               ELSE 'yes'
-           END AS footway,
-           CASE
-               WHEN tags -> 'sidewalk' IS NULL THEN NULL
-               WHEN tags -> 'sidewalk' = ANY ('{no,no u-turn?,none}') THEN 'no'
-               ELSE 'yes'
-           END AS sidewalk,
+           CASE WHEN sidewalk_on_way THEN 'yes' END AS sidewalk,
            CASE
                WHEN highway IS NULL THEN NULL
                WHEN highway = ANY ('{bus_guideway,cycleway,emergency_bay,escape,motorway,motorway_link}') THEN 'no'
                ELSE 'yes'
            END AS highway
-    FROM network_edge
+    FROM edge
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -288,8 +290,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS access_pedestrian_tf;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           calculate_access_pedestrian(access,b.foot,b.footway,b.sidewalk,b.highway)::boolean AS access_pedestrian_ft,
-           calculate_access_pedestrian(access,b.foot,b.footway,b.sidewalk,b.highway)::boolean AS access_pedestrian_tf
+           calculate_access_pedestrian(b.access, b.foot, b.sidewalk, b.highway)::boolean AS access_pedestrian_ft,
+           calculate_access_pedestrian(b.access, b.foot, b.sidewalk, b.highway)::boolean AS access_pedestrian_tf
     FROM network_edge_attributes a
         LEFT JOIN access_pedestrian b USING (edge_id)
 );

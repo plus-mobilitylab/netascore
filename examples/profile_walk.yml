@@ -33,16 +33,7 @@ weights:
 
 # OVERRIDES - here, weights and/or index values can be overridden #
 
-overrides:
-  - description: fixed index value for sidewalk on primary/secondary roads (pedestrian_infrastructure/road_category)
-    indicator: pedestrian_infrastructure
-    output:
-      type: index
-    mapping:
-      "sidewalk":
-        indicator: road_category
-        mapping:
-          "{'secondary', 'primary'}": 0.2
+overrides: []
 
 
 # INDICATOR attribute mappings #
