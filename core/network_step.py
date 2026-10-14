@@ -24,7 +24,7 @@ class GipNetworkStep(DbStep):
         h.logBeginTask('execute "gip_network"')
         if db.handle_conflicting_output_tables(['network_edge', 'network_node']):
             regional_code = settings.get('regional_code') if settings else None
-            bbox = settings.get('bbox') if settings else None
+            bbox = h.parse_bbox(settings['bbox']) if h.has_keys(settings, ['bbox']) and settings['bbox'] else None
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
@@ -69,7 +69,7 @@ class Gip2NetworkStep(DbStep):
         h.logBeginTask('execute "gip2_network"')
         if db.handle_conflicting_output_tables(['network_edge', 'network_node']):
             regional_code = settings.get('regional_code') if settings else None
-            bbox = settings.get('bbox') if settings else None
+            bbox = h.parse_bbox(settings['bbox']) if h.has_keys(settings, ['bbox']) and settings['bbox'] else None
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,

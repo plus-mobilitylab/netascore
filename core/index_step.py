@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import yaml
 
 import toolbox.helper as h
@@ -17,6 +18,12 @@ class ProfileDefinition:
         self.filename = filename
 
 
+# indicators that can be defined in mode profiles (see sql/functions/calculate_index.sql.j2)
+INDICATORS = ['bicycle_infrastructure', 'pedestrian_infrastructure', 'designated_route', 'road_category', 'max_speed',
+              'max_speed_greatest', 'parking', 'pavement', 'width', 'gradient', 'number_lanes', 'facilities', 'crossings',
+              'buildings', 'greenness', 'water', 'sights', 'noise']
+
+
 class ModeProfile:
     profile_name: str
     profile: dict = {}
@@ -25,17 +32,50 @@ class ModeProfile:
     access_walk: False
 
     def __init__(self, base_path: str, definition: dict):
-        self.profile_name = definition.get('profile_name')
-        filename = os.path.join(base_path, definition.get('filename'))
+        h.require_keys(definition, ['profile_name', 'filename'],
+                       f"error: each entry in section 'profiles' needs a 'profile_name' and a 'filename'. Found: {definition}")
+        h.warn_unknown_keys(definition, ['profile_name', 'filename', 'filter_access_car', 'filter_access_bike', 'filter_access_walk'],
+                            f"profile definition '{definition.get('profile_name')}'")
+        self.profile_name = h.get_safe_name(str(definition.get('profile_name')))
+        filename = os.path.join(base_path, str(definition.get('filename')))
         self.access_car = h.has_keys(definition, ['filter_access_car']) and definition['filter_access_car']
         self.access_bike = h.has_keys(definition, ['filter_access_bike']) and definition['filter_access_bike']
         self.access_walk = h.has_keys(definition, ['filter_access_walk']) and definition['filter_access_walk']
         # if none of the mode access filters are set, then enable index computation for all modes
         if not (self.access_car or self.access_bike or self.access_walk):
             self.access_car = self.access_bike = self.access_walk = True
+        if not os.path.isfile(filename):
+            h.majorInfo(f"error: mode profile file '{filename}' (profile '{self.profile_name}') not found.")
+            sys.exit(1)
         with open(filename) as file:
             self.profile = yaml.safe_load(file)
         h.require_file_version(self.profile, filename, "examples/profile_bike.yml")
+        self._validate(filename)
+
+    def _validate(self, filename: str):
+        """Checks the profile structure when loading it (before any processing step runs)."""
+        h.warn_unknown_keys(self.profile, ['version', 'weights', 'overrides', 'indicator_mapping'], f"mode profile '{filename}'")
+        h.require_keys(self.profile, ['weights', 'indicator_mapping'],
+                       f"error: mode profile '{filename}' needs the sections 'weights' and 'indicator_mapping'. See examples/profile_bike.yml.")
+        # weights: indicators that are not listed are not used (NULL)
+        weights = self.profile.get('weights') if isinstance(self.profile.get('weights'), dict) else {}
+        h.warn_unknown_keys(weights, INDICATORS, f"section 'weights' of mode profile '{filename}'")
+        missing = [i for i in INDICATORS if i not in weights]
+        if missing:
+            h.info(f"mode profile '{filename}': no weight given for {', '.join(missing)} - these indicators are skipped for index calculation.")
+        self.profile['weights'] = {i: weights.get(i) for i in INDICATORS}
+        # indicator mappings and overrides need to name an indicator
+        mappings = self.profile.get('indicator_mapping') or []
+        overrides = self.profile.get('overrides') or []
+        if not isinstance(mappings, list) or not isinstance(overrides, list):
+            h.majorInfo(f"error: 'indicator_mapping' and 'overrides' in mode profile '{filename}' need to be lists.")
+            sys.exit(1)
+        for entry in mappings + overrides:
+            if not h.has_keys(entry, ['indicator']):
+                h.majorInfo(f"error: each entry in 'indicator_mapping' and 'overrides' of mode profile '{filename}' needs an 'indicator' key. Found: {entry}")
+                sys.exit(1)
+        self.profile['indicator_mapping'] = mappings
+        self.profile['overrides'] = overrides
 
 
 def load_profiles(base_path: str, profile_definitions: dict):
@@ -67,7 +107,7 @@ def _build_sql_overrides(overrides_yml: dict) -> str:
         assignment_sql += f"{a_target} := temp; \n"
     # delete output details and description from yml (for function compatibility)
     del overrides_yml['output']
-    del overrides_yml['description']
+    overrides_yml.pop('description', None)
     # compile value mappings
     value_assignments = _build_sql_indicator_mapping_internal_(overrides_yml, "", force_default_value = True, def_value = -1)
     # compile full indicator SQL around indicator mapping code
@@ -213,7 +253,7 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
             # parse profile definition: generate SQL for overrides (indicator weights or index)
             h.info(f'parsing value overrides for profile "{profile_name}"...')
             overrides_sql = ""
-            for override in p.profile['overrides']:
+            for override in (p.profile.get('overrides') or []):
                 overrides_sql += _build_sql_overrides(override)
             h.debugLog(f"compiled overrides SQL: \n\n{overrides_sql}")
             

@@ -32,7 +32,7 @@ class GeopackageExporter(DbStep):
         h.log('set search path')
         db.schema = schema
 
-        filename: str = settings['filename']
+        filename: str = str(settings.get('filename') or "netascore_<case_id>.gpkg")
         filename = filename.replace("<case_id>", GlobalSettings.case_id)
         filename = filename.replace("<srid>", str(GlobalSettings.get_target_srid()))
         

@@ -137,6 +137,10 @@ def require_keys(settings: dict, required_keys: List[str], error_message: str = 
         sys.exit(1)
 
 def has_keys(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
+    # empty settings sections (e.g. 'index:' without content) are loaded as None by YAML
+    if not isinstance(settings, dict):
+        log(f"keys {keys} not provided (settings section is empty).", loglevel)
+        return False
     for key in keys:
         if key not in settings:
             log(f"key '{key}' not provided.", loglevel)
@@ -144,11 +148,43 @@ def has_keys(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
     return True
 
 def has_any_key(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
-    for key in keys:
-        if key in settings:
-            return True
+    if isinstance(settings, dict):
+        for key in keys:
+            if key in settings:
+                return True
     log(f"None of the following keys were provided: {keys}", loglevel)
     return False
+
+def get_section(settings: dict, key: str) -> dict:
+    """Returns the given settings section as dict (empty dict if the section is missing or empty)."""
+    if not isinstance(settings, dict):
+        return {}
+    section = settings.get(key)
+    return section if isinstance(section, dict) else {}
+
+def warn_unknown_keys(settings: dict, known_keys: List[str], context: str) -> None:
+    """Logs a warning for keys that are not known (e.g. typos), as these are ignored."""
+    if not isinstance(settings, dict):
+        return
+    for key in settings:
+        if key not in known_keys:
+            majorInfo(f"WARNING: unknown key '{key}' in {context} - it will be ignored. Known keys: {', '.join(known_keys)}")
+
+def parse_bbox(value, setting_name: str = "bbox") -> List[float]:
+    """Parses a bounding box given as list or comma-separated string in the order
+    min lat, min lon, max lat, max lon (WGS84), e.g. '47.75, 12.98, 47.86, 13.12' or [47.75, 12.98, 47.86, 13.12]."""
+    parts = value.split(",") if isinstance(value, str) else value
+    try:
+        bbox = [float(str(v).strip()) for v in parts]
+    except (TypeError, ValueError):
+        bbox = []
+    if len(bbox) != 4:
+        raise Exception(f"Unable to interpret the given '{setting_name}' value '{value}'. "
+                        "It needs to contain min lat, min lon, max lat, max lon (WGS84), e.g. '47.75, 12.98, 47.86, 13.12' or [47.75, 12.98, 47.86, 13.12].")
+    min_lat, min_lon, max_lat, max_lon = bbox
+    if not (-90 <= min_lat < max_lat <= 90 and -180 <= min_lon < max_lon <= 180):
+        raise Exception(f"Invalid '{setting_name}' value '{value}': expected min lat, min lon, max lat, max lon (in WGS84)")
+    return bbox
 
 def get_clip_mode(settings: dict) -> str:
     """Returns the clip mode from the import settings: 'bbox' (default), 'aoi', or 'none'."""

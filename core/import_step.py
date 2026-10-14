@@ -137,6 +137,7 @@ class GipImporter(DbStep):
     def run_step(self, settings: dict):
         h.info('importing gip')
         h.log(f"using import settings: {str(settings)}")
+        h.require_keys(settings, ['filename_A'], "error: GIP import requires the key 'filename_A' (zip file of the GIP export) in the import section.")
 
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
@@ -351,6 +352,7 @@ class Gip2Importer(DbStep):
     def run_step(self, settings: dict):
         h.info('importing gip 2.0')
         h.log(f"using import settings: {str(settings)}")
+        h.require_keys(settings, ['filename_A'], "error: GIP 2.0 import requires the key 'filename_A' (zip file of the GIP 2.0 export) in the import section.")
 
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
@@ -692,10 +694,7 @@ class OsmImporter(DbStep):
             ### import / query AOI and add it to AOI table
             if not skip_download:
                 if h.has_keys(settings, ['bbox']):               # import from bounding box
-                    # TODO: validate input property for "bbox" from settings file
-                    bx = settings['bbox'].strip().split(",")
-                    if len(bx) != 4:
-                        raise Exception("Unable to interpret given bounding box - needs to follow the format '12.34, 56.78, 9.01, 23.45'")
+                    bx = h.parse_bbox(settings['bbox'])  # min lat, min lon, max lat, max lon
                     bbox_geom = f"st_setSRID(st_envelope(st_makeLine(st_makePoint({bx[1]},{bx[0]}), st_makePoint({bx[3]},{bx[2]}))), 4326)"
                     db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s," + bbox_geom + ");", (aoi_name,))
                 elif h.has_keys(settings, ['aoi_filename']):     # import from given AOI polygon (geopackage file)

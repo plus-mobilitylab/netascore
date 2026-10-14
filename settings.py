@@ -42,12 +42,14 @@ class DbSettings:
 
     @staticmethod
     def from_dict(settings_template: dict):
-        host = settings_template.get('host', 'netascore-db')
-        port = settings_template.get('port', 5432)
-        dbname = settings_template.get('dbname', 'postgres')
-        username = settings_template.get('username', '')
-        password = settings_template.get('password', '')
-        on_existing = settings_template.get('on_existing', 'abort')
+        # the database section is optional (defaults to the database inside the Docker container)
+        settings_template = settings_template if isinstance(settings_template, dict) else {}
+        host = settings_template.get('host') or 'netascore-db'
+        port = settings_template.get('port') or 5432
+        dbname = settings_template.get('dbname') or 'postgres'
+        username = str(settings_template.get('username') or '')
+        password = str(settings_template.get('password') or '')
+        on_existing = settings_template.get('on_existing') or 'abort'
 
         if len(username) == 0:
             username = os.getenv('DB_USERNAME', '')

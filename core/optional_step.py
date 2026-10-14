@@ -272,10 +272,13 @@ def create_optional_importer(db_settings: DbSettings, import_type: str):
         return ParkingImporter(db_settings)
     if import_type == 'sights':
         return SightsImporter(db_settings)
-    raise NotImplementedError(f"import type '{import_type}' not implemented")
+    raise NotImplementedError(f"optional import type '{import_type}' not implemented. "
+                              "Available types: dem, noise, building, crossing, facility, greenness, water, parking, sights")
 
 
 def run_optional_importers(db_settings: DbSettings, optional_importer_settings: dict):
     for import_type, settings in optional_importer_settings.items():
+        required = ['filename', 'srid'] if import_type == 'dem' else ['filename']
+        h.require_keys(settings, required, f"error: optional importer '{import_type}' needs the following keys: {', '.join(required)}")
         optional_importer = create_optional_importer(db_settings, import_type)
         optional_importer.run_step(settings)

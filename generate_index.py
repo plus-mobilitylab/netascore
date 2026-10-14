@@ -55,10 +55,12 @@ def require_on_existing_setting(settings: dict):
 with settings_stream:
     settings: dict = yaml.safe_load(settings_stream)
     h.require_file_version(settings, settings_stream.name, "examples/settings_osm_query.yml")
+    h.warn_unknown_keys(settings, ['version', 'global', 'database', 'import', 'optional', 'index', 'profiles', 'export'], "settings file")
 
     # process global settings if given
     if h.has_keys(settings, ['global']):
-        global_settings: dict = settings['global']
+        global_settings: dict = h.get_section(settings, 'global')
+        h.warn_unknown_keys(global_settings, ['target_srid', 'case_id'], "section 'global'")
         if h.has_keys(global_settings, ['target_srid']):
             GlobalSettings.custom_srid = h.str_to_numeric(re.sub("[^0-9]", "", str(global_settings['target_srid'])))
             h.info(f"Set the target SRID to {GlobalSettings.get_target_srid()}")
@@ -75,6 +77,9 @@ with settings_stream:
     profiles = None
     if 'index' not in skip_steps:
         h.require_keys(settings, ['profiles'], 'error: section missing:')
+        if not isinstance(settings['profiles'], list) or len(settings['profiles']) == 0:
+            h.majorInfo("error: section 'profiles' needs to contain a list of mode profiles (each with 'profile_name' and 'filename').")
+            sys.exit(1)
         profiles = load_profiles(base_path, settings['profiles'])
 
     # execute processing steps
@@ -90,7 +95,7 @@ with settings_stream:
 
     if 'optional' not in skip_steps and 'optional' in settings:
         h.majorInfo(' === running optional importers ===')
-        run_optional_importers(db_settings, settings.get('optional'))
+        run_optional_importers(db_settings, h.get_section(settings, 'optional'))
 
     if 'network' not in skip_steps and 'import' in settings:
         # TODO: specify settings key that is needed by the network step
