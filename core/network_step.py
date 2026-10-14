@@ -23,10 +23,18 @@ class GipNetworkStep(DbStep):
         # execute "gip_network"
         h.logBeginTask('execute "gip_network"')
         if db.handle_conflicting_output_tables(['network_edge', 'network_node']):
+            regional_code = settings.get('regional_code') if settings else None
+            bbox = settings.get('bbox') if settings else None
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
-                'target_srid': GlobalSettings.get_target_srid()
+                'target_srid': GlobalSettings.get_target_srid(),
+                'regional_codes': [] if not regional_code else regional_code if isinstance(regional_code, list) else [regional_code],
+                'bbox': bbox or [],
+                'bbox_ymin': None if not bbox else bbox[0],
+                'bbox_xmin': None if not bbox else bbox[1],
+                'bbox_ymax': None if not bbox else bbox[2],
+                'bbox_xmax': None if not bbox else bbox[3]
             }
             db.execute_template_sql_from_file("gip_network", params)
             db.commit()
@@ -60,10 +68,18 @@ class Gip2NetworkStep(DbStep):
         # execute "gip2_network"
         h.logBeginTask('execute "gip2_network"')
         if db.handle_conflicting_output_tables(['network_edge', 'network_node']):
+            regional_code = settings.get('regional_code') if settings else None
+            bbox = settings.get('bbox') if settings else None
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
-                'target_srid': GlobalSettings.get_target_srid()
+                'target_srid': GlobalSettings.get_target_srid(),
+                'regional_codes': [] if not regional_code else regional_code if isinstance(regional_code, list) else [regional_code],
+                'bbox': bbox or [],
+                'bbox_ymin': None if not bbox else bbox[0],
+                'bbox_xmin': None if not bbox else bbox[1],
+                'bbox_ymax': None if not bbox else bbox[2],
+                'bbox_xmax': None if not bbox else bbox[3]
             }
             db.execute_template_sql_from_file("gip2_network", params)
             db.commit()
