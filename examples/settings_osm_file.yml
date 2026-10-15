@@ -6,7 +6,7 @@ database:
   host: gateway.docker.internal
   port: 5432
   dbname: netascore
-  on_existing: abort # skip, delete, abort
+  on_existing: abort # reuse, reuse_or_overwrite, overwrite, abort
   # user and password to be specified as ENV variables (DB_USERNAME, DB_PASSWORD) for production environments instead of hardcoding them here
 # -- end of optional db part --
 import:

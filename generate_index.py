@@ -2,7 +2,6 @@ import argparse
 import sys
 import yaml
 import re
-from typing import List
 
 import toolbox.helper as h
 from core.attributes_step import create_attributes_step
@@ -36,20 +35,10 @@ if args.loglevel:
 h.info(f'loading {settings_stream.name}')
 h.info(f'skip steps: {str(skip_steps)}')
 
-def require_allowed_value(setting_value: str, setting_name: str, allowed: List[str]):
-    for value in allowed:
-        if value == setting_value:
-            return
-
-    h.majorInfo(setting_name + ': ' + setting_value + ' is not one of the allowed values: ' + ' '.join(allowed))
-    sys.exit(1)
-
-
 def require_on_existing_setting(settings: dict):
     if 'on_existing' not in settings:
-        h.info('defaulting \'on_existing\' to \'skip\'')
-        settings['on_existing'] = 'skip'
-    require_allowed_value(settings['on_existing'], 'on_existing', ['skip', 'delete', 'abort'])
+        h.info('defaulting \'on_existing\' to \'reuse\'')
+    settings['on_existing'] = h.normalize_on_existing(settings.get('on_existing'), "section 'import'", default='reuse')
 
 
 with settings_stream:

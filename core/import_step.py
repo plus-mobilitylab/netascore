@@ -627,15 +627,14 @@ class OsmImporter(DbStep):
             out;"""
         net_file = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
         if os.path.isfile(os.path.join(GlobalSettings.data_directory, net_file)):
-            if not h.has_keys(settings, ['on_existing']):
-                raise Exception("Target file for OSM download already exists. Please add a value for 'on_existing' to the import settings. [skip/abort/delete]")
-            if settings['on_existing'] == 'skip':
-                h.info("Target file for OSM download already exists. Skipping download (re-using existing file). You can change this behavior by adding a value for 'on_existing' to the import settings. [skip/abort/delete]")
+            on_existing = h.normalize_on_existing(settings.get('on_existing'), "section 'import'", default='abort')
+            if on_existing in ('reuse', 'reuse_or_overwrite'):
+                h.info("Target file for OSM download already exists. Skipping download (re-using existing file). You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
                 return
-            if settings['on_existing'] != 'delete':
-                raise Exception("Target file for OSM download already exists. Aborting. Please resolve the conflict manually or specify a different value for 'on_existing' in the import settings. [skip/abort/delete]")     
+            if on_existing != 'overwrite':
+                raise Exception("Target file for OSM download already exists. Aborting. Please resolve the conflict manually or specify a different value for 'on_existing' in the import settings. [reuse/reuse_or_overwrite/overwrite/abort]")
             else:
-                h.info("Target file for OSM download already exists. Deleting existing file and proceeding with download. You can change this behavior by adding a value for 'on_existing' to the import settings. [skip/abort/delete]")
+                h.info("Target file for OSM download already exists. Deleting existing file and proceeding with download. You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
         q_str = q_template.replace("__bbox__", bbox)
         h.debugLog(f"prepared OSM overpass API query: \n'{q_str}")
 
@@ -685,7 +684,7 @@ class OsmImporter(DbStep):
         db.schema = schema
         aoi_table = self.db_settings.entities.table_aoi
         aoi_name = GlobalSettings.case_id
-        on_existing = settings.get('on_existing', 'skip')  # not set when used as optional importer (GIP)
+        on_existing = h.normalize_on_existing(settings.get('on_existing'), "section 'import'", default='reuse')  # not set when used as optional importer (GIP)
         # create AOI table if it not already exists
         db.ex(f"""CREATE TABLE IF NOT EXISTS {aoi_table} (
             id    serial NOT NULL PRIMARY KEY,
@@ -718,18 +717,18 @@ class OsmImporter(DbStep):
             if excnt > 0:
                 h.info(f"found {excnt} entry in existing AOI table with the given AOI name '{aoi_name}'")
                 # if exists, use param switch or ask whether to use an existing AOI or overwrite it
-                if  on_existing == 'delete':
+                if  on_existing == 'overwrite':
                     h.info("...you specified to overwrite the existing AOI entry.")
                     # delete existing AOI from AOI table
                     db.ex("DELETE FROM " + schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
                     # continue script execution
-                elif on_existing == 'skip':
+                elif on_existing in ('reuse', 'reuse_or_overwrite'):
                     # TODO: more precise behavior -> skip only AOI download (name query), or also OSM data download for existing AOI definition?
                     #       (currently it skips both, so re-imports a locally available OSM download file / cached OSM data)
                     h.info("...you chose to re-use the existing AOI entry. Skipping AOI download.")
                     skip_download = True
                 else:
-                    raise Exception("An AOI with the given id already exists. Please resolve the conflict manually or provide a different option for the import setting 'on_exists': [skip/delete/abort]")
+                    raise Exception("An AOI with the given id already exists. Please resolve the conflict manually or provide a different option for the import setting 'on_existing': [reuse/reuse_or_overwrite/overwrite/abort]")
             else:
                 h.info("AOI name '" + aoi_name + "' is not in use -> continuing with AOI download...")
 

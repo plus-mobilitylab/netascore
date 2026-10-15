@@ -1,4 +1,6 @@
 import os
+
+import toolbox.helper as h
 from dataclasses import dataclass
 from enum import Enum
 
@@ -49,7 +51,7 @@ class DbSettings:
         dbname = settings_template.get('dbname') or 'postgres'
         username = str(settings_template.get('username') or '')
         password = str(settings_template.get('password') or '')
-        on_existing = settings_template.get('on_existing') or 'abort'
+        on_existing = h.normalize_on_existing(settings_template.get('on_existing'), "section 'database'", default='abort')
 
         if len(username) == 0:
             username = os.getenv('DB_USERNAME', '')

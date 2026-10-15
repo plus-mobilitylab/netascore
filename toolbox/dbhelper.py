@@ -276,24 +276,23 @@ class PostgresConnection:
     
     def handle_conflicting_output_tables(self, tables: List[str], schema: str = None, on_existing:str = None)->bool:
         # returns True if tables were dropped or are not existing and process can continue normally, False if step should be skipped
-        if on_existing is None:
-            on_existing = self._on_existing
+        on_existing = h.normalize_on_existing(on_existing, "table conflict handling") if on_existing is not None else self._on_existing
         t_exists:bool = False
         for table in tables:
             if self.exists(table, schema):
                 t_exists = True
         if not t_exists:
             return True # no conflicts -> all good
-        if on_existing == "skip":
+        if on_existing in ("reuse", "reuse_or_overwrite"):
             return False # return False, calling code needs to handle skipping of step
-        if on_existing == "delete":
+        if on_existing == "overwrite":
             for table in tables:
                 if self.exists(table, schema):
                     self.drop_table(table, cascade=True, schema = schema)
             self.commit()
             return True
         # case "abort" / in general: throw Error
-        raise Exception("Output table(s) already exist. Please resolve conflict manually or specify 'on_existing' parameter to delete or skip existing tables.")
+        raise Exception(f"Output table(s) already exist: {', '.join(tables)}. Please resolve the conflict manually or set 'on_existing' to 'reuse', 'reuse_or_overwrite', or 'overwrite'.")
 
     def execute_sql_from_file(self, script_file_name, subdir:str="sql/"):
         if not subdir.endswith("/") or subdir.endswith("\\"):

@@ -186,6 +186,26 @@ def parse_bbox(value, setting_name: str = "bbox") -> List[float]:
         raise Exception(f"Invalid '{setting_name}' value '{value}': expected min lat, min lon, max lat, max lon (in WGS84)")
     return bbox
 
+# reuse: reuse existing data if it matches the settings of currently available data (otherwise error)
+# reuse_or_overwrite: reuse existing data if it matches the current settings (otherwise overwrite)
+# overwrite: always overwrite existing data, abort: stop if data exists
+# NOTE: data without a recorded origin, e.g. results of processing steps, is reused without checks (for 'reuse' and 'reuse_or_overwrite')
+ON_EXISTING_VALUES = ['reuse', 'reuse_or_overwrite', 'overwrite', 'abort']
+ON_EXISTING_ALIASES = {'skip': 'reuse', 'delete': 'overwrite'}  # names used before NetAScore 2.0
+
+def normalize_on_existing(value, context: str, default: str = 'abort') -> str:
+    """Returns the 'on_existing' value ('reuse', 'reuse_or_overwrite', 'overwrite', or 'abort'); old names ('skip', 'delete') are translated."""
+    if value is None or str(value).strip() == '':
+        return default
+    v = str(value).strip().lower()
+    if v in ON_EXISTING_ALIASES:
+        info(f"'on_existing: {v}' in {context} was renamed to '{ON_EXISTING_ALIASES[v]}' - please update your settings file.")
+        v = ON_EXISTING_ALIASES[v]
+    if v not in ON_EXISTING_VALUES:
+        majorInfo(f"error: invalid value '{value}' for 'on_existing' in {context}. Allowed values: {', '.join(ON_EXISTING_VALUES)}")
+        sys.exit(1)
+    return v
+
 def get_clip_mode(settings: dict) -> str:
     """Returns the clip mode from the import settings: 'bbox' (default), 'aoi', or 'none'."""
     clip_mode = 'bbox'
