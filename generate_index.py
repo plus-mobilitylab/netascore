@@ -18,8 +18,8 @@ parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Scor
 parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
                     help="""file that contains all settings (input data, referenced mode profiles,...) - runs a demo for Salzburg, Austria if omitted. 
                     More details available in the online documentation at: https://github.com/plus-mobilitylab/netascore""")
-parser.add_argument('--skip', nargs='+', choices=['import', 'optional', 'network', 'attributes', 'index', 'export'],
-                    help='skip one or more of these steps - e.g. "--skip import optional"')
+parser.add_argument('--skip', nargs='+', choices=['import', 'network', 'optional', 'attributes', 'index', 'export'],
+                    help='skip one or more of these steps (in order of execution) - e.g. "--skip import network"')
 parser.add_argument('--loglevel', nargs=1, choices=["1", "2", "3", "4"],
                     help="Sets the level of debug outputs on the console: 1=MajorInfo, 2=Info, 3=Detailed, 4=Debug")
 
@@ -101,10 +101,6 @@ with settings_stream:
     else:
         h.majorInfo(' === skipping import ===')
 
-    if 'optional' not in skip_steps and 'optional' in settings:
-        h.majorInfo(' === running optional importers ===')
-        run_optional_importers(db_settings, h.get_section(settings, 'optional'))
-
     if 'network' not in skip_steps and 'import' in settings:
         h.majorInfo(' === running network step ===')
         import_settings: dict = settings['import']
@@ -112,6 +108,12 @@ with settings_stream:
         require_on_existing_setting(import_settings)
         network_step: DbStep = create_network_step(db_settings, import_settings['type'])
         network_step.run_step(import_settings)
+
+    # optional import runs after the network step in V2.0 to allow for clipping optional imports 
+    # to the spatial extent of the imported network
+    if 'optional' not in skip_steps and 'optional' in settings:
+        h.majorInfo(' === running optional importers ===')
+        run_optional_importers(db_settings, h.get_section(settings, 'optional'))
 
     if 'attributes' not in skip_steps and 'import' in settings:
         h.majorInfo(' === running attributes step ===')
