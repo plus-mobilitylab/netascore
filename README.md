@@ -19,6 +19,8 @@ Details regarding the **bikeability assessment method** as well as results of an
 
 Details on the **walkability index** together with results from a large **evaluation study** are published Open Access: [doi.org/10.3390/su17083634](https://doi.org/10.3390/su17083634): Stutz, P., Kaziyeva, D., Traun, C., Werner, C. & Loidl, M. (2025). Walkability at Street Level: An Indicator-Based Assessment Model. *Sustainability*, *17(8)*, 3634.
 
+**Note on versions:** The publications above refer to NetAScore version 1.x. Version 2.0 changes parts of the processing workflow for better useability and indicator derivation (to reflect relevant changes in OSM/GIP input data). While tested for plausibility, results may differ. The changes are listed in the [CHANGELOG](CHANGELOG.md).
+
 **Examples:** You find example output files of NetAScore at [doi.org/10.5281/zenodo.10886961](https://doi.org/10.5281/zenodo.10886961).
 
 More information can be found in the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html):
