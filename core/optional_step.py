@@ -3,6 +3,8 @@ import re
 import subprocess
 import sys
 
+from osgeo import ogr
+
 import toolbox.helper as h
 from core import import_step
 from core.db_step import DbStep
@@ -43,6 +45,26 @@ class DemImporter(DbStep):
         db.close()
 
 
+def get_noise_layer(path: str, settings: dict) -> str:
+    """Returns the layer to import from the noise dataset: either using the setting 'layer', or the only geometry layer available.
+    In case of multiple noise layers one must be specified via the 'layer' setting."""
+    if not os.path.exists(path):
+        raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
+    data_source = ogr.Open(path)
+    layers = [layer.GetName() for layer in data_source if layer.GetGeomType() != ogr.wkbNone]
+    layer = settings.get('layer')
+    if layer:
+        if str(layer) not in layers:
+            h.majorInfo(f"error: noise layer '{layer}' not found in '{path}'. Available layers: {', '.join(layers)}")
+            sys.exit(1)
+        return str(layer)
+    if len(layers) != 1:
+        h.majorInfo(f"error: '{path}' contains {len(layers)} layers with geometry. Please specify the noise layer to import "
+                    f"using the setting 'layer' in the noise import settings. Available layers: {', '.join(layers)}")
+        sys.exit(1)
+    return layers[0]
+
+
 class NoiseImporter(DbStep):
     def run_step(self, settings: dict):
         h.log('importing noise:')
@@ -59,8 +81,9 @@ class NoiseImporter(DbStep):
         # import noise
         h.logBeginTask('import noise')
         if db.handle_conflicting_output_tables(['noise', 'noise_import'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='noise_import', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
+            path = os.path.join(directory, settings['filename'])
+            import_step.import_geopackage(db.connection_string_old, path, schema, table='noise_import', layers=[get_noise_layer(path, settings)],
+                target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
         h.logEndTask()
         # column with noise values (optional setting 'column_noise', default: 'noise');
         # column names are converted to lower case and special characters are replaced by '_' during import (ogr2ogr)

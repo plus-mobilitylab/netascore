@@ -96,7 +96,13 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     geometry_types = ', '.join(f"'{geometry_type}'" for geometry_type in geometry_types)
 
     layers = [layer.GetName() for layer in data_source] if layers is None else layers
+    # skip tables without geometry (e.g. QGIS layer styles)
+    non_spatial = [layer for layer in layers if data_source.GetLayerByName(layer).GetGeomType() == ogr.wkbNone]
+    if non_spatial:
+        h.log(f"skipping tables without geometry: {', '.join(non_spatial)}")
+    layers = [layer for layer in layers if layer not in non_spatial]
     layers_geometry_types = set(data_source.GetLayerByName(layer).GetGeomType() for layer in layers)
+    is_gpkg = data_source.GetDriver().GetName() == "GPKG"
 
     fid = f"-lco FID={fid}" if fid else "-lco FID=fid"
     transform = f"-t_srs EPSG:{target_srid}" if target_srid else ""
@@ -107,7 +113,13 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
         geometry_column = data_source.GetLayerByName(layer).GetGeometryColumn()
 
         select = f"-select \"{attributes}\"" if attributes else ""
-        where = f"-where \"ST_GeometryType({geometry_column}) IN ({geometry_types})\"" if geometry_types else ""
+        conditions = []
+        if is_gpkg and geometry_column:
+            # skip empty geometries (e.g. polygons with empty rings) - these can crash the PostGIS backend on insert
+            conditions.append(f"ST_IsEmpty({geometry_column}) = 0")
+        if geometry_types:
+            conditions.append(f"ST_GeometryType({geometry_column}) IN ({geometry_types})")
+        where = f"-where \"{' AND '.join(conditions)}\"" if conditions else ""
         
         result = subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", 
             shell=True, check=True)
