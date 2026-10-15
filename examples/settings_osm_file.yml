@@ -22,6 +22,7 @@ optional:
     srid: 31287
   noise:
     filename: noise.gpkg # GeoPackage
+    # clip: network # optional: 'network' (default) - only import data within the network extent; 'none' - import the whole file
     # layer: noise_lden # name of the layer to import - required if the file contains more than one layer with geometry
     # column_noise: noise # optional: name of the column containing noise values (default: noise)
     # value_mapping: # optional: map (non-numeric) values of the noise column to numeric noise values (dB) - unmapped values are ignored

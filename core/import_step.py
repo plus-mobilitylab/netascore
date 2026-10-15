@@ -83,7 +83,7 @@ def import_csv(connection_string: str, path: str, schema: str, table: str) -> No
         check=True)
 
 
-def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, target_srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None) -> None:  # TODO: @CW: extend error handling
+def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, target_srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None, extent: tuple = None) -> None:  # TODO: @CW: extend error handling
     """Takes in a path to a geopackage file and imports it to a database table."""
     if not os.path.exists(path):
         raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
@@ -107,6 +107,8 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     fid = f"-lco FID={fid}" if fid else "-lco FID=fid"
     transform = f"-t_srs EPSG:{target_srid}" if target_srid else ""
     geometry_type = "-nlt GEOMETRY" if len(layers_geometry_types) > 1 else ""
+    # spatial filter (min lon, min lat, max lon, max lat) - uses the spatial index of the input file
+    spatial_filter = f"-spat {' '.join(str(v) for v in extent)} -spat_srs EPSG:4326" if extent else ""
 
     for layer in layers:
         h.log(f"import layer \"{layer}\"")
@@ -121,7 +123,7 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
             conditions.append(f"ST_GeometryType({geometry_column}) IN ({geometry_types})")
         where = f"-where \"{' AND '.join(conditions)}\"" if conditions else ""
         
-        result = subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {select} {where} \"{path}\" \"{layer}\"", 
+        result = subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {spatial_filter} {select} {where} \"{path}\" \"{layer}\"", 
             shell=True, check=True)
         h.debugLog(f"ogr2ogr returned code: {result.returncode}")
         #h.debugLog(f"ogr2ogr stdout: {result.args}")
