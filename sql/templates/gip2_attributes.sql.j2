@@ -791,7 +791,7 @@ DROP TABLE sights_count, sights_ratio;
 DROP TABLE IF EXISTS noise_intersection;
 CREATE TABLE noise_intersection AS (
     SELECT b.edge_id,
-           a.{{ column_noise | sqlsafe }} AS noise,
+           a.noise,
            ST_Intersection(a.geom, b.geom) AS geom
     FROM {{ table_noise | sqlsafe }} a,
          network_edge b

@@ -108,7 +108,6 @@ class GipAttributesStep(DbStep):
                 'schema_data': self.db_settings.entities.data_schema,
                 'table_dem': db.use_if_exists('dem', self.db_settings.entities.data_schema),
                 'table_noise': db.use_if_exists('noise', self.db_settings.entities.data_schema),
-                'column_noise': 'noise',  # TODO: get from settings file
                 'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
                 'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
@@ -160,7 +159,6 @@ class Gip2AttributesStep(DbStep):
                 'schema_data': self.db_settings.entities.data_schema,
                 'table_dem': db.use_if_exists('dem', self.db_settings.entities.data_schema),
                 'table_noise': db.use_if_exists('noise', self.db_settings.entities.data_schema),
-                'column_noise': 'noise',  # TODO: get from settings file
                 'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
                 'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
@@ -213,7 +211,6 @@ class OsmAttributesStep(DbStep):
                 'schema_data': self.db_settings.entities.data_schema,
                 'table_dem': db.use_if_exists('dem', self.db_settings.entities.data_schema),
                 'table_noise': db.use_if_exists('noise', self.db_settings.entities.data_schema),
-                'column_noise': 'noise',  # TODO: get from settings file
                 'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
                 'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
                 'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),

@@ -1,5 +1,7 @@
 import os
+import re
 import subprocess
+import sys
 
 import toolbox.helper as h
 from core import import_step
@@ -60,16 +62,47 @@ class NoiseImporter(DbStep):
             import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
                 table='noise_import', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'])
         h.logEndTask()
+        # column with noise values (optional setting 'column_noise', default: 'noise');
+        # column names are converted to lower case and special characters are replaced by '_' during import (ogr2ogr)
+        column_noise = str(settings.get('column_noise') or 'noise')
+        rows = db.query_all("SELECT column_name FROM information_schema.columns WHERE table_schema = %s AND table_name = 'noise_import';", (schema,))
+        available = [r[0] for r in rows if r[0] not in ('fid', 'geom')]
+        candidates = [column_noise, column_noise.lower(), re.sub(r"[^a-z0-9_]", "_", column_noise.lower())]
+        column = next((c for c in candidates if c in available), None)
+        if column is None:
+            h.majorInfo(f"error: noise column '{column_noise}' not found in '{settings['filename']}'. "
+                        f"Please set 'column_noise' in the optional noise settings. Available columns: {', '.join(available)}")
+            sys.exit(1)
+        # optional mapping of (non-numeric) input values to numeric noise values (setting 'value_mapping'),
+        # otherwise the values of the noise column are used as numbers
+        value_mapping = settings.get('value_mapping')
+        params = []
+        if value_mapping:
+            if not isinstance(value_mapping, dict) or not all(type(v) in (int, float) for v in value_mapping.values()):
+                h.majorInfo(f"error: 'value_mapping' in the optional noise settings needs to map input values to numeric noise values, "
+                            f"e.g. {{'55-59': 57, '60-64': 62}}. Found: {value_mapping}")
+                sys.exit(1)
+            noise_expr = "CASE trim(n.\"" + column + "\"::text) " + " ".join(["WHEN %s THEN %s"] * len(value_mapping)) + " END::numeric"
+            for k, v in value_mapping.items():
+                params += [str(k).strip(), v]
+            # report input values without mapping (these get no noise value)
+            unmapped = db.query_all(f"""SELECT DISTINCT trim(n."{column}"::text) FROM noise_import n
+                                        WHERE n."{column}" IS NOT NULL AND NOT trim(n."{column}"::text) = ANY(%s) LIMIT 10;""",
+                                    ([str(k).strip() for k in value_mapping],))
+            if unmapped:
+                h.majorInfo(f"WARNING: noise values without entry in 'value_mapping' are treated as areas without noise data, e.g.: {', '.join(r[0] for r in unmapped)}")
+        else:
+            noise_expr = f'n."{column}"::numeric'
         # split (subdivide) noise polygons to enable spatial indexing
         h.logBeginTask('postprocess noise')
-        db.execute("""
+        db.execute(f"""
             DROP TABLE IF EXISTS noise;
             CREATE TABLE noise AS(
-                SELECT row_number() over() as id, ST_Subdivide(n.geom, 200) as geom, noise
+                SELECT row_number() over() as id, ST_Subdivide(n.geom, 200) as geom, {noise_expr} AS noise
                 FROM noise_import n
             );
             CREATE INDEX noise_geom_idx ON noise USING gist (geom);
-        """)
+        """, params or None)
         db.commit()
         h.logEndTask()
 

@@ -7,7 +7,7 @@ database:
   port: 5432
   dbname: netascore
   on_existing: abort # skip, delete, abort
-  # user and password to be specified as ENV variables
+  # user and password to be specified as ENV variables (DB_USERNAME, DB_PASSWORD) for production environments instead of hardcoding them here
 # -- end of optional db part --
 import:
   type: osm
@@ -22,7 +22,10 @@ optional:
     srid: 31287
   noise:
     filename: noise.gpkg # GeoPackage
-    # column_noise: noise # TODO: set from settings file
+    # column_noise: noise # optional: name of the column containing noise values (default: noise)
+    # value_mapping: # optional: map (non-numeric) values of the noise column to numeric noise values (dB) - unmapped values are ignored
+    #   "55-59": 57
+    #   "60-64": 62
 index:
   compute_explanation: False
 profiles:
