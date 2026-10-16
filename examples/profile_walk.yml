@@ -103,17 +103,17 @@ indicator_mapping:
       g2: 0.5
       ge0: 0
   
-  - indicator: gradient
-    mapping:
-      4: 0.25
-      3: 0.5
-      2: 0.7
-      1: 1
-      0: 1
-      -1: 1
-      -2: 0.7
-      -3: 0.5
-      -4: 0.25
+  - indicator: gradient  # gradient in % (positive: uphill); classes are evaluated in the given order
+    classes:
+      ge12:  0.25  # >= 12 %
+      ge6:   0.5   # 6 to 12 %
+      ge3:   0.7   # 3 to 6 %
+      ge1.5: 1     # 1.5 to 3 %
+      g-1.5: 1     # -1.5 to 1.5 % (flat)
+      g-3:   1     # -3 to -1.5 %
+      g-6:   0.7   # -6 to -3 %
+      g-12:  0.5   # -12 to -6 %
+      le-12: 0.25  # <= -12 %
 
   - indicator: number_lanes
     classes:

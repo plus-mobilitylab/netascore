@@ -819,23 +819,6 @@ CREATE TABLE gradient AS ( -- 18 s
     WHERE NOT b.bridge AND NOT b.tunnel
 );
 
-DROP TABLE IF EXISTS gradient_class;
-CREATE TABLE gradient_class AS ( -- 6 s
-    SELECT edge_id,
-        CASE
-            WHEN gradient < 1.5 AND gradient > -1.5 THEN 0
-            WHEN gradient >= 1.5 AND gradient < 3 THEN 1
-            WHEN gradient <= -1.5 AND gradient > -3 THEN -1
-            WHEN gradient >= 3 AND gradient < 6 THEN 2
-            WHEN gradient <= -3 AND gradient > -6 THEN -2
-            WHEN gradient >= 6 AND gradient < 12 THEN 3
-            WHEN gradient <= -6 AND gradient > -12 THEN -3
-            WHEN gradient >= 12 THEN 4
-            WHEN gradient <= -12 THEN -4
-        END AS gradient_class
-    FROM gradient
-);
-
 -- ---------------------------------------------------------------------------------------------------------------------
 
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS gradient_ft;
@@ -844,16 +827,16 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS gradient_tf;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           b.gradient_class::numeric AS gradient_ft,
-           -b.gradient_class::numeric AS gradient_tf
+           b.gradient AS gradient_ft,  -- gradient in percent (positive: uphill in edge direction)
+           -b.gradient AS gradient_tf
     FROM network_edge_attributes a
-        LEFT JOIN gradient_class b USING (edge_id)
+        LEFT JOIN gradient b USING (edge_id)
 );
 
 DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
-DROP TABLE gradient, gradient_class;
+DROP TABLE gradient;
 {% endif %}
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "number_lanes"

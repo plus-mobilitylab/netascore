@@ -75,8 +75,25 @@ class ModeProfile:
             if not h.has_keys(entry, ['indicator']):
                 h.majorInfo(f"error: each entry in 'indicator_mapping' and 'overrides' of mode profile '{filename}' needs an 'indicator' key. Found: {entry}")
                 sys.exit(1)
+        self._check_gradient_classes(mappings + overrides, filename)
         self.profile['indicator_mapping'] = mappings
         self.profile['overrides'] = overrides
+
+    def _check_gradient_classes(self, entries: list, filename: str):
+        """The gradient is given in % (since NetAScore 2.0; previously classes -4 to 4) - value mappings of the gradient need
+        to use 'classes' (value ranges). A 'mapping' (exact values) would not match the gradient values, resulting in no index."""
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get('indicator') == 'gradient' and 'mapping' in entry:
+                h.majorInfo(f"error: mode profile '{filename}': the indicator 'gradient' is given in % (since NetAScore 2.0) - please use "
+                            "'classes' instead of 'mapping' for its value assignments (e.g. 'ge6: 0.25' for at least 6 % uphill). "
+                            "See examples/profile_bike.yml.")
+                sys.exit(1)
+            # nested value assignments (e.g. in overrides)
+            for key in ['mapping', 'classes']:
+                if isinstance(entry.get(key), dict):
+                    self._check_gradient_classes(list(entry[key].values()), filename)
 
 
 def load_profiles(base_path: str, profile_definitions: dict):
