@@ -116,3 +116,48 @@ class DbEntitySettings:
     def set_output_schema(self, schema: str):
         self._output_schema = schema
     output_schema: str = property(get_output_schema, set_output_schema)
+
+
+# known keys of the settings file (unknown keys, e.g. typos, are reported as warnings - they are ignored);
+# keys of the profile entries and mode profiles are checked when loading the profiles (index step)
+SETTINGS_KEYS = {
+    'top_level': ['version', 'global', 'database', 'import', 'optional', 'index', 'profiles', 'export'],
+    'global': ['target_srid', 'case_id'],
+    'database': ['host', 'port', 'dbname', 'username', 'password', 'on_existing'],  # on_existing: no longer used (note)
+    'import': {
+        'osm': ['type', 'filename', 'on_existing', 'place_name', 'bbox', 'aoi_filename', 'buffer', 'clip', 'interactive',
+                'include_rail', 'include_aerialway'],
+        'gip': ['type', 'filename', 'filename_A', 'on_existing', 'regional_code', 'bbox'],  # filename_A: renamed (note)
+        'gip2': ['type', 'filename', 'filename_A', 'on_existing', 'regional_code', 'bbox'],
+    },
+    'optional': {
+        'defaults': ['on_existing', 'clip'],
+        'dem': ['filename', 'srid', 'on_existing', 'clip', 'coverage'],
+        'noise': ['filename', 'layer', 'column_noise', 'value_mapping', 'on_existing', 'clip', 'coverage'],
+        'osm': ['filename', 'on_existing', 'place_name', 'bbox', 'aoi_filename', 'buffer', 'clip', 'interactive'],
+        **{dataset: ['filename', 'on_existing', 'clip', 'coverage']
+           for dataset in ['building', 'crossing', 'facility', 'greenness', 'water', 'parking', 'sights']},
+    },
+    'index': ['compute_explanation'],
+    'export': ['type', 'filename', 'include_source_attributes'],
+}
+
+
+def warn_unknown_settings(settings: dict) -> None:
+    """Reports unknown keys (e.g. typos) in the settings file as warnings - these keys are ignored."""
+    if not isinstance(settings, dict):
+        return
+    h.warn_unknown_keys(settings, SETTINGS_KEYS['top_level'], "settings file")
+    for section in ['global', 'database', 'index', 'export']:
+        h.warn_unknown_keys(settings.get(section), SETTINGS_KEYS[section], f"section '{section}'")
+    import_settings = settings.get('import')
+    if isinstance(import_settings, dict):
+        import_type = str(import_settings.get('type') or '').lower()
+        if import_type in SETTINGS_KEYS['import']:
+            h.warn_unknown_keys(import_settings, SETTINGS_KEYS['import'][import_type], f"section 'import' (type '{import_type}')")
+    optional = settings.get('optional')
+    if isinstance(optional, dict):
+        # unknown dataset names are not checked here: these lead to an error in the optional step
+        for dataset, dataset_settings in optional.items():
+            if dataset in SETTINGS_KEYS['optional']:
+                h.warn_unknown_keys(dataset_settings, SETTINGS_KEYS['optional'][dataset], f"section 'optional' > '{dataset}'")

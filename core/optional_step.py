@@ -301,7 +301,6 @@ def run_optional_importers(db_settings: DbSettings, optional_importer_settings: 
         h.info("no network found - optional data is imported without spatial filter")
     # subsection 'defaults': provides defaults for all optional imports (can be overridden per dataset)
     defaults = h.get_section(optional_importer_settings, 'defaults')
-    h.warn_unknown_keys(defaults, ['on_existing', 'clip'], "section 'optional' > 'defaults'")
     default_on_existing = h.normalize_on_existing(defaults.get('on_existing'), "section 'optional' > 'defaults'", default='reuse')
     default_clip = str(defaults.get('clip') or 'network').strip().lower()
     for import_type, settings in optional_importer_settings.items():

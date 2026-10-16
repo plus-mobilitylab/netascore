@@ -13,7 +13,7 @@ from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
 from core import metadata
-from settings import DbSettings, GlobalSettings
+from settings import DbSettings, GlobalSettings, warn_unknown_settings
 
 parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Score Toolbox for Sustainable Mobility')
 parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
@@ -46,12 +46,11 @@ def require_on_existing_setting(settings: dict):
 with settings_stream:
     settings: dict = yaml.safe_load(settings_stream)
     h.require_file_version(settings, settings_stream.name, "examples/settings_osm_query.yml")
-    h.warn_unknown_keys(settings, ['version', 'global', 'database', 'import', 'optional', 'index', 'profiles', 'export'], "settings file")
+    warn_unknown_settings(settings)
 
     # process global settings if given
     if h.has_keys(settings, ['global']):
         global_settings: dict = h.get_section(settings, 'global')
-        h.warn_unknown_keys(global_settings, ['target_srid', 'case_id'], "section 'global'")
         if h.has_keys(global_settings, ['target_srid']):
             GlobalSettings.custom_srid = h.str_to_numeric(re.sub("[^0-9]", "", str(global_settings['target_srid'])))
             h.info(f"Set the target SRID to {GlobalSettings.get_target_srid()}")
