@@ -1,4 +1,6 @@
 import argparse
+from datetime import datetime
+import os
 import sys
 import yaml
 import re
@@ -11,7 +13,8 @@ from core.import_step import create_importer, get_stored_aoi_srid
 from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
-from settings import DbSettings, GlobalSettings
+from core import metadata
+from settings import DbSettings, GlobalSettings, NETASCORE_VERSION
 
 parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Score Toolbox for Sustainable Mobility')
 parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
@@ -79,6 +82,16 @@ with settings_stream:
             sys.exit(1)
         profiles = load_profiles(base_path, settings['profiles'])
 
+    # record information on this run (exported as metadata to the output)
+    metadata.record_run_info(db_settings, {
+        'netascore_version': NETASCORE_VERSION,
+        'started_at': datetime.now().isoformat(timespec='seconds'),
+        'case_id': GlobalSettings.case_id,
+        'settings_file': os.path.basename(settings_stream.name),
+        'settings': metadata.sanitized_settings(settings),
+        'skipped_steps': skip_steps,
+    })
+
     # execute processing steps
     if 'import' not in skip_steps:
         h.majorInfo(' === importing ===')
@@ -87,6 +100,8 @@ with settings_stream:
         require_on_existing_setting(import_settings)
         importer: DbStep = create_importer(db_settings, import_settings['type'])
         importer.run_step(import_settings)
+        metadata.record_import_file(db_settings, import_settings)
+        metadata.record_step_completed(db_settings, 'import')
     else:
         h.majorInfo(' === skipping import ===')
 
@@ -97,12 +112,14 @@ with settings_stream:
         require_on_existing_setting(import_settings)
         network_step: DbStep = create_network_step(db_settings, import_settings['type'])
         network_step.run_step(import_settings)
+        metadata.record_step_completed(db_settings, 'network')
 
     # optional import runs after the network step in V2.0 to allow for clipping optional imports 
     # to the spatial extent of the imported network
     if 'optional' not in skip_steps and 'optional' in settings:
         h.majorInfo(' === running optional importers ===')
         run_optional_importers(db_settings, h.get_section(settings, 'optional'), h.get_section(settings, 'import').get('type'))
+        metadata.record_step_completed(db_settings, 'optional')
 
     if 'attributes' not in skip_steps and 'import' in settings:
         h.majorInfo(' === running attributes step ===')
@@ -111,6 +128,7 @@ with settings_stream:
         require_on_existing_setting(import_settings)
         attributes_step: DbStep = create_attributes_step(db_settings, import_settings['type'])
         attributes_step.run_step(import_settings, settings.get('export'))
+        metadata.record_step_completed(db_settings, 'attributes')
 
     if 'index' not in skip_steps:
         h.majorInfo(' === generating index ===')
@@ -118,6 +136,8 @@ with settings_stream:
         if h.has_keys(settings, ['index']):
             index_settings = settings['index']
         generate_index(db_settings, profiles, index_settings)
+        metadata.record_profiles(db_settings, profiles)
+        metadata.record_step_completed(db_settings, 'index')
 
     if 'export' not in skip_steps:
         h.majorInfo(' === exporting ===')
@@ -127,3 +147,5 @@ with settings_stream:
         exporter.run_step(export_settings)
     else:
         h.majorInfo('skipping export (as listed in skip_steps)')
+
+    metadata.print_run_summary(db_settings)

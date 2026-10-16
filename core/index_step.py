@@ -38,6 +38,7 @@ class ModeProfile:
                             f"profile definition '{definition.get('profile_name')}'")
         self.profile_name = h.get_safe_name(str(definition.get('profile_name')))
         filename = os.path.join(base_path, str(definition.get('filename')))
+        self.filename = filename
         self.access_car = h.has_keys(definition, ['filter_access_car']) and definition['filter_access_car']
         self.access_bike = h.has_keys(definition, ['filter_access_bike']) and definition['filter_access_bike']
         self.access_walk = h.has_keys(definition, ['filter_access_walk']) and definition['filter_access_walk']

@@ -174,7 +174,7 @@ class NoiseImporter(VectorImporter):
         # column names are converted to lower case and special characters are replaced by '_' during import (ogr2ogr)
         column_noise = str(settings.get('column_noise') or 'noise')
         rows = db.query_all("SELECT column_name FROM information_schema.columns WHERE table_schema = %s AND table_name = 'noise_import';", (schema,))
-        available = [r[0] for r in rows if r[0] not in ('fid', 'geom')]
+        available = [r[0] for r in rows if r[0] not in ('fid', 'import_fid', 'geom')]
         candidates = [column_noise, column_noise.lower(), re.sub(r"[^a-z0-9_]", "_", column_noise.lower())]
         column = next((c for c in candidates if c in available), None)
         if column is None:

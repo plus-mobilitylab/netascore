@@ -1,7 +1,9 @@
 import os
 import subprocess
+from datetime import datetime
 
 import toolbox.helper as h
+from core import metadata
 from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings
 from toolbox.dbhelper import PostgresConnection
@@ -47,6 +49,17 @@ class GeopackageExporter(DbStep):
 
         h.logBeginTask('export layer "node"')
         export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table='export_node', layer='node', fid='node_id', geometry_type='POINT', update=True)
+        h.logEndTask()
+
+        # export metadata of the run: settings and data sources, input datasets, mode profiles, areas (AOI, clip area, coverage)
+        h.logBeginTask('export metadata')
+        metadata.record_run_info(self.db_settings, {'output_file': filename, 'target_srid': GlobalSettings.get_target_srid(),
+                                               'exported_at': datetime.now().isoformat(timespec='seconds')})
+        exports = metadata.create_meta_export_tables(db, schema, self.db_settings.entities.data_schema, GlobalSettings.get_target_srid())
+        for table, layer, geometry_type in exports:
+            export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table=table, layer=layer, fid='fid',
+                              geometry_type=geometry_type, update=True)
+        metadata.drop_meta_export_tables(db, schema)
         h.logEndTask()
 
         # close database connection

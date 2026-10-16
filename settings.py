@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+NETASCORE_VERSION = "2.0.0"
+
+
 class InputType(Enum):
     OSM = "OSM"
     GIP = "GIP"

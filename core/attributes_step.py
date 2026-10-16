@@ -3,6 +3,7 @@ import sys
 
 import toolbox.helper as h
 from core import dataset_registry as registry
+from core import metadata
 from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
@@ -91,18 +92,25 @@ def prepare_input_datasets(db: PostgresConnection, network_schema: str, data_sch
     - datasets in a different coordinate system are transformed (temporary table '<dataset>_transformed' in the network schema)"""
     target_srid = GlobalSettings.get_target_srid()
     params = {}
+    usage = []  # use of the datasets (stored as metadata of the run)
     db.execute(f"DROP TABLE IF EXISTS {network_schema}.edge_coverage; CREATE TABLE {network_schema}.edge_coverage AS SELECT edge_id FROM {network_schema}.network_edge; "
                f"ALTER TABLE {network_schema}.edge_coverage ADD PRIMARY KEY (edge_id);")
     for dataset, indicator in INPUT_DATASETS:
         params[f"table_{dataset}"] = None
         params[f"coverage_{dataset}"] = False
-        if dataset in (skip or []) or db.use_if_exists(dataset, data_schema) is None:
+        if db.use_if_exists(dataset, data_schema) is None:
+            continue
+        row = {'dataset': dataset, 'indicator': indicator, 'status': 'used', 'network_share_covered': None, 'transformed_crs': False, 'note': None}
+        usage.append(row)
+        if dataset in (skip or []):
+            row.update(status='not_used', note='not used for this import type')
             continue
         entry = registry.get_registered(db, data_schema, dataset)
         if entry is None:
             h.majorInfo(f"WARNING: dataset '{dataset}' has unknown origin (imported with an older version of NetAScore or import not completed) - "
                         f"it is used without checking its coordinate system and coverage.")
             params[f"table_{dataset}"] = dataset
+            row.update(note='unknown origin - coordinate system and coverage not checked')
             continue
         # share of the network (length) within the coverage of the dataset (unknown coverage: assumed to cover the network)
         share = 1.0
@@ -112,9 +120,11 @@ def prepare_input_datasets(db: PostgresConnection, network_schema: str, data_sch
                 SELECT coalesce(sum(e.length) FILTER (WHERE ST_Intersects(e.geom, c.geom)) / nullif(sum(e.length), 0), 0)
                 FROM {network_schema}.network_edge e, c;""", {'srid': target_srid, 'dataset': dataset})[0]
             share = float(share)
+            row['network_share_covered'] = round(share, 4)
         if share == 0:
             h.majorInfo(f"WARNING: dataset '{dataset}' (imported for case '{entry['case_id']}') does not cover the network of this case - "
                         f"the indicator '{indicator}' is not computed, index robustness will decrease.")
+            row.update(status='not_used', note='does not cover the network')
             continue
         if share < 1:
             h.majorInfo(f"WARNING: dataset '{dataset}' covers only {share * 100:.1f} % of the network (length) - "
@@ -126,6 +136,7 @@ def prepare_input_datasets(db: PostgresConnection, network_schema: str, data_sch
                      (SELECT ST_Transform(coverage, %(srid)s) AS geom FROM {data_schema}.{registry.REGISTRY_TABLE} WHERE dataset = %(dataset)s) c
                 WHERE e.edge_id = ec.edge_id;""", {'srid': target_srid, 'dataset': dataset})
             params[f"coverage_{dataset}"] = True
+            row.update(status='partial', note='no indicator value for edges outside the coverage')
         params[f"table_{dataset}"] = dataset
         # vector data in a different coordinate system (e.g. imported for another case): use a transformed copy
         # (the DEM keeps its coordinate system - the network is transformed temporarily for computing gradients - for better performance.)
@@ -137,7 +148,9 @@ def prepare_input_datasets(db: PostgresConnection, network_schema: str, data_sch
                 ALTER TABLE {network_schema}.{dataset}_transformed ALTER COLUMN geom TYPE geometry USING ST_Transform(geom, %(srid)s);
                 CREATE INDEX {dataset}_transformed_geom_idx ON {network_schema}.{dataset}_transformed USING gist (geom);""", {'srid': target_srid})
             params[f"table_{dataset}"] = f"{dataset}_transformed"
+            row.update(transformed_crs=True)
     db.commit()
+    metadata.record_datasets(db, network_schema, usage)
     return params
 
 

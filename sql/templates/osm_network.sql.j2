@@ -402,4 +402,10 @@ DROP TABLE network_point;
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS indoor_points, intersecting_links, intersections, intersections_all, link_points,
-                     network_corrected, network_corrected_points, network_init, network_tmp, clip_area;
+                     network_corrected, network_corrected_points, network_init, network_tmp;
+
+-- keep the clipping area (exported as metadata), remove the one of a previous run if the network is not clipped
+DROP TABLE IF EXISTS meta_clip_area;
+{% if clip_mode %}
+ALTER TABLE clip_area RENAME TO meta_clip_area;
+{% endif %}

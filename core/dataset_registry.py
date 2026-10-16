@@ -149,8 +149,9 @@ def register(db: PostgresConnection, schema: str, dataset: str, source: dict, op
         WITH e AS (SELECT CASE WHEN %(has_extent)s THEN ST_MakeEnvelope(%(x1)s, %(y1)s, %(x2)s, %(y2)s, 4326) END AS geom),
              c AS (SELECT ST_GeomFromText(%(coverage)s, 4326) AS geom)
         SELECT %(dataset)s, %(source)s, %(options)s, %(srid)s, e.geom,
-               -- only areas count as coverage (lines/points from touching boundaries are removed; empty: no coverage)
-               ST_Multi(ST_CollectionExtract(CASE WHEN c.geom IS NULL THEN e.geom WHEN e.geom IS NULL THEN c.geom ELSE ST_Intersection(c.geom, e.geom) END, 3)),
+               -- only areas count as coverage (lines/points from touching boundaries are removed; empty: no coverage);
+               -- edges are densified (vertex every 0.01 deg) to keep their shape when transformed to other coordinate systems
+               ST_Multi(ST_CollectionExtract(ST_Segmentize(CASE WHEN c.geom IS NULL THEN e.geom WHEN e.geom IS NULL THEN c.geom ELSE ST_Intersection(c.geom, e.geom) END, 0.01), 3)),
                now(), %(case_id)s, 'complete'
         FROM e, c
         ON CONFLICT (dataset) DO UPDATE SET source = EXCLUDED.source, options = EXCLUDED.options, srid = EXCLUDED.srid,
