@@ -29,6 +29,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Improved detection logic of OSM pedestrian access.
 - Ratios of `facilities`, `crossings`, and `sights` are now counts per area (ha) surrounding an edge (previously per 100 m of edge length). 
 - `water` is a ratio from 0 to 100 (previously `true` or `false`).
+- `gradient` (`gradient_ft` / `gradient_tf`) now is the gradient in % (positive: uphill; previously: classes from -4 to 4). Example mode profiles reproduce the previously used classes. For OSM, node elevations are now interpolated bilinearly from the DEM to reduce unrealistic gradients for short edges.
 - Bicycle roads with car access are categorized as road category `calmed`. Without car access they are classified as `no_mit` (no motorized traffic) and bicycle infrastructure `bicycle_way` or `mixed_way`. 
 - `edge_id` is derived from the OSM way id and the segment position. This simplifies segment-level comparison across separate execution runs of NetAScore
 - Processing steps (network, attributes, index, export) always replace previous outputs in the database; `on_existing` in the `database` section is no longer used (use the command line option `--skip` to skip steps).
