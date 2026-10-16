@@ -105,7 +105,15 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     layers_geometry_types = set(data_source.GetLayerByName(layer).GetGeomType() for layer in layers)
     is_gpkg = data_source.GetDriver().GetName() == "GPKG"
 
-    fid = f"-lco FID={fid}" if fid else "-lco FID=fid"
+    # ID column of the target table: if the input data has an attribute with the same name (e.g. 'fid' in merged datasets),
+    # its values would be used as IDs (possibly not unique) - use a different name for the ID column instead
+    fid = fid or "fid"
+    field_names = {data_source.GetLayerByName(layer).GetLayerDefn().GetFieldDefn(i).GetName().lower()
+                   for layer in layers for i in range(data_source.GetLayerByName(layer).GetLayerDefn().GetFieldCount())}
+    if fid.lower() in field_names:
+        h.log(f"input data contains an attribute '{fid}' - using 'import_fid' as ID column of table '{table}'")
+        fid = "import_fid"
+    fid = f"-lco FID={fid}"
     transform = f"-t_srs EPSG:{target_srid}" if target_srid else ""
     geometry_type = "-nlt GEOMETRY" if len(layers_geometry_types) > 1 else ""
     # spatial filter (min lon, min lat, max lon, max lat) - uses the spatial index of the input file
