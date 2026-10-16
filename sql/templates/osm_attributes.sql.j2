@@ -795,7 +795,9 @@ ALTER TABLE network_node_attributes DROP COLUMN IF EXISTS elevation;
 DROP TABLE IF EXISTS network_node_attributes_tmp;
 CREATE TABLE network_node_attributes_tmp AS (
     SELECT a.*,
-           round(ST_Value(c.rast, b.geom)::numeric, 2)::numeric AS elevation
+           -- using bilinear interpolation between neighbouring cells:
+           -- avoids elevation steps at cell borders, minimizes unrealistically steep gradients for short edges
+           round(ST_Value(c.rast, 1, b.geom, true, 'bilinear')::numeric, 2)::numeric AS elevation
     FROM network_node_attributes a
         LEFT JOIN network_node_transform b USING (node_id)
         LEFT JOIN {{ table_dem | sqlsafe }} c ON ST_Intersects(b.geom, c.rast)
