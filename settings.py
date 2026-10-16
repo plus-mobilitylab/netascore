@@ -37,7 +37,6 @@ class DbSettings:
     dbname: str
     username: str
     password: str
-    on_existing: str
 
     def __post_init__(self):
         self.entities: DbEntitySettings = DbEntitySettings(GlobalSettings.case_id)
@@ -51,7 +50,9 @@ class DbSettings:
         dbname = settings_template.get('dbname') or 'postgres'
         username = str(settings_template.get('username') or '')
         password = str(settings_template.get('password') or '')
-        on_existing = h.normalize_on_existing(settings_template.get('on_existing'), "section 'database'", default='abort')
+        if settings_template.get('on_existing') is not None:
+            h.info("'on_existing' in section 'database' is no longer used: processing steps always replace their outputs."
+                   "Use the command line option '--skip' to skip steps; settings for input data: 'on_existing' in sections 'import' and 'optional'.")
 
         if len(username) == 0:
             username = os.getenv('DB_USERNAME', '')
@@ -64,7 +65,7 @@ class DbSettings:
         if len(password) == 0:
             print('warn: DB_PASSWORD not set')
 
-        return DbSettings(host, port, dbname, username, password, on_existing)
+        return DbSettings(host, port, dbname, username, password)
 
 
 class DbEntitySettings:

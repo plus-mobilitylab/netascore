@@ -6,7 +6,6 @@ database:
   host: gateway.docker.internal
   port: 5432
   dbname: netascore
-  on_existing: abort # reuse, reuse_or_overwrite, overwrite, abort
   # user and password to be specified as ENV variables (DB_USERNAME, DB_PASSWORD) for production environments instead of hardcoding them here
 # -- end of optional db part --
 import:
@@ -17,17 +16,21 @@ import:
   #buffer: 1000
   #clip: bbox # 'bbox' (bounding box of the AOI + buffer, default), 'aoi' (AOI geometry + buffer), or 'none'
 optional:
+  # defaults: # optional: settings for all optional imports (can be overridden for each dataset)
+  #   on_existing: reuse # reuse (default), reuse_or_overwrite, overwrite, abort
+  #   clip: network # network (default): only import data within the network extent; none: import the whole file
   dem:
     filename: austria.tif # GeoTIFF
     srid: 31287
   noise:
     filename: noise.gpkg # GeoPackage
-    # clip: network # optional: 'network' (default) - only import data within the network extent; 'none' - import the whole file
     # layer: noise_lden # name of the layer to import - required if the file contains more than one layer with geometry
     # column_noise: noise # optional: name of the column containing noise values (default: noise)
     # value_mapping: # optional: map (non-numeric) values of the noise column to numeric noise values (dB) - unmapped values are ignored
     #   "55-59": 57
     #   "60-64": 62
+    # coverage: noise_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)
+
 index:
   compute_explanation: False
 profiles:

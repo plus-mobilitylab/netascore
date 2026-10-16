@@ -1,5 +1,5 @@
 gdal
-geopandas
+geopandas>=1.0
 geopy
 jinjasql2
 osm2geojson

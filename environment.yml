@@ -4,7 +4,7 @@ channels:
 dependencies:
   - python=3.13
   - gdal
-  - geopandas
+  - geopandas>=1.0
   - geopy
   - libgdal
   - osmium-tool

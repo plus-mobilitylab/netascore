@@ -11,17 +11,16 @@ class PostgresConnection:
     # creates a PostgresConnection object from settings object instead of individual params
     def from_settings_object(settings_object):
         return PostgresConnection(settings_object.dbname, settings_object.username, settings_object.password, 
-                settings_object.host or None, settings_object.port or None, settings_object.on_existing)
+                settings_object.host or None, settings_object.port or None)
 
     # constructor
-    def __init__(self, dbname: str, user: str = "postgres", pw: str = "postgres", host: str = "localhost", port: int = 5432, on_existing: str = "abort"):
+    def __init__(self, dbname: str, user: str = "postgres", pw: str = "postgres", host: str = "localhost", port: int = 5432):
         self._dbname = dbname
         self._user = user
         self._pw = pw
         self._host = host
         self._port = port
         self._schema = "public"
-        self._on_existing = on_existing
         
     _con = None
     _cur = None
@@ -274,25 +273,17 @@ class PostgresConnection:
                 raise Exception(
                     f"ERROR: at least one of the input tables does not exist. Please resolve issue and try again. Table: '{schema}.{table}'")
     
-    def handle_conflicting_output_tables(self, tables: List[str], schema: str = None, on_existing:str = None)->bool:
-        # returns True if tables were dropped or are not existing and process can continue normally, False if step should be skipped
-        on_existing = h.normalize_on_existing(on_existing, "table conflict handling") if on_existing is not None else self._on_existing
-        t_exists:bool = False
-        for table in tables:
-            if self.exists(table, schema):
-                t_exists = True
-        if not t_exists:
-            return True # no conflicts -> all good
-        if on_existing in ("reuse", "reuse_or_overwrite"):
-            return False # return False, calling code needs to handle skipping of step
-        if on_existing == "overwrite":
-            for table in tables:
-                if self.exists(table, schema):
-                    self.drop_table(table, cascade=True, schema = schema)
+    def handle_conflicting_output_tables(self, tables: List[str], schema: str = None) -> bool:
+        """Prepares the output tables of a processing step: existing tables are replaced (dropped), as running a step
+        means creating its outputs (steps can be skipped with the command line option '--skip' if needed).
+        Always returns True (process can continue normally)."""
+        existing = [table for table in tables if self.exists(table, schema)]
+        for table in existing:
+            self.drop_table(table, cascade=True, schema=schema)
+        if existing:
             self.commit()
-            return True
-        # case "abort" / in general: throw Error
-        raise Exception(f"Output table(s) already exist: {', '.join(tables)}. Please resolve the conflict manually or set 'on_existing' to 'reuse', 'reuse_or_overwrite', or 'overwrite'.")
+            h.log(f"replaced existing output table(s): {', '.join(existing)}")
+        return True
 
     def execute_sql_from_file(self, script_file_name, subdir:str="sql/"):
         if not subdir.endswith("/") or subdir.endswith("\\"):

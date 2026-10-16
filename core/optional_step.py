@@ -1,11 +1,13 @@
 import os
 import re
+import shutil
 import subprocess
 import sys
 
 from osgeo import gdal, ogr
 
 import toolbox.helper as h
+from core import dataset_registry as registry
 from core import import_step
 from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings
@@ -16,8 +18,16 @@ def import_raster(connection_string: str, path: str, schema: str, table: str, in
     if not os.path.exists(path):
         raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
     """Takes in a path to a geotiff raster file and imports it to a database raster table."""
-    subprocess.run(f"raster2pgsql -s {input_srid} -I -C -M \"{path}\" -t auto {schema}.{table} | psql \"{connection_string}\" --variable ON_ERROR_STOP=on --quiet", 
-        shell=True, check=True)
+    for tool in ['raster2pgsql', 'psql']:
+        if shutil.which(tool) is None:
+            raise Exception(f"{tool} (part of PostgreSQL / PostGIS) is required for importing raster data (DEM), but was not found.")
+    # raster2pgsql | psql - connected in Python (no shell, works cross-platform); both exit codes are checked
+    dump = subprocess.Popen(['raster2pgsql', '-s', str(input_srid), '-I', '-C', '-M', path, '-t', 'auto', f"{schema}.{table}"],
+                            stdout=subprocess.PIPE)
+    load = subprocess.run(['psql', connection_string, '--variable', 'ON_ERROR_STOP=on', '--quiet'], stdin=dump.stdout)
+    dump.stdout.close()
+    if dump.wait() != 0 or load.returncode != 0:
+        raise Exception(f"Import of raster '{path}' failed (raster2pgsql: exit code {dump.returncode}, psql: exit code {load.returncode}).")
 
 
 def clip_raster(path_in: str, path_out: str, window: tuple) -> bool:
@@ -38,53 +48,93 @@ def clip_raster(path_in: str, path_out: str, window: tuple) -> bool:
 
 
 class OptionalImporter(DbStep):
-    # extent of the network incl. margin (min lon, min lat, max lon, max lat) used to filter vector data on import; None: no filter
+    """Base class of optional importers: imports a dataset into the data schema and records it in the dataset registry."""
+    # extent of the network incl. margin (min lon, min lat, max lon, max lat) used to filter data on import; None: no filter
     extent: tuple = None
+    dataset: str = None                  # name of the dataset (table name)
+    tables: list = None                  # tables created by the importer (default: [dataset])
 
-
-class DemImporter(OptionalImporter):
     def run_step(self, settings: dict):
-        h.info('importing dem:')
+        h.info(f'importing {self.dataset}')
         h.log(f"using settings: {str(settings)}")
-
         schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
+        path = os.path.join(GlobalSettings.data_directory, settings['filename'])
+        if not os.path.exists(path):
+            raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
+        # per-dataset setting 'on_existing' (default: setting of the database section)
+        on_existing = h.normalize_on_existing(settings.get('on_existing'), f"optional import '{self.dataset}'", default='reuse')
+        layers = self.get_layers(path, settings)
+        source = registry.file_signature(path, layers)
+        options = self.get_options(settings)
 
-        # open database connection
         h.info('open database connection')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.init_extensions_and_schema(schema)
-
-        # import DEM
-        h.logBeginTask('import dem raster')
-        if db.handle_conflicting_output_tables(['dem'], schema):
-            path = os.path.join(directory, settings['filename'])
-            if not os.path.exists(path):
-                raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
-            dem_srid = int(re.sub(r"[^0-9]", "", str(settings['srid'])))
-            clipped_path = None
-            if self.extent:
-                # only import the part of the DEM within the network extent (transformed to the coordinate system of the DEM)
-                window = db.query_one("""
-                    WITH e AS (SELECT ST_Transform(ST_MakeEnvelope(%s, %s, %s, %s, 4326), %s) AS geom)
-                    SELECT ST_XMin(geom), ST_YMin(geom), ST_XMax(geom), ST_YMax(geom) FROM e;""", (*self.extent, dem_srid))
-                clipped_path = os.path.join(directory, f"dem_{GlobalSettings.case_id}_clip.tif")
-                h.log(f"clipping DEM to the network extent: {window} (EPSG:{dem_srid})")
-                if not clip_raster(path, clipped_path, window):
-                    h.majorInfo(f"WARNING: the DEM '{settings['filename']}' does not overlap the network extent - DEM is not imported, gradients cannot be computed.")
-                    h.logEndTask()
-                    db.close()
-                    return
-                path = clipped_path
-            # raster is imported without reprojection - during the attributes step, the network will be temporarily reprojected to DEM srid.
-            import_raster(db.connection_string, path, schema, table='dem', input_srid=dem_srid)  # 4 m 34 s
-            #if clipped_path:
-            #    os.remove(clipped_path)
+        h.logBeginTask(f'import {self.dataset}')
+        if registry.prepare_import(db, schema, self.dataset, self.tables or [self.dataset], on_existing, source, options, self.extent):
+            srid, coverage = self.import_data(db, schema, path, layers, settings)
+            if srid is None:  # nothing imported
+                registry.remove(db, schema, self.dataset)
+            else:
+                if settings.get('coverage'):  # area covered by the data, given by the user
+                    coverage = registry.coverage_from_file(os.path.join(GlobalSettings.data_directory, settings['coverage']))
+                registry.register(db, schema, self.dataset, source, options, srid, self.extent, coverage)
         h.logEndTask()
-
-        # close database connection
         h.log('close database connection')
         db.close()
+
+    def get_layers(self, path: str, settings: dict) -> list:
+        return None  # all layers
+
+    def get_options(self, settings: dict) -> dict:
+        return {}  # import settings that affect the content of the dataset
+
+    def import_data(self, db: PostgresConnection, schema: str, path: str, layers: list, settings: dict) -> tuple:
+        """Imports the data. Returns the coordinate system of the stored data and the coverage of the source data (WKT, WGS84)
+        - or (None, None) if nothing was imported."""
+        raise NotImplementedError()
+
+
+class VectorImporter(OptionalImporter):
+    """Imports vector data (GeoPackage) for the network extent, transformed to the target coordinate system."""
+    geometry_types: list = None
+
+    def import_data(self, db: PostgresConnection, schema: str, path: str, layers: list, settings: dict) -> tuple:
+        table = (self.tables or [self.dataset])[0]
+        import_step.import_geopackage(db.connection_string_old, path, schema, table=table, layers=layers,
+            target_srid=GlobalSettings.get_target_srid(), geometry_types=self.geometry_types, extent=self.extent)
+        return GlobalSettings.get_target_srid(), registry.vector_coverage(path, layers)
+
+
+class DemImporter(OptionalImporter):
+    dataset = 'dem'
+
+    def get_options(self, settings: dict) -> dict:
+        return {'srid': self._dem_srid(settings)}
+
+    def _dem_srid(self, settings: dict) -> int:
+        return int(re.sub(r"[^0-9]", "", str(settings['srid'])))
+
+    def import_data(self, db: PostgresConnection, schema: str, path: str, layers: list, settings: dict) -> tuple:
+        dem_srid = self._dem_srid(settings)
+        coverage = registry.raster_coverage(path, dem_srid)
+        clipped_path = None
+        if self.extent:
+            # only import the part of the DEM within the network extent (transformed to the coordinate system of the DEM)
+            window = db.query_one("""
+                WITH e AS (SELECT ST_Transform(ST_MakeEnvelope(%s, %s, %s, %s, 4326), %s) AS geom)
+                SELECT ST_XMin(geom), ST_YMin(geom), ST_XMax(geom), ST_YMax(geom) FROM e;""", (*self.extent, dem_srid))
+            clipped_path = os.path.join(GlobalSettings.data_directory, f"dem_{GlobalSettings.case_id}_clip.tif")
+            h.log(f"clipping DEM to the network extent: {window} (EPSG:{dem_srid})")
+            if not clip_raster(path, clipped_path, window):
+                h.majorInfo(f"WARNING: the DEM '{settings['filename']}' does not overlap the network extent - DEM is not imported, gradients cannot be computed.")
+                return None, None
+            path = clipped_path
+        # raster is imported without reprojection - during the attributes step, the network will be temporarily reprojected to DEM srid.
+        import_raster(db.connection_string, path, schema, table='dem', input_srid=dem_srid)  # 4 m 34 s
+        #if clipped_path:
+        #    os.remove(clipped_path)
+        return dem_srid, coverage
 
 
 def get_noise_layer(path: str, settings: dict) -> str:
@@ -107,26 +157,19 @@ def get_noise_layer(path: str, settings: dict) -> str:
     return layers[0]
 
 
-class NoiseImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.log('importing noise:')
-        h.log(f"using settings: {str(settings)}")
+class NoiseImporter(VectorImporter):
+    dataset = 'noise'
+    tables = ['noise_import', 'noise']
+    geometry_types = ['POLYGON', 'MULTIPOLYGON']
 
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
+    def get_layers(self, path: str, settings: dict) -> list:
+        return [get_noise_layer(path, settings)]
 
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
+    def get_options(self, settings: dict) -> dict:
+        return {'column_noise': settings.get('column_noise') or 'noise', 'value_mapping': settings.get('value_mapping')}
 
-        # import noise
-        h.logBeginTask('import noise')
-        if db.handle_conflicting_output_tables(['noise', 'noise_import'], schema):
-            path = os.path.join(directory, settings['filename'])
-            import_step.import_geopackage(db.connection_string_old, path, schema, table='noise_import', layers=[get_noise_layer(path, settings)],
-                target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON', 'MULTIPOLYGON'], extent=self.extent)
-        h.logEndTask()
+    def import_data(self, db: PostgresConnection, schema: str, path: str, layers: list, settings: dict) -> tuple:
+        result = super().import_data(db, schema, path, layers, settings)
         # column with noise values (optional setting 'column_noise', default: 'noise');
         # column names are converted to lower case and special characters are replaced by '_' during import (ogr2ogr)
         column_noise = str(settings.get('column_noise') or 'noise')
@@ -159,7 +202,7 @@ class NoiseImporter(OptionalImporter):
         else:
             noise_expr = f'n."{column}"::numeric'
         # split (subdivide) noise polygons to enable spatial indexing
-        h.logBeginTask('postprocess noise')
+        h.log('postprocess noise')
         db.execute(f"""
             DROP TABLE IF EXISTS noise;
             CREATE TABLE noise AS(
@@ -169,184 +212,42 @@ class NoiseImporter(OptionalImporter):
             CREATE INDEX noise_geom_idx ON noise USING gist (geom);
         """, params or None)
         db.commit()
-        h.logEndTask()
-
-        # close database connection
-        h.log('close database connection')
-        db.close()
+        return result
 
 
-class BuildingImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.info('importing building')
-        h.log(f"using settings: {str(settings)}")
-
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
-
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
-
-        # import building
-        h.logBeginTask('import building')
-        if db.handle_conflicting_output_tables(['building'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='building', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON'], extent=self.extent)
-        h.logEndTask()
-
-        # close database connection
-        h.log('close database connection')
-        db.close()
+class BuildingImporter(VectorImporter):
+    dataset = 'building'
+    geometry_types = ['POLYGON']
 
 
-class CrossingImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.log('importing crossing:')
-        h.log(f"using settings: {str(settings)}")
-
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
-
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
-
-        # import crossing
-        h.logBeginTask('import crossing')
-        if db.handle_conflicting_output_tables(['crossing'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='crossing', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'LINESTRING'], extent=self.extent)
-        h.logEndTask()
-
-        # close database connection
-        h.log('close database connection')
-        db.close()
+class CrossingImporter(VectorImporter):
+    dataset = 'crossing'
+    geometry_types = ['POINT', 'LINESTRING']
 
 
-class FacilityImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.log('importing facility:')
-        h.log(f"using settings: {str(settings)}")
-
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
-
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
-
-        # import facility
-        h.logBeginTask('import facility')
-        if db.handle_conflicting_output_tables(['facility'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='facility', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'POLYGON'], extent=self.extent)
-        h.logEndTask()
-
-        # close database connection
-        h.log('close database connection')
-        db.close()
+class FacilityImporter(VectorImporter):
+    dataset = 'facility'
+    geometry_types = ['POINT', 'POLYGON']
 
 
-class GreennessImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.log('importing greenness:')
-        h.log(f"using settings: {str(settings)}")
-
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
-
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
-
-        # import greenness
-        h.logBeginTask('import greenness')
-        if db.handle_conflicting_output_tables(['greenness'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='greenness', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POLYGON'], extent=self.extent)
-        h.logEndTask()
-
-        # close database connection
-        h.log('close database connection')
-        db.close()
+class GreennessImporter(VectorImporter):
+    dataset = 'greenness'
+    geometry_types = ['POLYGON']
 
 
-class WaterImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.log('importing water:')
-        h.log(f"using settings: {str(settings)}")
+class WaterImporter(VectorImporter):
+    dataset = 'water'
+    geometry_types = ['LINESTRING', 'POLYGON']
 
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
 
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
+class ParkingImporter(VectorImporter):
+    dataset = 'parking'
+    geometry_types = ['LINESTRING', 'POLYGON']
 
-        # import water
-        h.logBeginTask('import water')
-        if db.handle_conflicting_output_tables(['water'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema, 
-                table='water', target_srid=GlobalSettings.get_target_srid(), geometry_types=['LINESTRING', 'POLYGON'], extent=self.extent)
-        h.logEndTask()
 
-        # close database connection
-        h.log('close database connection')
-        db.close()
-
-class ParkingImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.log('importing parking:')
-        h.log(f"using settings: {str(settings)}")
-
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
-
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
-
-        # import tourism
-        h.logBeginTask('import parking')
-        if db.handle_conflicting_output_tables(['parking'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema,
-                table='parking', target_srid=GlobalSettings.get_target_srid(), geometry_types=['LINESTRING', 'POLYGON'], extent=self.extent)
-        h.logEndTask()
-
-        # close database connection
-        h.log('close database connection')
-        db.close()
-
-class SightsImporter(OptionalImporter):
-    def run_step(self, settings: dict):
-        h.log('importing sights:')
-        h.log(f"using settings: {str(settings)}")
-
-        schema = self.db_settings.entities.data_schema
-        directory = GlobalSettings.data_directory
-
-        # open database connection
-        h.info('open database connection')
-        db = PostgresConnection.from_settings_object(self.db_settings)
-        db.init_extensions_and_schema(schema)
-
-        # import sights
-        h.logBeginTask('import sights')
-        if db.handle_conflicting_output_tables(['sights'], schema):
-            import_step.import_geopackage(db.connection_string_old, os.path.join(directory, settings['filename']), schema,
-                table='sights', target_srid=GlobalSettings.get_target_srid(), geometry_types=['POINT', 'POLYGON'], extent=self.extent)
-        h.logEndTask()
-
-        # close database connection
-        h.log('close database connection')
-        db.close()
+class SightsImporter(VectorImporter):
+    dataset = 'sights'
+    geometry_types = ['POINT', 'POLYGON']
 
 
 def create_optional_importer(db_settings: DbSettings, import_type: str):
@@ -398,12 +299,22 @@ def run_optional_importers(db_settings: DbSettings, optional_importer_settings: 
         h.info(f"optional data is imported for the extent of the network (incl. 50 m margin): {extent}")
     else:
         h.info("no network found - optional data is imported without spatial filter")
+    # subsection 'defaults': provides defaults for all optional imports (can be overridden per dataset)
+    defaults = h.get_section(optional_importer_settings, 'defaults')
+    h.warn_unknown_keys(defaults, ['on_existing', 'clip'], "section 'optional' > 'defaults'")
+    default_on_existing = h.normalize_on_existing(defaults.get('on_existing'), "section 'optional' > 'defaults'", default='reuse')
+    default_clip = str(defaults.get('clip') or 'network').strip().lower()
     for import_type, settings in optional_importer_settings.items():
+        if import_type == 'defaults':
+            continue
         required = ['filename', 'srid'] if import_type == 'dem' else ['filename']
         h.require_keys(settings, required, f"error: optional importer '{import_type}' needs the following keys: {', '.join(required)}")
+        settings = dict(settings)
+        if not settings.get('on_existing'):
+            settings['on_existing'] = default_on_existing
         # setting 'clip': 'network' (default) - only import data within the network extent; 'none' - import the whole file
         # (the optional OSM importer uses the 'clip' setting of the OSM import instead)
-        clip = 'none' if import_type == 'osm' else str(settings.get('clip') or 'network').strip().lower()
+        clip = 'none' if import_type == 'osm' else str(settings.get('clip') or default_clip).strip().lower()
         if clip not in ['network', 'none']:
             h.majorInfo(f"error: invalid value '{clip}' for setting 'clip' of optional importer '{import_type}'. Allowed values: [network/none]")
             sys.exit(1)

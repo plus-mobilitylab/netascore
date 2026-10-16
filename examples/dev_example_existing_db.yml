@@ -6,7 +6,6 @@ database:
   dbname: postgres        # target database
   username: postgres      # local postgres user
   password: postgres
-  on_existing: abort # reuse, reuse_or_overwrite, overwrite, abort
 import:
   type: gip
   filename: A_routingexport_ogd_split.zip

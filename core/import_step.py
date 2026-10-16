@@ -10,6 +10,7 @@ from osgeo import ogr
 from typing import List
 
 import toolbox.helper as h
+from core import dataset_registry as registry
 from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
@@ -543,6 +544,10 @@ class OsmImporter(DbStep):
             raise Exception(f"Provided AOI input file path does not exist: '{filepath}'")
         df:gpd.GeoDataFrame = gpd.GeoDataFrame.from_file(filepath)
         h.info(f"Loaded AOI input file. Found {len(df)} features.")
+        # the AOI is stored in WGS84 (EPSG:4326)
+        if df.crs is None:
+            raise Exception(f"The AOI input file '{filepath}' has no coordinate system. Please define the coordinate system of the file.")
+        df = df.to_crs(4326)
         # find feature with matching AOI caseID or join all polygons
         geom = None
         if len(df) < 1:
@@ -552,9 +557,9 @@ class OsmImporter(DbStep):
             if "name" in df.columns:
                 dff = df[df["name"]==aoi_name]
                 if len(dff) > 0:
-                    geom = dff.geometry.unary_union
-            if not geom:
-                geom = df.geometry.unary_union
+                    geom = dff.geometry.union_all()
+            if geom is None or geom.is_empty:
+                geom = df.geometry.union_all()
         else: 
             geom = df.iloc[0].geometry
         # generate AOI entry and insert geometry into AOI table
@@ -766,9 +771,11 @@ class OsmImporter(DbStep):
         if not use_overpass_api:
             filename = settings['filename']
         osm_path = os.path.join(directory, filename)
+        source_path = osm_path
 
         # if the network is clipped to the AOI, only import the relevant part of the OSM data
         extract_path = None
+        bbox = None
         if clip:
             bbox = self._get_extract_bbox(db, schema, settings)
             h.log(f"extracting OSM data for bounding box {bbox}")
@@ -787,9 +794,24 @@ class OsmImporter(DbStep):
         db.commit()
         h.logEndTask()
 
+        # datasets derived from OSM data are recorded in the dataset registry (shared data schema) - these are reused
+        # (depending on 'on_existing') if they were created from the same OSM data with the same settings
+        osm_source = registry.file_signature(source_path)
+        # settings defining the spatial extent (normalized, so that e.g. a default value and the same value given explicitly equal)
+        osm_options = {key: str(settings[key]).strip() for key in ['place_name', 'aoi_filename'] if settings.get(key) is not None}
+        if settings.get('bbox') is not None:
+            osm_options['bbox'] = h.parse_bbox(settings['bbox'])
+        if has_aoi:
+            osm_options['buffer'] = float(settings.get('buffer') or 0)
+            osm_options['clip'] = h.get_clip_mode(settings)
+        osm_coverage = None
+        if bbox is None:  # coverage: extent of the imported OSM data (otherwise: extracted area)
+            osm_coverage = db.query_one(f"""SELECT ST_AsText(ST_SetSRID(ST_Extent(way)::geometry, 4326)) FROM (
+                SELECT way FROM {schema}.osm_point UNION ALL SELECT way FROM {schema}.osm_line UNION ALL SELECT way FROM {schema}.osm_polygon) t;""")[0]
+
         # create dataset "building"
         h.logBeginTask('create dataset "building"')
-        if db.handle_conflicting_output_tables(['building'], schema):
+        if registry.prepare_import(db, schema, 'building', ['building'], on_existing, osm_source, osm_options):
             db.execute('''
                 CREATE TABLE building AS ( -- 16 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
@@ -800,11 +822,12 @@ class OsmImporter(DbStep):
                 CREATE INDEX building_geom_idx ON building USING gist (geom); -- 22 s
             ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
+            registry.register(db, schema, 'building', osm_source, osm_options, GlobalSettings.get_target_srid(), bbox, osm_coverage)
         h.logEndTask()
 
         # create dataset "crossing"
         h.logBeginTask('create dataset "crossing"')
-        if db.handle_conflicting_output_tables(['crossing'], schema):
+        if registry.prepare_import(db, schema, 'crossing', ['crossing'], on_existing, osm_source, osm_options):
             db.execute('''
                 CREATE TABLE crossing AS ( -- 4 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom FROM osm_point WHERE highway IN ('crossing') UNION ALL
@@ -815,11 +838,12 @@ class OsmImporter(DbStep):
                 CREATE INDEX crossing_geom_idx ON crossing USING gist (geom); -- 1 s
             ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
+            registry.register(db, schema, 'crossing', osm_source, osm_options, GlobalSettings.get_target_srid(), bbox, osm_coverage)
         h.logEndTask()
 
         # create dataset "facility"
         h.logBeginTask('create dataset "facility"')
-        if db.handle_conflicting_output_tables(['facility'], schema):
+        if registry.prepare_import(db, schema, 'facility', ['facility'], on_existing, osm_source, osm_options):
             db.execute('''
                 CREATE TABLE facility AS ( -- 3 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom
@@ -856,11 +880,12 @@ class OsmImporter(DbStep):
                 CREATE INDEX facility_geom_idx ON facility USING gist (geom); -- 1 s
             ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
+            registry.register(db, schema, 'facility', osm_source, osm_options, GlobalSettings.get_target_srid(), bbox, osm_coverage)
         h.logEndTask()
 
         # create dataset "greenness"
         h.logBeginTask('create dataset "greenness"')
-        if db.handle_conflicting_output_tables(['greenness'], schema):
+        if registry.prepare_import(db, schema, 'greenness', ['greenness'], on_existing, osm_source, osm_options):
             db.execute('''
                 CREATE TABLE greenness AS ( -- 14 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
@@ -873,11 +898,12 @@ class OsmImporter(DbStep):
                 CREATE INDEX greenness_geom_idx ON greenness USING gist (geom); -- 4 s
             ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
+            registry.register(db, schema, 'greenness', osm_source, osm_options, GlobalSettings.get_target_srid(), bbox, osm_coverage)
         h.logEndTask()
 
         # create dataset "water"
         h.logBeginTask('create dataset "water"')
-        if db.handle_conflicting_output_tables(['water'], schema):
+        if registry.prepare_import(db, schema, 'water', ['water'], on_existing, osm_source, osm_options):
             db.execute('''
                 CREATE TABLE water AS ( -- 10 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(LineString, %(target_srid)s) AS geom FROM osm_line WHERE (waterway IS NOT NULL OR "natural" = 'water') AND tunnel IS NULL UNION ALL
@@ -887,11 +913,12 @@ class OsmImporter(DbStep):
                 CREATE INDEX water_geom_idx ON water USING gist (geom); -- 1 s
             ''', {'target_srid':GlobalSettings.get_target_srid()})
             db.commit()
+            registry.register(db, schema, 'water', osm_source, osm_options, GlobalSettings.get_target_srid(), bbox, osm_coverage)
         h.logEndTask()
 
         # create dataset "parking"
         h.logBeginTask('create dataset "parking"')
-        if db.handle_conflicting_output_tables(['parking'], schema):
+        if registry.prepare_import(db, schema, 'parking', ['parking'], on_existing, osm_source, osm_options):
             db.execute('''
             CREATE TABLE parking AS (
             WITH road AS (
@@ -941,11 +968,12 @@ class OsmImporter(DbStep):
                 CREATE INDEX parking_geom_idx ON parking USING gist (geom); -- 1 s
             ''', {'target_srid': GlobalSettings.get_target_srid()})
             db.commit()
+            registry.register(db, schema, 'parking', osm_source, osm_options, GlobalSettings.get_target_srid(), bbox, osm_coverage)
         h.logEndTask()
         
         # create dataset "sights"
         h.logBeginTask('create dataset "sights"')
-        if db.handle_conflicting_output_tables(['sights'], schema):
+        if registry.prepare_import(db, schema, 'sights', ['sights'], on_existing, osm_source, osm_options):
             db.execute('''
                 CREATE TABLE sights AS (
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom, name, historic, tourism
@@ -957,6 +985,7 @@ class OsmImporter(DbStep):
                 CREATE INDEX sights_geom_idx ON sights USING gist (geom); -- 1 s
             ''', {'target_srid': GlobalSettings.get_target_srid()})
             db.commit()
+            registry.register(db, schema, 'sights', osm_source, osm_options, GlobalSettings.get_target_srid(), bbox, osm_coverage)
         h.logEndTask()
 
         # close database connection
