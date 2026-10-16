@@ -408,7 +408,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS facilities;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           coalesce(round(b.facility_ratio, 2), 0)::numeric AS facilities
+           {% if coverage_facility %}CASE WHEN (SELECT ec.facility FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN coalesce(round(b.facility_ratio, 2), 0) END{% else %}coalesce(round(b.facility_ratio, 2), 0){% endif %}::numeric AS facilities
     FROM network_edge_attributes a
         LEFT JOIN facility_ratio b USING (edge_id)
 );
@@ -448,7 +448,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS crossings;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           coalesce(round(b.crossing_ratio, 2), 0)::numeric AS crossings
+           {% if coverage_crossing %}CASE WHEN (SELECT ec.crossing FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN coalesce(round(b.crossing_ratio, 2), 0) END{% else %}coalesce(round(b.crossing_ratio, 2), 0){% endif %}::numeric AS crossings
     FROM network_edge_attributes a
         LEFT JOIN crossing_ratio b USING (edge_id)
 );
@@ -499,7 +499,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS buildings;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           coalesce(round(b.building_ratio, 2), 0)::numeric AS buildings
+           {% if coverage_building %}CASE WHEN (SELECT ec.building FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN coalesce(round(b.building_ratio, 2), 0) END{% else %}coalesce(round(b.building_ratio, 2), 0){% endif %}::numeric AS buildings
     FROM network_edge_attributes a
         LEFT JOIN building_ratio b USING (edge_id)
 );
@@ -550,7 +550,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS greenness;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           coalesce(round(b.greenness_ratio, 2), 0)::numeric AS greenness
+           {% if coverage_greenness %}CASE WHEN (SELECT ec.greenness FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN coalesce(round(b.greenness_ratio, 2), 0) END{% else %}coalesce(round(b.greenness_ratio, 2), 0){% endif %}::numeric AS greenness
     FROM network_edge_attributes a
         LEFT JOIN greenness_ratio b USING (edge_id)
 );
@@ -641,7 +641,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS water;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           coalesce(round(b.water_ratio, 2), 0)::numeric AS water
+           {% if coverage_water %}CASE WHEN (SELECT ec.water FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN coalesce(round(b.water_ratio, 2), 0) END{% else %}coalesce(round(b.water_ratio, 2), 0){% endif %}::numeric AS water
     FROM network_edge_attributes a
         LEFT JOIN water_ratio b USING (edge_id)
 );
@@ -699,7 +699,7 @@ DROP TABLE IF EXISTS parking_intersection_edges;
 -- get value from geometry with highest overlap --
 CREATE TABLE parking_intersection_edges AS (
     SELECT DISTINCT ON (b.edge_id) edge_id, parking
-    FROM parking a
+    FROM {{ table_parking | sqlsafe }} a
         JOIN network_buffer_2 b ON ST_Intersects(a.geom, b.geom)
     WHERE ST_GeometryType(a.geom) = 'ST_LineString'
 	ORDER BY
@@ -711,7 +711,7 @@ DROP TABLE IF EXISTS parking_intersection_polys;
 CREATE TABLE parking_intersection_polys AS (
 	WITH polys AS(
 		SELECT parking, st_union(geom) as geom
-		FROM parking
+		FROM {{ table_parking | sqlsafe }}
 		WHERE parking IS NOT NULL and ST_GeometryType(geom) = 'ST_Polygon'
 		GROUP BY parking
 	),
@@ -733,7 +733,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS parking;
 
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
-    SELECT a.*, CASE WHEN c.parking IS NULL THEN b.parking::varchar ELSE c.parking::varchar END AS parking
+    SELECT a.*, {% if coverage_parking %}CASE WHEN (SELECT ec.parking FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN CASE WHEN c.parking IS NULL THEN b.parking::varchar ELSE c.parking::varchar END END{% else %}CASE WHEN c.parking IS NULL THEN b.parking::varchar ELSE c.parking::varchar END{% endif %} AS parking
     FROM network_edge_attributes a
         LEFT JOIN parking_intersection_edges b USING (edge_id)
         LEFT JOIN parking_intersection_polys c USING (edge_id)
@@ -774,7 +774,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS sights;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           coalesce(round(b.sights_ratio, 2), 0)::numeric AS sights
+           {% if coverage_sights %}CASE WHEN (SELECT ec.sights FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN coalesce(round(b.sights_ratio, 2), 0) END{% else %}coalesce(round(b.sights_ratio, 2), 0){% endif %}::numeric AS sights
     FROM network_edge_attributes a
         LEFT JOIN sights_ratio b USING (edge_id)
 );
@@ -814,7 +814,7 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS noise;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           round(b.noise, 0)::numeric AS noise
+           {% if coverage_noise %}CASE WHEN (SELECT ec.noise FROM edge_coverage ec WHERE ec.edge_id = a.edge_id) THEN round(b.noise, 0) END{% else %}round(b.noise, 0){% endif %}::numeric AS noise
     FROM network_edge_attributes a
         LEFT JOIN noise_sum b USING (edge_id)
 );

@@ -52,6 +52,18 @@ def _get_entry(db: PostgresConnection, schema: str, dataset: str) -> dict:
     return {'source': row[0], 'options': row[1], 'full_import': row[2], 'interrupted': row[3] == 'importing'}
 
 
+def get_registered(db: PostgresConnection, schema: str, dataset: str) -> dict:
+    """Returns the registry entry of a completely imported dataset (srid, whether a coverage is known) - or None if the dataset
+    is not registered (e.g. imported with an older version of NetAScore) or its import was not completed."""
+    if not db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{schema}.{REGISTRY_TABLE}",))[0]:
+        return None
+    row = db.query_one(f"""SELECT srid, coverage IS NOT NULL, case_id, imported_at FROM {schema}.{REGISTRY_TABLE}
+                           WHERE dataset = %s AND (status IS NULL OR status = 'complete');""", (dataset,))
+    if row is None:
+        return None
+    return {'srid': row[0], 'has_coverage': row[1], 'case_id': row[2], 'imported_at': row[3]}
+
+
 def _mismatches(db: PostgresConnection, schema: str, dataset: str, entry: dict, source: dict, options: dict, extent: tuple) -> list:
     """Returns the reasons why the registered dataset does not match the current settings (empty list: match)."""
     reasons = []

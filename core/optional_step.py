@@ -292,7 +292,7 @@ def get_network_extent(db_settings: DbSettings, margin: float = 50) -> tuple:
         db.close()
 
 
-def run_optional_importers(db_settings: DbSettings, optional_importer_settings: dict):
+def run_optional_importers(db_settings: DbSettings, optional_importer_settings: dict, network_type: str = None):
     # vector data is only imported for the extent of the network (incl. margin)
     extent = get_network_extent(db_settings)
     if extent:
@@ -306,6 +306,9 @@ def run_optional_importers(db_settings: DbSettings, optional_importer_settings: 
     default_clip = str(defaults.get('clip') or 'network').strip().lower()
     for import_type, settings in optional_importer_settings.items():
         if import_type == 'defaults':
+            continue
+        if import_type == 'dem' and str(network_type).lower() in ('gip', 'gip2'):
+            h.majorInfo("NOTE: the DEM is not imported - for GIP, gradients are computed from the elevation data contained in the GIP dataset.")
             continue
         required = ['filename', 'srid'] if import_type == 'dem' else ['filename']
         h.require_keys(settings, required, f"error: optional importer '{import_type}' needs the following keys: {', '.join(required)}")

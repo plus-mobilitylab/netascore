@@ -2,6 +2,7 @@ import re
 import sys
 
 import toolbox.helper as h
+from core import dataset_registry as registry
 from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
@@ -77,6 +78,76 @@ def build_source_attributes_sql(db: PostgresConnection, schema: str, export_sett
     return "".join(f", {p}" for p in parts)
 
 
+# input datasets in the shared data schema: (dataset / table name, indicator)
+INPUT_DATASETS = [('dem', 'gradient'), ('noise', 'noise'), ('building', 'buildings'), ('crossing', 'crossings'), ('facility', 'facilities'),
+                  ('greenness', 'greenness'), ('water', 'water'), ('parking', 'parking'), ('sights', 'sights')]
+
+
+def prepare_input_datasets(db: PostgresConnection, network_schema: str, data_schema: str, skip: list = None) -> dict:
+    """Checks the input datasets against the network of the current case using the dataset registry and returns the
+    template parameters 'table_<dataset>' (None: not used) and 'coverage_<dataset>' (True: dataset covers only parts of the network).
+    - datasets that do not cover the network at all are not used (warning)
+    - for datasets covering only parts of the network, edges outside the coverage get no indicator value (NULL; table 'edge_coverage')
+    - datasets in a different coordinate system are transformed (temporary table '<dataset>_transformed' in the network schema)"""
+    target_srid = GlobalSettings.get_target_srid()
+    params = {}
+    db.execute(f"DROP TABLE IF EXISTS {network_schema}.edge_coverage; CREATE TABLE {network_schema}.edge_coverage AS SELECT edge_id FROM {network_schema}.network_edge; "
+               f"ALTER TABLE {network_schema}.edge_coverage ADD PRIMARY KEY (edge_id);")
+    for dataset, indicator in INPUT_DATASETS:
+        params[f"table_{dataset}"] = None
+        params[f"coverage_{dataset}"] = False
+        if dataset in (skip or []) or db.use_if_exists(dataset, data_schema) is None:
+            continue
+        entry = registry.get_registered(db, data_schema, dataset)
+        if entry is None:
+            h.majorInfo(f"WARNING: dataset '{dataset}' has unknown origin (imported with an older version of NetAScore or import not completed) - "
+                        f"it is used without checking its coordinate system and coverage.")
+            params[f"table_{dataset}"] = dataset
+            continue
+        # share of the network (length) within the coverage of the dataset (unknown coverage: assumed to cover the network)
+        share = 1.0
+        if entry['has_coverage']:
+            share = db.query_one(f"""
+                WITH c AS (SELECT ST_Transform(coverage, %(srid)s) AS geom FROM {data_schema}.{registry.REGISTRY_TABLE} WHERE dataset = %(dataset)s)
+                SELECT coalesce(sum(e.length) FILTER (WHERE ST_Intersects(e.geom, c.geom)) / nullif(sum(e.length), 0), 0)
+                FROM {network_schema}.network_edge e, c;""", {'srid': target_srid, 'dataset': dataset})[0]
+            share = float(share)
+        if share == 0:
+            h.majorInfo(f"WARNING: dataset '{dataset}' (imported for case '{entry['case_id']}') does not cover the network of this case - "
+                        f"the indicator '{indicator}' is not computed, index robustness will decrease.")
+            continue
+        if share < 1:
+            h.majorInfo(f"WARNING: dataset '{dataset}' covers only {share * 100:.1f} % of the network (length) - "
+                        f"edges outside its coverage are assigned no value for the indicator '{indicator}' and their index robustness will decrease.")
+            db.execute(f"""
+                ALTER TABLE {network_schema}.edge_coverage ADD COLUMN {dataset} boolean;
+                UPDATE {network_schema}.edge_coverage ec SET {dataset} = ST_Intersects(e.geom, c.geom)
+                FROM {network_schema}.network_edge e,
+                     (SELECT ST_Transform(coverage, %(srid)s) AS geom FROM {data_schema}.{registry.REGISTRY_TABLE} WHERE dataset = %(dataset)s) c
+                WHERE e.edge_id = ec.edge_id;""", {'srid': target_srid, 'dataset': dataset})
+            params[f"coverage_{dataset}"] = True
+        params[f"table_{dataset}"] = dataset
+        # vector data in a different coordinate system (e.g. imported for another case): use a transformed copy
+        # (the DEM keeps its coordinate system - the network is transformed temporarily for computing gradients - for better performance.)
+        if dataset != 'dem' and entry['srid'] is not None and entry['srid'] != target_srid:
+            h.info(f"dataset '{dataset}' is stored in EPSG:{entry['srid']} - transforming it to EPSG:{target_srid} for this case")
+            db.execute(f"""
+                DROP TABLE IF EXISTS {network_schema}.{dataset}_transformed;
+                CREATE TABLE {network_schema}.{dataset}_transformed AS SELECT * FROM {data_schema}.{dataset};
+                ALTER TABLE {network_schema}.{dataset}_transformed ALTER COLUMN geom TYPE geometry USING ST_Transform(geom, %(srid)s);
+                CREATE INDEX {dataset}_transformed_geom_idx ON {network_schema}.{dataset}_transformed USING gist (geom);""", {'srid': target_srid})
+            params[f"table_{dataset}"] = f"{dataset}_transformed"
+    db.commit()
+    return params
+
+
+def cleanup_input_datasets(db: PostgresConnection, network_schema: str) -> None:
+    """Removes the temporary tables created by prepare_input_datasets()."""
+    tables = ['edge_coverage'] + [f"{dataset}_transformed" for dataset, _ in INPUT_DATASETS]
+    db.execute(f"DROP TABLE IF EXISTS {', '.join(f'{network_schema}.{t}' for t in tables)};")
+    db.commit()
+
+
 class GipAttributesStep(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
@@ -106,21 +177,12 @@ class GipAttributesStep(DbStep):
             params = {  # TODO: @CW: check hard-coded vs. dynamic table names -> settings; also preferably use common data schema - e.g. to avoid providing combined schema + table identifiers
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
-                'table_dem': db.use_if_exists('dem', self.db_settings.entities.data_schema),
-                'table_noise': db.use_if_exists('noise', self.db_settings.entities.data_schema),
-                'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
-                'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
-                'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
-                'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
-                'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
-                'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema),
-                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema),
+                **prepare_input_datasets(db, schema, self.db_settings.entities.data_schema, skip=['dem']),  # GIP: elevation data from GIP
                 'source_attributes': build_source_attributes_sql(db, schema, export_settings, GIP_DEFAULT_SOURCE_ATTRIBUTES, "gip_")
             }
-            if params["table_dem"] is not None:
-                h.majorInfo("WARNING: You provided a DEM file. However, for GIP attribute calculation only the elevation data contained in the GIP dataset is used. Your provided DEM is ignored.")
             db.execute_template_sql_from_file("gip_attributes", params)
             db.commit()
+            cleanup_input_datasets(db, schema)
         h.logEndTask()
 
         # close database connection
@@ -157,21 +219,12 @@ class Gip2AttributesStep(DbStep):
             params = {  # TODO: @CW: check hard-coded vs. dynamic table names -> settings; also preferably use common data schema - e.g. to avoid providing combined schema + table identifiers
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
-                'table_dem': db.use_if_exists('dem', self.db_settings.entities.data_schema),
-                'table_noise': db.use_if_exists('noise', self.db_settings.entities.data_schema),
-                'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
-                'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
-                'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
-                'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
-                'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
-                'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema),
-                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema),
+                **prepare_input_datasets(db, schema, self.db_settings.entities.data_schema, skip=['dem']),  # GIP: elevation data from GIP
                 'source_attributes': build_source_attributes_sql(db, schema, export_settings, GIP2_DEFAULT_SOURCE_ATTRIBUTES, "gip_")
             }
-            if params["table_dem"] is not None:
-                h.majorInfo("WARNING: You provided a DEM file. However, for GIP attribute calculation only the elevation data contained in the GIP dataset is used. Your provided DEM is ignored.")
             db.execute_template_sql_from_file("gip2_attributes", params)
             db.commit()
+            cleanup_input_datasets(db, schema)
         h.logEndTask()
 
         # close database connection
@@ -209,20 +262,13 @@ class OsmAttributesStep(DbStep):
                 # TODO: harmonize schema + load table names from dbEntitySettings (which are populated / overwritten by read values from settings file)
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
-                'table_dem': db.use_if_exists('dem', self.db_settings.entities.data_schema),
-                'table_noise': db.use_if_exists('noise', self.db_settings.entities.data_schema),
-                'table_building': db.use_if_exists('building', self.db_settings.entities.data_schema),
-                'table_crossing': db.use_if_exists('crossing', self.db_settings.entities.data_schema),
-                'table_facility': db.use_if_exists('facility', self.db_settings.entities.data_schema),
-                'table_greenness': db.use_if_exists('greenness', self.db_settings.entities.data_schema),
-                'table_water': db.use_if_exists('water', self.db_settings.entities.data_schema),
-                'table_parking': db.use_if_exists('parking', self.db_settings.entities.data_schema), #TODO: check if this works with file import
-                'table_sights': db.use_if_exists('sights', self.db_settings.entities.data_schema),
+                **prepare_input_datasets(db, schema, self.db_settings.entities.data_schema),
                 'target_srid': GlobalSettings.get_target_srid(),
                 'source_attributes': build_source_attributes_sql(db, schema, export_settings, OSM_DEFAULT_SOURCE_ATTRIBUTES, "osm_")
             }
             db.execute_template_sql_from_file("osm_attributes", params)
             db.commit()
+            cleanup_input_datasets(db, schema)
         h.logEndTask()
 
         # close database connection

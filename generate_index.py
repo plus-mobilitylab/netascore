@@ -102,7 +102,7 @@ with settings_stream:
     # to the spatial extent of the imported network
     if 'optional' not in skip_steps and 'optional' in settings:
         h.majorInfo(' === running optional importers ===')
-        run_optional_importers(db_settings, h.get_section(settings, 'optional'))
+        run_optional_importers(db_settings, h.get_section(settings, 'optional'), h.get_section(settings, 'import').get('type'))
 
     if 'attributes' not in skip_steps and 'import' in settings:
         h.majorInfo(' === running attributes step ===')
