@@ -495,8 +495,8 @@ class OsmImporter(DbStep):
         geolocator = Nominatim(user_agent="py_NetAScore_downloader")
         location = geolocator.geocode(settings['place_name'], geometry="wkt", exactly_one=False)
         import geopandas as gpd
-        d = gpd.GeoDataFrame.from_records([l.raw for l in location])
-        d.geometry = gpd.GeoSeries.from_wkt(d.geotext, crs="EPSG:4326")
+        records = [l.raw for l in location]
+        d = gpd.GeoDataFrame(records, geometry=gpd.GeoSeries.from_wkt([r["geotext"] for r in records]), crs="EPSG:4326")
         # filter for polygon features / (admin) boundaries; highest importance first
         df = d[d["class"]=="boundary"].sort_values(by="importance", ascending=False)
         areas = gpd.GeoDataFrame(df, geometry="geometry")
