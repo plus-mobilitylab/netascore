@@ -1,4 +1,6 @@
 import os
+import re
+import sqlite3
 import subprocess
 from datetime import datetime
 
@@ -16,6 +18,73 @@ def export_geopackage(connection_string: str, path: str, schema: str, table: str
 
     subprocess.run(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} -progress -sql \"SELECT * FROM {schema}.{table}\"", 
         shell=True, check=True)
+
+
+def read_layer_style(style_dir: str, layer: str) -> tuple:
+    """Reads the QGIS layer style files of a layer ('<layer>.qml' and optional '<layer>.sld'). Returns (None, None) if
+    no QML file exists for the layer."""
+    qml_file = os.path.join(style_dir, f'{layer}.qml')
+    sld_file = os.path.join(style_dir, f'{layer}.sld')
+    if not os.path.exists(qml_file):
+        return None, None
+    with open(qml_file, encoding='utf-8') as f:
+        qml = f.read()
+    sld = None
+    if os.path.exists(sld_file):
+        with open(sld_file, encoding='utf-8') as f:
+            sld = f.read()
+    return qml, sld
+
+
+def add_layer_styles(path: str, style_dir: str = os.path.join('resources', 'styles')) -> None:
+    """Adds the QGIS layer styles from the style directory ('<layer>.qml', optional '<layer>.sld') to the layers of the
+    GeoPackage (table 'layer_styles', as created by QGIS) - each as default style of its layer.
+    For the edge layer, one style per mode profile is added, each showing the higher index value of both directions
+    (max of 'index_<profile>_ft' and 'index_<profile>_tf') - the style of the first profile is the default style.
+    The edge style files refer to the columns 'index_bike_ft' and 'index_bike_tf', which are replaced by the profile's columns."""
+    if not os.path.isdir(style_dir):
+        h.log(f"no layer styles found ('{style_dir}') - skipping layer styles", h.LOG_LEVEL_2_INFO)
+        return
+    con = sqlite3.connect(path)
+    try:
+        # spatial layers of the GeoPackage with their geometry column
+        layers = dict(con.execute("SELECT table_name, column_name FROM gpkg_geometry_columns").fetchall())
+        # styles to add: (layer, style name, QML, SLD, use as default, description)
+        styles = []
+        for layer in layers:
+            qml, sld = read_layer_style(style_dir, layer)
+            if qml is None:
+                continue
+            if layer != 'edge':
+                styles.append((layer, layer, qml, sld, True, f"NetAScore default style of layer '{layer}'"))
+                continue
+            columns = [row[1] for row in con.execute("PRAGMA table_info(edge)")]
+            profiles = [m.group(1) for c in columns if (m := re.fullmatch(r'index_(.+)_ft', c))]
+            for i, profile in enumerate(profiles):
+                style_qml, style_sld = qml, sld
+                for direction in ('ft', 'tf'):
+                    style_qml = style_qml.replace(f'index_bike_{direction}', f'index_{profile}_{direction}')
+                    style_sld = style_sld.replace(f'index_bike_{direction}', f'index_{profile}_{direction}') if sld else None
+                styles.append((layer, f"index_{profile}", style_qml, style_sld, i == 0,
+                               f"NetAScore index of profile '{profile}' (higher value of both directions)"))
+        if not styles:
+            h.log("no layer styles found for the exported layers - skipping layer styles", h.LOG_LEVEL_2_INFO)
+            return
+        con.execute("""CREATE TABLE IF NOT EXISTS layer_styles (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            f_table_catalog TEXT(256), f_table_schema TEXT(256), f_table_name TEXT(256), f_geometry_column TEXT(256),
+            styleName TEXT(30), styleQML TEXT, styleSLD TEXT, useAsDefault BOOLEAN, description TEXT, owner TEXT(30),
+            ui TEXT(30), update_time DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))""")
+        con.execute("""INSERT OR IGNORE INTO gpkg_contents (table_name, data_type, identifier)
+            VALUES ('layer_styles', 'attributes', 'layer_styles')""")
+        for layer, name, qml, sld, default, description in styles:
+            con.execute("""INSERT INTO layer_styles (f_table_catalog, f_table_schema, f_table_name, f_geometry_column,
+                styleName, styleQML, styleSLD, useAsDefault, description, owner)
+                VALUES ('', '', ?, ?, ?, ?, ?, ?, ?, 'NetAScore')""",
+                (layer, layers[layer], name, qml, sld, default, description))
+        con.commit()
+        h.log(f"added layer styles: {', '.join(f'{s[0]}/{s[1]}' for s in styles)}")
+    finally:
+        con.close()
 
 
 class GeopackageExporter(DbStep):
@@ -64,6 +133,9 @@ class GeopackageExporter(DbStep):
                               geometry_type=geometry_type, update=True)
         metadata.drop_meta_export_tables(db, schema)
         h.logEndTask()
+
+        # QGIS layer styles (for edge layer: one per mode profile)
+        add_layer_styles(os.path.join(directory, filename))
 
         # close database connection
         h.log('close database connection')
