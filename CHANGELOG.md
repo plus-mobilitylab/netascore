@@ -43,6 +43,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 ### Fixed
 
 - Frequently failing Overpass API download requests.
+- Failed Overpass API requests are reported with the HTTP status or error (also at log level 1), incl. errors the Overpass API reports within the response (e.g. query timeout or out of memory - incomplete data) and truncated responses. Incomplete downloads are deleted, so they are not re-used by the next run.
 - OSM tag lookups for cycle-route scope, bicycle roads, unhewn cobblestone, and `sidewalk:right` / `sidewalk:both`.
 - Revised OSM max speed defaults. 
 - Noise re-import no longer duplicates values.

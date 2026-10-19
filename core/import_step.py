@@ -19,6 +19,33 @@ from toolbox.dbhelper import PostgresConnection
 ogr.UseExceptions()
 
 
+def _remove_file(path: str) -> None:
+    if os.path.isfile(path):
+        os.remove(path)
+
+
+def _overpass_response_error(path: str) -> str:
+    """Checks a downloaded Overpass API response. Returns an error description if the response is no OSM XML, reports an
+    error during query execution (remark, e.g. 'runtime error: Query timed out' - HTTP status 200), or is incomplete
+    (no closing '</osm>', e.g. connection dropped), otherwise None.
+    Only the start and the end of the file are read: the remark follows the header if the query fails before any output,
+    and precedes '</osm>' if it fails during the output."""
+    with open(path, 'rb') as f:
+        head = f.read(5000).decode('utf-8', errors='replace')
+        f.seek(max(0, os.path.getsize(path) - 5000))
+        tail = f.read().decode('utf-8', errors='replace')
+    if '<osm' not in head:
+        excerpt = re.sub(r"\s+", " ", head)[:200]
+        return f"response is no OSM data: {excerpt}"
+    for part in (head, tail):
+        for remark in re.findall(r"<remark>(.*?)</remark>", part, flags=re.S):
+            if 'error' in remark.lower():
+                return f"Overpass API reported an error (data incomplete): {remark.strip()}"
+    if not tail.rstrip().endswith('</osm>'):
+        return "incomplete response (OSM data does not end with '</osm>')"
+    return None
+
+
 def create_csv(file_txt: str) -> None:
     """Takes in a path to an ogd gip txt file and converts it to a csv file."""
     with open(file_txt, 'r', encoding='iso-8859-1') as f:
@@ -658,28 +685,42 @@ class OsmImporter(DbStep):
         h.debugLog(f"prepared OSM overpass API query: \n'{q_str}")
 
         h.logBeginTask("Starting OSM data download...")
-        curEndpointIndex = 0
+        target = os.path.join(GlobalSettings.data_directory, net_file)
+        endpoints = GlobalSettings.overpass_api_endpoints
+        failures = []
         success = False
-        while curEndpointIndex < len(GlobalSettings.overpass_api_endpoints) and not success:
-            success = False
+        for i, endpoint in enumerate(endpoints):
+            error = None
             try:
-                file_name, headers = urllib.request.urlretrieve(
-                    GlobalSettings.overpass_api_endpoints[curEndpointIndex] + "?data=" + urllib.parse.quote_plus(q_str), 
-                    os.path.join(GlobalSettings.data_directory, net_file))
+                file_name, headers = urllib.request.urlretrieve(endpoint + "?data=" + urllib.parse.quote_plus(q_str), target)
             except HTTPError as e:
-                h.log(f"HTTPError while trying to download OSM data from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': Error code {e.code}\n{e.args}\n{e.info()} --> trying again with next available API endpoint...")
-                curEndpointIndex+=1
+                error = f"HTTP status {e.code} ({e.reason})"
+                h.debugLog(f"Response headers from '{endpoint}': {e.headers}")
+                try:
+                    h.debugLog(f"Response from '{endpoint}': {e.read(2000).decode('utf-8', errors='replace')}")
+                except Exception:
+                    pass
             except KeyboardInterrupt:
-                h.majorInfo(f"OSM download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}' interrupted by user. Terminating.")
+                h.majorInfo(f"OSM download from '{endpoint}' interrupted by user. Terminating.")
+                _remove_file(target)
                 exit()
             except BaseException as e:
-                h.log(f"An unexpected ERROR occured during OSM data download from '{GlobalSettings.overpass_api_endpoints[curEndpointIndex]}': {e.args}")
-                curEndpointIndex+=1
+                error = f"{type(e).__name__}: {e}"
             else:
+                h.debugLog(f"Response headers from '{endpoint}': {headers}")
+                # the Overpass API reports errors during query execution (e.g. timeout, out of memory) as remark in the
+                # response (HTTP status 200) - the data is incomplete in this case
+                error = _overpass_response_error(target)
+            if error is None:
                 success = True
-                h.log(f"Response headers from API call to {GlobalSettings.overpass_api_endpoints[curEndpointIndex]}: {headers}", h.LOG_LEVEL_4_DEBUG)
-                h.log(f"OSM Download from {GlobalSettings.overpass_api_endpoints[curEndpointIndex]} succeeded.")
+                h.info(f"OSM download from '{endpoint}' succeeded.")
+                break
+            failures.append(f"{endpoint}: {error}")
+            _remove_file(target)  # no incomplete downloads (would be re-used by the next run)
+            next_try = " - trying the next API endpoint" if i + 1 < len(endpoints) else ""
+            h.majorInfo(f"WARNING: OSM download from '{endpoint}' failed ({i + 1} of {len(endpoints)} API endpoints): {error}{next_try}")
         if not success:
+            h.majorInfo("ERROR: OSM data download failed for all Overpass API endpoints:\n  " + "\n  ".join(failures))
             raise Exception("OSM data download was not successful. Terminating.")
         h.logEndTask()
 
