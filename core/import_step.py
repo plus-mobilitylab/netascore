@@ -168,13 +168,14 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
         #h.debugLog(f"ogr2ogr stdout: {result.args}")
 
 
-def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:
-    """Takes in a path to an osm pbf file and imports it to database tables."""
+def import_osm(connection_string: str, path: str, path_config: str, schema: str, prefix: str = None) -> None:
+    """Takes in a path to an OSM file (pbf / xml) and imports it to database tables using the flex output of osm2pgsql
+    (Lua configuration 'path_config' - defines the tables). The prefix applies to the middle tables (slim mode)."""
     prefix = f"--prefix {prefix}" if prefix else ""
     # osm2pgsql output: warnings and progress (also if the output is redirected, e.g. to a file); all details from log level 3 on
     log_level = "info" if h.get_current_log_level() >= h.LOG_LEVEL_3_DETAILED else "warn"
     h.info(f"importing OSM data from '{path}'")
-    subprocess.run(f"osm2pgsql --log-level={log_level} --log-progress=true --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"",
+    subprocess.run(f"osm2pgsql --log-level={log_level} --log-progress=true --database={connection_string} --schema={schema} --middle-schema={schema} {prefix} --slim --output=flex --style=\"{path_config}\" \"{path}\"",
         shell=True, check=True)
 
 
@@ -843,7 +844,7 @@ class OsmImporter(DbStep):
             extract_osm(osm_path, extract_path, bbox)
             osm_path = extract_path
 
-        import_osm(db.connection_string, osm_path, os.path.join('resources', 'default.style'), schema, prefix='osm')  # 12 m 35 s
+        import_osm(db.connection_string, osm_path, os.path.join('resources', 'osm2pgsql_flex.lua'), schema, prefix='osm')  # 12 m 35 s
         if extract_path:
             os.remove(extract_path)
 
