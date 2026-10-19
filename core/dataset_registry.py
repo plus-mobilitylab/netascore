@@ -38,8 +38,7 @@ def init_registry(db: PostgresConnection, schema: str) -> None:
             imported_at timestamptz,
             case_id varchar,
             status varchar                          -- 'importing' (import started, not finished) or 'complete'
-        );
-        ALTER TABLE {schema}.{REGISTRY_TABLE} ADD COLUMN IF NOT EXISTS status varchar;""")
+        );""")
     db.commit()
 
 
@@ -63,7 +62,7 @@ def get_registered(db: PostgresConnection, schema: str, dataset: str) -> dict:
     if not db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{schema}.{REGISTRY_TABLE}",))[0]:
         return None
     row = db.query_one(f"""SELECT srid, coverage IS NOT NULL, case_id, imported_at FROM {schema}.{REGISTRY_TABLE}
-                           WHERE dataset = %s AND (status IS NULL OR status = 'complete');""", (dataset,))
+                           WHERE dataset = %s AND status = 'complete';""", (dataset,))
     if row is None:
         return None
     return {'srid': row[0], 'has_coverage': row[1], 'case_id': row[2], 'imported_at': row[3]}

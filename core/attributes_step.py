@@ -150,7 +150,7 @@ def prepare_input_datasets(db: PostgresConnection, network_schema: str, data_sch
             params[f"table_{dataset}"] = f"{dataset}_transformed"
             row.update(transformed_crs=True)
     db.commit()
-    metadata.record_datasets(db, network_schema, usage)
+    metadata.record_datasets(db, network_schema, usage, data_schema)
     return params
 
 

@@ -3,11 +3,12 @@
 Tables in the case schema (written by the processing steps, so that the information is kept if steps are skipped later):
 - meta_run: key / value pairs (NetAScore version, settings, input file, steps of the last run incl. completion time, run duration, ...)
 - meta_steps: one row per processing step (time, duration, NetAScore version, and settings of the run in which the step was executed last)
-- meta_datasets: use of the input datasets in the attributes step (status, share of the network covered, ...)
+- meta_datasets: use of the input datasets in the attributes step (status, share of the network covered, ...) and their origin
+  (dataset registry entry at that time - shared datasets may be replaced later, e.g. by another case)
 - meta_profiles: mode profiles used in the index step
 - meta_clip_area: area the network was clipped to (network step, OSM)
 
-Layers in the output GeoPackage: meta_run, meta_steps, meta_datasets (incl. origin from the dataset registry), meta_profiles,
+Layers in the output GeoPackage: meta_run, meta_steps, meta_datasets (incl. origin of the data used), meta_profiles,
 and meta_areas (AOI, clip area, network extent, and coverage of the input datasets).
 """
 import json
@@ -160,16 +161,26 @@ def record_import_file(db_settings: DbSettings, import_settings: dict) -> None:
     record_run_info(db_settings, values)
 
 
-def record_datasets(db: PostgresConnection, schema: str, rows: list) -> None:
+def record_datasets(db: PostgresConnection, schema: str, rows: list, data_schema: str) -> None:
     """Stores how the input datasets are used in the attributes step (replaces previous information).
-    Rows: dataset, indicator, status ('used', 'partial', 'not_used'), network_share_covered, transformed_crs, note."""
+    Rows: dataset, indicator, status ('used', 'partial', 'not_used'), network_share_covered, transformed_crs, note.
+    The origin of the datasets (dataset registry entry) is stored as well: shared datasets may be replaced later (e.g. by
+    another case), while the attributes of this case are still based on the data used here."""
     db.execute(f"""
         DROP TABLE IF EXISTS {schema}.{META_DATASETS_TABLE};
         CREATE TABLE {schema}.{META_DATASETS_TABLE} (dataset varchar PRIMARY KEY, indicator varchar, status varchar,
-                                                     network_share_covered numeric, transformed_crs boolean, note text);""")
+                                                     network_share_covered numeric, transformed_crs boolean, note text,
+                                                     source jsonb, options jsonb, stored_srid integer, clipped_on_import boolean,
+                                                     coverage geometry(MultiPolygon, 4326), imported_at timestamptz, imported_by_case varchar);""")
     for row in rows:
         db.execute(f"""INSERT INTO {schema}.{META_DATASETS_TABLE} (dataset, indicator, status, network_share_covered, transformed_crs, note)
                        VALUES (%(dataset)s, %(indicator)s, %(status)s, %(network_share_covered)s, %(transformed_crs)s, %(note)s);""", row)
+    if db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{data_schema}.dataset_registry",))[0]:
+        db.execute(f"""UPDATE {schema}.{META_DATASETS_TABLE} d
+                       SET source = r.source, options = r.options, stored_srid = r.srid, clipped_on_import = r.import_extent IS NOT NULL,
+                           coverage = r.coverage, imported_at = r.imported_at, imported_by_case = r.case_id
+                       FROM {data_schema}.dataset_registry r
+                       WHERE r.dataset = d.dataset AND r.status = 'complete';""")
     db.commit()
 
 
@@ -206,17 +217,14 @@ def create_meta_export_tables(db: PostgresConnection, schema: str, data_schema: 
                               netascore_version, settings_file, settings
                        FROM {schema}.{META_STEPS_TABLE} ORDER BY step_started_at;""")
         exports.append(('export_meta_steps', 'meta_steps', None))
-    # input datasets: use in this case + origin from the dataset registry
-    has_registry = exists('dataset_registry', data_schema)
+    # input datasets: use in this case + origin of the data used (as recorded in the attributes step)
     if exists(META_DATASETS_TABLE):
-        origin_cols = ("r.source->>'file' AS source_file, to_timestamp((r.source->>'modified')::bigint)::timestamp(0)::text AS source_file_modified, (r.source->'layers')::text AS source_layers, "
-                       "r.options::text AS import_options, r.srid AS stored_srid, r.import_extent IS NOT NULL AS clipped_on_import, "
-                       "r.imported_at, r.case_id AS imported_by_case") if has_registry else "NULL::text AS source_file"
-        origin_join = (f"LEFT JOIN {data_schema}.dataset_registry r ON r.dataset = d.dataset AND (r.status IS NULL OR r.status = 'complete')"
-                       if has_registry else "")
         db.execute(f"""CREATE TABLE {schema}.export_meta_datasets AS
-                       SELECT d.dataset, d.indicator, d.status, d.network_share_covered, d.transformed_crs, d.note, {origin_cols}
-                       FROM {schema}.{META_DATASETS_TABLE} d {origin_join} ORDER BY d.dataset;""")
+                       SELECT dataset, indicator, status, network_share_covered, transformed_crs, note,
+                              source->>'file' AS source_file, to_timestamp((source->>'modified')::bigint)::timestamp(0)::text AS source_file_modified,
+                              (source->'layers')::text AS source_layers, options::text AS import_options, stored_srid, clipped_on_import,
+                              imported_at, imported_by_case
+                       FROM {schema}.{META_DATASETS_TABLE} ORDER BY dataset;""")
         exports.append(('export_meta_datasets', 'meta_datasets', None))
     # mode profiles
     if exists(META_PROFILES_TABLE):
@@ -233,10 +241,9 @@ def create_meta_export_tables(db: PostgresConnection, schema: str, data_schema: 
     if exists('network_edge'):
         parts.append(f"""SELECT 'network_extent'::varchar, NULL::varchar, ST_Multi(ST_SetSRID(ST_Extent(geom)::geometry, {target_srid}))
                          FROM {schema}.network_edge""")
-    if exists(META_DATASETS_TABLE) and has_registry:
-        parts.append(f"""SELECT 'dataset_coverage'::varchar, r.dataset::varchar, ST_Multi(ST_CollectionExtract(ST_Transform(r.coverage, {target_srid}), 3))
-                         FROM {data_schema}.dataset_registry r JOIN {schema}.{META_DATASETS_TABLE} d USING (dataset)
-                         WHERE d.status IN ('used', 'partial') AND r.coverage IS NOT NULL""")
+    if exists(META_DATASETS_TABLE):
+        parts.append(f"""SELECT 'dataset_coverage'::varchar, dataset::varchar, ST_Multi(ST_CollectionExtract(ST_Transform(coverage, {target_srid}), 3))
+                         FROM {schema}.{META_DATASETS_TABLE} WHERE status IN ('used', 'partial') AND coverage IS NOT NULL""")
     if parts:
         db.execute(f"""CREATE TABLE {schema}.export_meta_areas AS
                        SELECT row_number() OVER ()::integer AS fid, area_type, dataset, geom::geometry(MultiPolygon, {target_srid}) AS geom
@@ -252,28 +259,97 @@ def drop_meta_export_tables(db: PostgresConnection, schema: str) -> None:
     db.commit()
 
 
+def _step_completed(db: PostgresConnection, schema: str, step: str) -> tuple:
+    """Returns the last execution of a processing step (time / current run)."""
+    exists = lambda table: db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{schema}.{table}",))[0]
+    in_run = exists(META_RUN_TABLE) and db.query_one(
+        f"SELECT count(*) > 0 FROM {schema}.{META_RUN_TABLE} WHERE key = %s;", (f"step_{step}_completed_at",))[0]
+    last = db.query_one(f"SELECT step_completed_at FROM {schema}.{META_STEPS_TABLE} WHERE step = %s;", (step,)) if exists(META_STEPS_TABLE) else None
+    return in_run, (last[0] if last else None)
+
+
+def dataset_changes(db: PostgresConnection, schema: str, data_schema: str) -> tuple:
+    """Compares the input datasets used in the last attributes step of the case with the datasets currently stored (registry).
+    Returns (warnings, notes):
+    - warnings: datasets imported for this case after its last attributes step - the output does not reflect them yet
+    - notes: datasets used by this case that were replaced since (e.g. by another case) - the output is still based on the
+      data used then, re-running the attributes step imports it again"""
+    warnings, notes = [], []
+    exists = lambda table, sch=schema: db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{sch}.{table}",))[0]
+    if not exists(META_DATASETS_TABLE) or not exists('dataset_registry', data_schema):
+        return warnings, notes
+    rows = db.query_all(f"""
+        SELECT coalesce(d.dataset, r.dataset), d.status, d.imported_at, r.imported_at, r.case_id, r.source->>'file'
+        FROM {schema}.{META_DATASETS_TABLE} d
+            FULL JOIN (SELECT * FROM {data_schema}.dataset_registry WHERE status = 'complete') r USING (dataset)
+        WHERE r.imported_at IS DISTINCT FROM d.imported_at
+            -- re-imported from the same source with the same settings and coverage: same data
+            AND NOT (r.source IS NOT DISTINCT FROM d.source AND r.options IS NOT DISTINCT FROM d.options
+                     AND r.coverage IS NOT DISTINCT FROM d.coverage AND d.source IS NOT NULL)
+        ORDER BY 1;""")
+    imported, replaced = {}, {}  # grouped by source file / replacement
+    for dataset, status, used_imported_at, imported_at, case_id, source_file in rows:
+        if imported_at is not None and case_id == GlobalSettings.case_id:
+            # imported for this case after its attributes step (new dataset or replaced one)
+            imported.setdefault(source_file, []).append(dataset)
+        elif status in ('used', 'partial'):
+            now = f"now: {source_file}, imported for case '{case_id}'" if imported_at is not None else "no longer available"
+            replaced.setdefault(now, []).append(dataset)
+    names = lambda datasets: ("dataset " if len(datasets) == 1 else "datasets ") + ", ".join(f"'{d}'" for d in datasets)
+    for source_file, datasets in imported.items():
+        warnings.append(f"{names(datasets)} ({source_file}) imported after the last attributes step - the output does not reflect "
+                        f"{'it' if len(datasets) == 1 else 'them'} yet. Run the attributes step (and the following steps) to use the current data.")
+    for now, datasets in replaced.items():
+        notes.append(f"{names(datasets)} used by this case replaced since its attributes step ({now}) - the output is based on the data "
+                     f"used then. Re-running the attributes step imports {'it' if len(datasets) == 1 else 'them'} again.")
+    return warnings, notes
+
+
 def print_run_summary(db_settings: DbSettings) -> None:
-    """Prints a summary of the run: output file, use of the input datasets, mode profiles."""
+    """Prints a summary of the run: output file, use of the input datasets, mode profiles - and warnings in case the input
+    datasets changed after the last attributes step of the case."""
     schema = db_settings.entities.network_schema
     db = PostgresConnection.from_settings_object(db_settings)
     try:
         exists = lambda table: db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{schema}.{table}",))[0]
+
+        def as_of(step: str) -> str:
+            # information of a step that was skipped in this run: label with the time of its last execution
+            in_run, last = _step_completed(db, schema, step)
+            return "" if in_run or last is None else f" (as of {step} step {last:%Y-%m-%d %H:%M})"
+
         lines = [f"case: {GlobalSettings.case_id} (EPSG:{GlobalSettings.get_target_srid()})"]
         if exists(META_RUN_TABLE):
             output_file = db.query_one(f"SELECT value FROM {schema}.{META_RUN_TABLE} WHERE key = 'output_file';")
             if output_file:
                 lines.append(f"output: {output_file[0]}")
         if exists(META_DATASETS_TABLE):
-            lines.append("input datasets:")
-            for dataset, status, share_covered, transformed_crs in db.query_all(
-                    f"SELECT dataset, status, network_share_covered, transformed_crs FROM {schema}.{META_DATASETS_TABLE} ORDER BY dataset;"):
+            lines.append(f"input datasets{as_of('attributes')}:")
+            for dataset, status, share_covered, transformed_crs, source_file, imported_at, imported_by_case in db.query_all(
+                    f"""SELECT dataset, status, network_share_covered, transformed_crs, source->>'file', imported_at, imported_by_case
+                        FROM {schema}.{META_DATASETS_TABLE} ORDER BY dataset;"""):
+                # origin: source file, import time (and case, if imported for another case)
+                source = ""
+                if source_file:
+                    # imported in the current run: 'imported now'
+                    in_run = imported_at is not None and _run['started'] is not None \
+                        and imported_at.astimezone().replace(tzinfo=None) >= _run['started']
+                    imported = "imported now" if in_run else (f"imported {imported_at:%Y-%m-%d %H:%M}" if imported_at else "")
+                    if imported_by_case and imported_by_case != GlobalSettings.case_id:
+                        imported += f" for case '{imported_by_case}'"
+                    source = f"  {source_file}" + (f" ({imported.strip()})" if imported else "")
                 details = f" ({float(share_covered) * 100:.1f} % of network covered)" if status == 'partial' else ""
                 details += " - transformed to the target coordinate system" if transformed_crs else ""
-                lines.append(f"  {dataset:10} {status}{details}")
+                lines.append(f"  {dataset:10} {status:8}{source}{details}".rstrip())
         if exists(META_PROFILES_TABLE):
             names = [r[0] for r in db.query_all(f"SELECT profile_name FROM {schema}.{META_PROFILES_TABLE} ORDER BY profile_name;")]
-            lines.append(f"profiles: {', '.join(names)}")
+            lines.append(f"profiles{as_of('index')}: {', '.join(names)}")
+        warnings, notes = dataset_changes(db, schema, db_settings.entities.data_schema)
         db.commit()
         h.section("NetAScore run summary:\n  " + "\n  ".join(lines))
+        for warning in warnings:
+            h.majorInfo(f"WARNING: {warning}")
+        for note in notes:
+            h.info(f"NOTE: {note}")
     finally:
         db.close()
