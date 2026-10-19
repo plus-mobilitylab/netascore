@@ -536,42 +536,28 @@ DROP TABLE pedestrian_infrastructure;
 -- calculate indicator "designated_route"
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS route;
-CREATE TABLE route AS ( -- 4 s
-    SELECT osm_id, name, ST_Transform(way, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
-           CASE
-               WHEN tags -> 'network' = 'icn' OR tags -> 'icn' = 'yes' THEN 'international'
-               WHEN tags -> 'network' = 'ncn' OR tags -> 'ncn' = 'yes' THEN 'national'
-               WHEN tags -> 'network' = 'rcn' OR
-                    tags -> 'network' = 'regional' OR tags -> 'rcn' = 'yes' THEN 'regional'
-               WHEN tags -> 'network' = 'lcn' OR tags -> 'lcn' = 'yes' THEN 'local'
-               ELSE 'unknown'
-           END AS route
-    FROM osm_line
-    WHERE route = 'bicycle'
-);
-
-CREATE INDEX route_geom_idx ON route USING gist (geom);
-
-DROP TABLE IF EXISTS route_network;
-CREATE TABLE route_network AS ( -- 11 m 18 s
-    SELECT b.edge_id, a.route
-    FROM route a, network_edge b
-    WHERE ST_Contains(a.geom, b.geom)
-);
-
+-- edges are part of a route if their OSM way is a member of the route relation (table "osm_bicycle_route" from the
+-- OSM import); routes only along one direction of the way (member role "forward" / "backward") apply to this direction
+-- only; per direction, the highest network level applies
 DROP TABLE IF EXISTS designated_route;
 CREATE TABLE designated_route AS ( -- 1 s
-    SELECT edge_id,
-           CASE
-               WHEN 'international' = ANY (array_agg(route)) THEN 'international'
-               WHEN 'national' = ANY (array_agg(route)) THEN 'national'
-               WHEN 'regional' = ANY (array_agg(route)) THEN 'regional'
-               WHEN 'local' = ANY (array_agg(route)) THEN 'local'
-               WHEN 'unknown' = ANY (array_agg(route)) THEN 'unknown'
-           END AS designated_route
-    FROM route_network
-    GROUP BY edge_id
+    WITH route AS (
+        SELECT way_id AS osm_id, route_level, direction,
+               CASE route_level
+                   WHEN 'international' THEN 1
+                   WHEN 'national' THEN 2
+                   WHEN 'regional' THEN 3
+                   WHEN 'local' THEN 4
+                   ELSE 5
+               END AS rank
+        FROM osm_bicycle_route
+    )
+    SELECT b.edge_id,
+           (array_agg(a.route_level ORDER BY a.rank) FILTER (WHERE a.direction IN ('both', 'forward')))[1] AS designated_route_ft,
+           (array_agg(a.route_level ORDER BY a.rank) FILTER (WHERE a.direction IN ('both', 'backward')))[1] AS designated_route_tf
+    FROM route a
+        JOIN network_edge b USING (osm_id)
+    GROUP BY b.edge_id
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -582,8 +568,8 @@ ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS designated_route_tf;
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
     SELECT a.*,
-           coalesce(b.designated_route, 'no')::varchar AS designated_route_ft,
-           coalesce(b.designated_route, 'no')::varchar AS designated_route_tf
+           coalesce(b.designated_route_ft, 'no')::varchar AS designated_route_ft,
+           coalesce(b.designated_route_tf, 'no')::varchar AS designated_route_tf
     FROM network_edge_attributes a
         LEFT JOIN designated_route b USING (edge_id)
 );
@@ -591,7 +577,7 @@ CREATE TABLE network_edge_attributes_tmp AS (
 DROP TABLE network_edge_attributes;
 ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
-DROP TABLE route, route_network, designated_route;
+DROP TABLE designated_route;
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- calculate indicator "road_category"

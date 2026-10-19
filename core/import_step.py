@@ -170,12 +170,13 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
 
 def import_osm(connection_string: str, path: str, path_config: str, schema: str, prefix: str = None) -> None:
     """Takes in a path to an OSM file (pbf / xml) and imports it to database tables using the flex output of osm2pgsql
-    (Lua configuration 'path_config' - defines the tables). The prefix applies to the middle tables (slim mode)."""
+    (Lua configuration 'path_config' - defines the tables). The prefix applies to the middle tables (slim mode: stored in
+    the database instead of memory), which osm2pgsql drops after the import (--drop)."""
     prefix = f"--prefix {prefix}" if prefix else ""
     # osm2pgsql output: warnings and progress (also if the output is redirected, e.g. to a file); all details from log level 3 on
     log_level = "info" if h.get_current_log_level() >= h.LOG_LEVEL_3_DETAILED else "warn"
     h.info(f"importing OSM data from '{path}'")
-    subprocess.run(f"osm2pgsql --log-level={log_level} --log-progress=true --database={connection_string} --schema={schema} --middle-schema={schema} {prefix} --slim --output=flex --style=\"{path_config}\" \"{path}\"",
+    subprocess.run(f"osm2pgsql --log-level={log_level} --log-progress=true --database={connection_string} --schema={schema} --middle-schema={schema} {prefix} --slim --drop --output=flex --style=\"{path_config}\" \"{path}\"",
         shell=True, check=True)
 
 
@@ -822,9 +823,10 @@ class OsmImporter(DbStep):
         db.drop_table("osm_point", schema=schema)
         db.drop_table("osm_line", schema=schema)
         db.drop_table("osm_polygon", schema=schema)
+        db.drop_table("osm_bicycle_route", schema=schema)
         db.drop_table("osm_nodes", schema=schema)
         db.drop_table("osm_rels", schema=schema)
-        db.drop_table("osm_roads", schema=schema)
+        db.drop_table("osm_roads", schema=schema)  # still created by earlier osm2pgsql imports (before NetAScore 2.0.0)
         db.drop_table("osm_ways", schema=schema)
         db.commit()
 
@@ -847,12 +849,6 @@ class OsmImporter(DbStep):
         import_osm(db.connection_string, osm_path, os.path.join('resources', 'osm2pgsql_flex.lua'), schema, prefix='osm')  # 12 m 35 s
         if extract_path:
             os.remove(extract_path)
-
-        db.drop_table("osm_nodes", schema=schema)
-        db.drop_table("osm_rels", schema=schema)
-        db.drop_table("osm_roads", schema=schema)
-        db.drop_table("osm_ways", schema=schema)
-        db.commit()
         h.logEndTask()
 
         # datasets derived from OSM data are recorded in the dataset registry (shared data schema) - these are reused
