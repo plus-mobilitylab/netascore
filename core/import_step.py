@@ -721,6 +721,11 @@ class OsmImporter(DbStep):
             h.majorInfo(f"WARNING: OSM download from '{endpoint}' failed ({i + 1} of {len(endpoints)} API endpoints): {error}{next_try}")
         if not success:
             h.majorInfo("ERROR: OSM data download failed for all Overpass API endpoints:\n  " + "\n  ".join(failures))
+            h.majorInfo("The Overpass API servers may be overloaded - please try again later. Alternatively, download an OSM extract "
+                        "covering your area of interest (e.g. from https://download.geofabrik.de), save it to the data directory and "
+                        "add it to the 'import' section of your settings file:\n"
+                        "    filename: my_extract.osm.pbf   #(replace with actual filename)\n"
+                        "  Keep 'place_name', 'bbox', or 'aoi_filename' to clip the extract to your area of interest.")
             raise Exception("OSM data download was not successful. Terminating.")
         h.logEndTask()
 
