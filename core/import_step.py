@@ -15,6 +15,9 @@ from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
 
+# GDAL/OGR errors raise exceptions (default from GDAL 4.0 on)
+ogr.UseExceptions()
+
 
 def create_csv(file_txt: str) -> None:
     """Takes in a path to an ogd gip txt file and converts it to a csv file."""
@@ -141,8 +144,10 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
 def import_osm(connection_string: str, path: str, path_style: str, schema: str, prefix: str = None) -> None:
     """Takes in a path to an osm pbf file and imports it to database tables."""
     prefix = f"--prefix {prefix}" if prefix else ""
-
-    subprocess.run(f"osm2pgsql --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"",
+    # osm2pgsql output: warnings and progress (also if the output is redirected, e.g. to a file); all details from log level 3 on
+    log_level = "info" if h.get_current_log_level() >= h.LOG_LEVEL_3_DETAILED else "warn"
+    h.info(f"importing OSM data from '{path}'")
+    subprocess.run(f"osm2pgsql --log-level={log_level} --log-progress=true --database={connection_string} --middle-schema={schema} --output-pgsql-schema={schema} {prefix} --latlong --slim --hstore --style=\"{path_style}\" \"{path}\"",
         shell=True, check=True)
 
 
@@ -150,6 +155,7 @@ def extract_osm(path_in: str, path_out: str, bbox: tuple) -> None:
     """Extracts a bounding box (min_lon, min_lat, max_lon, max_lat) from an OSM file using osmium.
     Strategy 'smart' keeps ways and multipolygon relations complete (also beyond the bounding box)."""
     bbox_str = ",".join(str(v) for v in bbox)
+    h.info(f"extracting OSM subset from '{path_in}'")
     subprocess.run(f"osmium extract --bbox {bbox_str} --strategy smart --overwrite --output=\"{path_out}\" \"{path_in}\"",
         shell=True, check=True)
 
@@ -201,7 +207,7 @@ class GipImporter(DbStep):
         ]
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
@@ -233,7 +239,7 @@ class GipImporter(DbStep):
             h.logEndTask()
 
         # close database connection
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 
@@ -410,7 +416,7 @@ class Gip2Importer(DbStep):
         filename = settings['filename']
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
@@ -456,7 +462,7 @@ class Gip2Importer(DbStep):
             db.commit()
             h.logEndTask()
 
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 
@@ -522,7 +528,7 @@ class OsmImporter(DbStep):
                 print("You chose to continue with AOI #", fid)
                 fid -= 1 # back to 0-based index value
             else:
-                print("Using the first search result. If you want to use a different AOI, either provide more query parameters or add 'interactive: True' to the import settings for an interactive choice.")
+                h.info("Using the first search result. If you want to use a different AOI, either provide more query parameters or add 'interactive: True' to the import settings for an interactive choice.")
         # selected AOI
         h.logBeginTask("importing AOI to db table...")
         area = areas.iloc[fid]
@@ -687,7 +693,7 @@ class OsmImporter(DbStep):
         skip_download = False
 
         # open database connection
-        h.info('open database connection')
+        h.debugLog('open database connection')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.init_extensions_and_schema(schema)
         ### init AOI table 
@@ -997,7 +1003,7 @@ class OsmImporter(DbStep):
         h.logEndTask()
 
         # close database connection
-        h.log('close database connection')
+        h.debugLog('close database connection')
         db.close()
 
 

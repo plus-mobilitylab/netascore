@@ -274,6 +274,6 @@ def print_run_summary(db_settings: DbSettings) -> None:
             names = [r[0] for r in db.query_all(f"SELECT profile_name FROM {schema}.{META_PROFILES_TABLE} ORDER BY profile_name;")]
             lines.append(f"profiles: {', '.join(names)}")
         db.commit()
-        h.majorInfo("NetAScore summary:\n  " + "\n  ".join(lines))
+        h.section("NetAScore run summary:\n  " + "\n  ".join(lines))
     finally:
         db.close()

@@ -63,10 +63,10 @@ class DbSettings:
             password = os.getenv('DB_PASSWORD', '')
 
         if len(username) == 0:
-            print('warn: DB_USERNAME not set')
+            h.majorInfo('WARNING: no database username given (setting \'username\' or environment variable DB_USERNAME)')
 
         if len(password) == 0:
-            print('warn: DB_PASSWORD not set')
+            h.majorInfo('WARNING: no database password given (setting \'password\' or environment variable DB_PASSWORD)')
 
         return DbSettings(host, port, dbname, username, password)
 

@@ -18,6 +18,11 @@ import toolbox.helper as h
 from settings import GlobalSettings
 from toolbox.dbhelper import PostgresConnection
 
+# GDAL/OGR errors raise exceptions (default from GDAL 4.0 on)
+gdal.UseExceptions()
+ogr.UseExceptions()
+osr.UseExceptions()
+
 REGISTRY_TABLE = "dataset_registry"
 
 
@@ -65,19 +70,20 @@ def get_registered(db: PostgresConnection, schema: str, dataset: str) -> dict:
 
 
 def _mismatches(db: PostgresConnection, schema: str, dataset: str, entry: dict, source: dict, options: dict, extent: tuple) -> list:
-    """Returns the reasons why the registered dataset does not match the current settings (empty list: match)."""
+    """Returns the reasons why the registered dataset does not match the current settings (empty list: match)
+    as tuples (short description, description incl. details)."""
     reasons = []
     # compare in the form stored in the registry (JSON: e.g. numeric keys of 'value_mapping' are converted to strings)
     source, options = json.loads(json.dumps(source)), json.loads(json.dumps(options))
     if entry['source'] != source:
-        reasons.append(f"different source data (existing: {entry['source']}, current: {source})")
+        reasons.append(("different source data", f"different source data (existing: {entry['source']}, current: {source})"))
     if entry['options'] != options:
-        reasons.append(f"different import settings (existing: {entry['options']}, current: {options})")
+        reasons.append(("different import settings", f"different import settings (existing: {entry['options']}, current: {options})"))
     if extent and not entry['full_import']:
         covered = db.query_one(f"""SELECT ST_Covers(import_extent, ST_MakeEnvelope(%s, %s, %s, %s, 4326))
                                    FROM {schema}.{REGISTRY_TABLE} WHERE dataset = %s;""", (*extent, dataset))[0]
         if not covered:
-            reasons.append("the existing data was imported for a different area that does not contain the current network extent")
+            reasons.append(("different area", "the existing data was imported for a different area that does not contain the current network extent"))
     return reasons
 
 
@@ -105,17 +111,23 @@ def prepare_import(db: PostgresConnection, schema: str, dataset: str, tables: li
                 h.majorInfo(f"WARNING: reusing existing dataset '{dataset}' of unknown origin (imported with an older version of NetAScore) - "
                             "it cannot be verified that it matches the current settings.")
                 return False
-            reasons = ["unknown origin (imported with an older version of NetAScore)"]
+            reasons = [("unknown origin", "unknown origin (imported with an older version of NetAScore)")]
         else:
             reasons = _mismatches(db, schema, dataset, entry, source, options, extent)
             if not reasons:
                 h.info(f"reusing existing dataset '{dataset}' (matches the current settings)")
                 return False
             if on_existing == 'reuse':
-                h.majorInfo(f"error: existing dataset '{dataset}' does not match the current settings:\n  - " + "\n  - ".join(reasons) +
+                h.majorInfo(f"error: existing dataset '{dataset}' does not match the current settings:\n  - " + "\n  - ".join(d for _, d in reasons) +
                             "\nSet 'on_existing: reuse_or_overwrite' (or 'overwrite') to import the new dataset - this replaces the previous one")
                 sys.exit(1)
-    h.info(f"importing dataset '{dataset}', overwriting previous one." + (f" ({'; '.join(reasons)})" if reasons else ""))
+    h.majorInfo(f"importing dataset '{dataset}', overwriting previous one.")
+    if reasons:
+        # log level 1: short reasons; from log level 2 on: reasons incl. details (existing / current source and settings)
+        if h.get_current_log_level() >= h.LOG_LEVEL_2_INFO:
+            h.info(f"reasons for re-importing dataset '{dataset}':\n  - " + "\n  - ".join(d for _, d in reasons))
+        else:
+            h.majorInfo(f"reasons for re-importing dataset '{dataset}': {', '.join(s for s, _ in reasons)}")
     _start_import(db, schema, dataset, tables, source, options)
     return True
 

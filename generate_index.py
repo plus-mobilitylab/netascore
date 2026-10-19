@@ -85,7 +85,7 @@ with settings_stream:
 
     # execute processing steps
     if 'import' not in skip_steps:
-        h.majorInfo(' === importing ===')
+        h.section('=== importing ===')
         metadata.start_step('import')
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
@@ -95,10 +95,10 @@ with settings_stream:
         metadata.record_import_file(db_settings, import_settings)
         metadata.complete_step(db_settings, 'import')
     else:
-        h.majorInfo(' === skipping import ===')
+        h.section('=== skipping import ===')
 
     if 'network' not in skip_steps and 'import' in settings:
-        h.majorInfo(' === running network step ===')
+        h.section('=== running network step ===')
         metadata.start_step('network')
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
@@ -110,13 +110,13 @@ with settings_stream:
     # optional import runs after the network step in V2.0 to allow for clipping optional imports 
     # to the spatial extent of the imported network
     if 'optional' not in skip_steps and 'optional' in settings:
-        h.majorInfo(' === running optional importers ===')
+        h.section('=== running optional importers ===')
         metadata.start_step('optional')
         run_optional_importers(db_settings, h.get_section(settings, 'optional'), h.get_section(settings, 'import').get('type'))
         metadata.complete_step(db_settings, 'optional')
 
     if 'attributes' not in skip_steps and 'import' in settings:
-        h.majorInfo(' === running attributes step ===')
+        h.section('=== running attributes step ===')
         metadata.start_step('attributes')
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
@@ -126,7 +126,7 @@ with settings_stream:
         metadata.complete_step(db_settings, 'attributes')
 
     if 'index' not in skip_steps:
-        h.majorInfo(' === generating index ===')
+        h.section('=== generating index ===')
         metadata.start_step('index')
         index_settings: dict = None
         if h.has_keys(settings, ['index']):
@@ -136,7 +136,7 @@ with settings_stream:
         metadata.complete_step(db_settings, 'index')
 
     if 'export' not in skip_steps:
-        h.majorInfo(' === exporting ===')
+        h.section('=== exporting ===')
         metadata.start_step('export')
         export_settings: dict = settings['export']
         h.require_keys(export_settings, ['type'], 'error: export section is missing:')

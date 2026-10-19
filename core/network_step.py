@@ -9,13 +9,13 @@ class GipNetworkStep(DbStep):
         super().__init__(db_settings)
 
     def run_step(self, settings: dict):
-        h.info('network step')
+        h.debugLog('network step')
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
@@ -41,7 +41,7 @@ class GipNetworkStep(DbStep):
         h.logEndTask()
 
         # close database connection
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 
@@ -50,13 +50,13 @@ class Gip2NetworkStep(DbStep):
         super().__init__(db_settings)
 
     def run_step(self, settings: dict):
-        h.info('network step')
+        h.debugLog('network step')
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
@@ -86,7 +86,7 @@ class Gip2NetworkStep(DbStep):
         h.logEndTask()
 
         # close database connection
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 
@@ -95,13 +95,13 @@ class OsmNetworkStep(DbStep):
         super().__init__(db_settings)
 
     def run_step(self, settings: dict):
-        h.info('network step')
+        h.debugLog('network step')
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
@@ -147,7 +147,7 @@ class OsmNetworkStep(DbStep):
         h.logEndTask()
 
         # close database connection
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 

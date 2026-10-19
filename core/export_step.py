@@ -11,12 +11,13 @@ from settings import DbSettings, GlobalSettings
 from toolbox.dbhelper import PostgresConnection
 
 
-def export_geopackage(connection_string: str, path: str, schema: str, table: str, layer: str, fid: str, geometry_type: str = None, update: bool = False) -> None: 
+def export_geopackage(connection_string: str, path: str, schema: str, table: str, layer: str, fid: str, geometry_type: str = None, update: bool = False, progress: bool = True) -> None: 
     """Takes in a database table and exports it to a geopackage layer."""
     geometry_type = f"-nlt {geometry_type}" if geometry_type else ""
     update = "-update" if update else ""
+    progress = "-progress" if progress else ""
 
-    subprocess.run(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} -progress -sql \"SELECT * FROM {schema}.{table}\"", 
+    subprocess.run(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} {progress} -sql \"SELECT * FROM {schema}.{table}\"", 
         shell=True, check=True)
 
 
@@ -89,18 +90,18 @@ def add_layer_styles(path: str, style_dir: str = os.path.join('resources', 'styl
 
 class GeopackageExporter(DbStep):
     def run_step(self, settings: dict):
-        h.info('exporting geopackage')
+        h.debugLog('exporting geopackage')
         h.log(f"using the following settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
         directory = GlobalSettings.data_directory
 
         # open database connection
-        h.info('open database connection')
+        h.debugLog('open database connection')
         db = PostgresConnection.from_settings_object(self.db_settings)
 
         # set search path
-        h.log('set search path')
+        h.debugLog('set search path')
         db.schema = schema
 
         filename: str = str(settings.get('filename') or "netascore_<case_id>.gpkg")
@@ -130,7 +131,7 @@ class GeopackageExporter(DbStep):
         exports = metadata.create_meta_export_tables(db, schema, self.db_settings.entities.data_schema, GlobalSettings.get_target_srid())
         for table, layer, geometry_type in exports:
             export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table=table, layer=layer, fid='fid',
-                              geometry_type=geometry_type, update=True)
+                              geometry_type=geometry_type, update=True, progress=False)
         metadata.drop_meta_export_tables(db, schema)
         h.logEndTask()
 
@@ -138,7 +139,7 @@ class GeopackageExporter(DbStep):
         add_layer_styles(os.path.join(directory, filename))
 
         # close database connection
-        h.log('close database connection')
+        h.debugLog('close database connection')
         db.close()
 
 

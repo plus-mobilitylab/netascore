@@ -62,13 +62,13 @@ class PostgresConnection:
         if self._con:
             return
         # connect
-        h.log(f"connecting to database '{self._dbname}' on {self._host}:{self._port}...")
+        h.debugLog(f"connecting to database '{self._dbname}' on {self._host}:{self._port}...")
         # create db connection
         try:
             self._con:psy.connection = psy.connect(dbname = self._dbname, host = self._host, port = self._port, user = self._user, password = self._pw,
                 connect_timeout=3, keepalives=1, keepalives_idle=5, keepalives_interval=2, keepalives_count=2)       
         except psy.Error as e:
-            h.log(f"ERROR while connecting to database: Error {e.pgcode} - {e.pgerror}")
+            h.majorInfo(f"ERROR while connecting to database '{self._dbname}' on {self._host}:{self._port}: {str(e).strip()}")
             raise Exception("ERROR while connecting to database. Terminating.")
         # retreive cursor
         self._cur:psy.cursor = self._con.cursor()
@@ -107,7 +107,7 @@ class PostgresConnection:
     # define extended setters and getters
 
     def set_working_schema(self, schema: str):
-        print(f"setting working schema to: {schema}, public")
+        h.log(f"setting working schema to: {schema}, public")
         self.ex(f"SET search_path = {schema}, public")
         self._schema = schema
 
@@ -137,27 +137,24 @@ class PostgresConnection:
             if commit_before_close:
                 self._con.commit()
             self._con.close()
-            print("DB connection closed.")
+            h.debugLog("DB connection closed.")
             self._con = None
             self._cur = None
         else:
-            print("ERROR closing connection: no connection available.")
+            h.debugLog("closing connection: no connection available.")
 
     # own methods
 
     def init_extensions_and_schema(self, schema):
         # create extensions
-        h.log('create extensions')
         self.create_extension("postgis", "public")
         self.create_extension("postgis_raster", "public")
         self.create_extension("hstore", "public")
 
         # create schema
-        h.log("create schema '{schema}' if not exists")
         self.create_schema(schema)
 
         # set search path
-        h.log('set search path')
         self.schema = schema
         self.commit()
 
@@ -166,9 +163,8 @@ class PostgresConnection:
     def exists(self, entity: str, schema: str = None) -> bool:
         if schema == None:
             schema = self.schema
-        h.log(f"Checking whether entity exists: SELECT to_regclass('{schema + '.' + entity}');", h.LOG_LEVEL_4_DEBUG)
         result = self.query_one(f"SELECT to_regclass('{schema + '.' + entity}');")[0] != None
-        h.log(f"...returned {result}")
+        h.debugLog(f"entity '{schema}.{entity}' exists: {result}")
         return result
     
     def use_if_exists(self, entity: str, schema: str = None) -> str:
@@ -222,7 +218,7 @@ class PostgresConnection:
         self.commit()
 
     def create_extension(self, extension: str, schema: str = None):
-        h.log(f"creating extension: {extension}")
+        h.debugLog(f"creating extension: {extension}")
         if schema != None and len(schema) > 0:
             self.ex(f"CREATE EXTENSION IF NOT EXISTS {extension} WITH SCHEMA {schema};")
         else:
@@ -250,7 +246,7 @@ class PostgresConnection:
 
     def drop_table(self, table, cascade: bool = True, schema: str = None):
         casc = "CASCADE" if cascade else ""
-        h.log(f"Dropping table {table} if exists {casc}")
+        h.debugLog(f"Dropping table {table} if exists {casc}")
         if schema == None:
             self.ex(f"DROP TABLE IF EXISTS {table} {casc};")
         else:
@@ -324,7 +320,7 @@ class PostgresConnection:
         # see issue on Gitlab for further info
         sql = self.helper_replace_vacuum_statements(sql) # TODO: remove in future
         # execute SQL
-        h.log("Executing SQL statements...")
+        h.debugLog("Executing SQL statements...")
         if autocommit:
             self.set_autocommit(True, pre_commit=True) # set autocommit TRUE, so VACUUM can take place in SQL
         self.execute_sql_template_string(sql, parameters, override_parameters)

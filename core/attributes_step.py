@@ -75,7 +75,7 @@ def build_source_attributes_sql(db: PostgresConnection, schema: str, export_sett
             continue
         out_names.add(out)
         parts.append(f'{expr} AS "{out}"')
-    h.info(f"adding {len(parts)} source attributes to the export")
+    h.info(f"adding {len(parts)} source attribute(s) to the export")
     return "".join(f", {p}" for p in parts)
 
 
@@ -166,13 +166,13 @@ class GipAttributesStep(DbStep):
         super().__init__(db_settings)
 
     def run_step(self, settings: dict, export_settings: dict = None):
-        h.info('attributes step')
+        h.debugLog('attributes step')
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.schema = schema
@@ -199,7 +199,7 @@ class GipAttributesStep(DbStep):
         h.logEndTask()
 
         # close database connection
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 
@@ -208,13 +208,13 @@ class Gip2AttributesStep(DbStep):
         super().__init__(db_settings)
 
     def run_step(self, settings: dict, export_settings: dict = None):
-        h.info('attributes step')
+        h.debugLog('attributes step')
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.schema = schema
@@ -241,7 +241,7 @@ class Gip2AttributesStep(DbStep):
         h.logEndTask()
 
         # close database connection
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 
@@ -250,13 +250,13 @@ class OsmAttributesStep(DbStep):
         super().__init__(db_settings)
 
     def run_step(self, settings: dict, export_settings: dict = None):
-        h.info('attributes step')
+        h.debugLog('attributes step')
         h.log(f"using import settings: {str(settings)}")
 
         schema = self.db_settings.entities.network_schema
 
         # open database connection
-        h.log('connecting to database...')
+        h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.schema = schema
@@ -285,7 +285,7 @@ class OsmAttributesStep(DbStep):
         h.logEndTask()
 
         # close database connection
-        h.log('closing database connection')
+        h.debugLog('closing database connection')
         db.close()
 
 

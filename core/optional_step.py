@@ -13,6 +13,10 @@ from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings
 from toolbox.dbhelper import PostgresConnection
 
+# GDAL/OGR errors raise exceptions (default from GDAL 4.0 on)
+gdal.UseExceptions()
+ogr.UseExceptions()
+
 
 def import_raster(connection_string: str, path: str, schema: str, table: str, input_srid: int = 0) -> None:
     if not os.path.exists(path):
@@ -55,7 +59,7 @@ class OptionalImporter(DbStep):
     tables: list = None                  # tables created by the importer (default: [dataset])
 
     def run_step(self, settings: dict):
-        h.info(f'importing {self.dataset}')
+        h.log(f'importing {self.dataset}')
         h.log(f"using settings: {str(settings)}")
         schema = self.db_settings.entities.data_schema
         path = os.path.join(GlobalSettings.data_directory, settings['filename'])
@@ -67,7 +71,7 @@ class OptionalImporter(DbStep):
         source = registry.file_signature(path, layers)
         options = self.get_options(settings)
 
-        h.info('open database connection')
+        h.debugLog('open database connection')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.init_extensions_and_schema(schema)
         h.logBeginTask(f'import {self.dataset}')
@@ -80,7 +84,7 @@ class OptionalImporter(DbStep):
                     coverage = registry.coverage_from_file(os.path.join(GlobalSettings.data_directory, settings['coverage']))
                 registry.register(db, schema, self.dataset, source, options, srid, self.extent, coverage)
         h.logEndTask()
-        h.log('close database connection')
+        h.debugLog('close database connection')
         db.close()
 
     def get_layers(self, path: str, settings: dict) -> list:
@@ -296,7 +300,7 @@ def run_optional_importers(db_settings: DbSettings, optional_importer_settings: 
     # vector data is only imported for the extent of the network (incl. margin)
     extent = get_network_extent(db_settings)
     if extent:
-        h.info(f"optional data is imported for the extent of the network (incl. 50 m margin): {extent}")
+        h.info(f"optional data is imported for the network extent (incl. 50 m margin)")
     else:
         h.info("no network found - optional data is imported without spatial filter")
     # subsection 'defaults': provides defaults for all optional imports (can be overridden per dataset)

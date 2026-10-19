@@ -25,8 +25,6 @@ def secondsToStr(t, detailed:bool = False):
             [(t,),60,60])
 
 line = "="*40
-lineT = "-"*40
-lineTime = "-"*11
 
 verbose_level = LOG_LEVEL_2_INFO
 
@@ -35,19 +33,21 @@ def log(msg: str, level=LOG_LEVEL_3_DETAILED, elapsed = None):
     if(verbose_level < level):
         return
     if(level < LOG_LEVEL_4_DEBUG):
-        # print (line)
-        print (secondsToStr(clock()), '-', msg)
+        print (dt.now().strftime('%H:%M:%S'), '-', msg)
     else:
         print(msg)
     if elapsed:
         print ("Elapsed time:", elapsed)
-    if(level < LOG_LEVEL_3_DETAILED):
-        print (line)
 
 # shorthand functions 
 
 def majorInfo(msg: str):
     log(msg, LOG_LEVEL_1_MAJOR_INFO)
+
+def section(msg: str):
+    """Logs the heading of a new section (e.g. processing step) with a separator line above."""
+    print (line)
+    majorInfo(msg)
 
 FILE_VERSION = 2.0
 
@@ -76,20 +76,14 @@ def logBeginTask(s, level = LOG_LEVEL_2_INFO):
     if(verbose_level < level):
         return
     taskS = s
-    print()
-    print(line)
-    print(">>> at", dt.now().strftime('%H:%M:%S'), ">>> ", s, "")
+    print(dt.now().strftime('%H:%M:%S'), '>>>', s)
     startT = clock()
 
 def logEndTask():
     global taskS, startT
     if taskS is None:
         return
-    print(">>> ", taskS, "completed.")
-    print(lineT)
-    print(lineTime, "took", secondsToStr(clock()-startT, detailed=True), lineTime)
-    print(line)
-    print()
+    print(dt.now().strftime('%H:%M:%S'), '<<<', taskS, f"completed (took {secondsToStr(clock()-startT, detailed=True)})")
     taskS = None
 
 def endlog():
@@ -99,7 +93,7 @@ def endlog():
     info(f"Program terminating after {secondsToStr(elapsed)} (hr:min:sec) at {dt.now().strftime('%H:%M:%S')}.")
 
 def now():
-    return secondsToStr(clock())
+    return dt.now().strftime('%H:%M:%S')
 
 def get_current_log_level():
     return verbose_level
@@ -117,7 +111,7 @@ def overrideParams(orig: dict, override: dict) -> dict:
     if orig == None:
         raise Exception("ERROR: original dict is None!")
     if override == None:
-        log("No override parameters given -> skipping.")
+        debugLog("No override parameters given -> skipping.")
         return orig
     result = orig.copy()
     log("Replacing default parameter values with given override values")

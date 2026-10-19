@@ -246,11 +246,11 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
     schema = db_settings.entities.network_schema
 
     # open database connection
-    h.info('open database connection')
+    h.debugLog('open database connection')
     db = PostgresConnection.from_settings_object(db_settings)
 
     # set search path
-    h.log('set search path')
+    h.debugLog('set search path')
     db.schema = schema
 
     # create functions
@@ -263,20 +263,20 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
             profile_name = p.profile_name
             indicator_weights = p.profile['weights']
             # parse profile definition: generate SQL for indicator value assignments
-            h.info(f'parsing indicator value mapping for profile "{profile_name}"...')
+            h.log(f'parsing indicator value mapping for profile "{profile_name}"...')
             indicator_mapping_sql = ""
             for indicator in p.profile['indicator_mapping']:
                 indicator_mapping_sql += _build_sql_indicator_mapping(indicator)
             h.debugLog(f"compiled indicator mapping SQL: \n\n{indicator_mapping_sql}")
             # parse profile definition: generate SQL for overrides (indicator weights or index)
-            h.info(f'parsing value overrides for profile "{profile_name}"...')
+            h.log(f'parsing value overrides for profile "{profile_name}"...')
             overrides_sql = ""
             for override in (p.profile.get('overrides') or []):
                 overrides_sql += _build_sql_overrides(override)
             h.debugLog(f"compiled overrides SQL: \n\n{overrides_sql}")
             
             # profile-specific function registration
-            h.info(f'register index function for profile "{profile_name}"...')
+            h.log(f'register index function for profile "{profile_name}"...')
             f_params = {
                 'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation'],
                 'indicator_mappings': indicator_mapping_sql,
@@ -294,7 +294,7 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
                 'access_walk': p.access_walk,
             }
             params.update(indicator_weights)
-            print(params)
+            h.debugLog(f"index parameters: {params}")
             db.execute_template_sql_from_file("index", params)
     h.logEndTask()
 
@@ -366,5 +366,5 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
     # db.commit()
 
     # close database connection
-    h.log('close database connection')
+    h.debugLog('close database connection')
     db.close()
