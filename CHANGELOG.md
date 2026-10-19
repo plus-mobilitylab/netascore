@@ -55,7 +55,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - GeoPackage imports skip empty geometries (which could crash the PostGIS backend) and tables without geometry (e.g. QGIS layer styles).
 - Without `target_srid`, all steps use the SRID determined for the AOI of the case, also when the import step is skipped (previously fell back to EPSG:32633).
 - Settings and mode profiles: missing or empty sections (e.g. `database`, `optional`) and missing keys no longer cause crashes. Mode profiles are validated when loading, indicators without a weight are not regarded in index computation, and unknown keys (e.g. typos) in settings files and mode profiles are reported as warnings. `bbox` accepts a list or a comma-separated string for OSM and GIP imports.
-- Console output: more compact (one line at start and end of each task incl. duration, separator lines only above section headings), log messages show the time of day (previously an arbitrary timer value), and internal messages (database connections, index parameters) are only shown with a detailed log level (`--loglevel 3` or `4`). GDAL errors raise exceptions (no more FutureWarning of GDAL). Database connection errors are reported with the error message of the server (previously only shown with a detailed log level).
+- Console output: more compact, fixed timestamp issues, internal messages only at detailed log level (`--loglevel 3` or `4`). GDAL errors now raise exceptions (no more FutureWarning of GDAL). Database connection errors are properly reported also at default log level.
 - Several minor bugs fixed.
 
 ### Removed
