@@ -56,6 +56,10 @@ with settings_stream:
             h.info(f"Set the target SRID to {GlobalSettings.get_target_srid()}")
         if h.has_keys(global_settings, ['case_id']):
             GlobalSettings.case_id = re.sub("[^a-zA-Z0-9_]", "", str(global_settings['case_id']))
+            # the case_id names the AOI (max. 40 characters) and the database schema of the case
+            if len(GlobalSettings.case_id) > 40:
+                raise Exception(f"The case_id '{GlobalSettings.case_id}' is too long ({len(GlobalSettings.case_id)} characters). "
+                                "Please use a case_id with at most 40 characters (letters, digits, and underscores).")
     
     db_settings: DbSettings = DbSettings.from_dict(settings.get('database'))
 
