@@ -686,7 +686,9 @@ CREATE TABLE parking_intersection_edges AS ( -- 57 s
         JOIN network_buffer_2 b ON ST_Intersects(a.geom, b.geom)
     WHERE ST_GeometryType(a.geom) = 'ST_LineString'
 	ORDER BY
-          b.edge_id, ST_Length(ST_Intersection(a.geom, b.geom)) DESC
+          b.edge_id, ST_Length(ST_Intersection(a.geom, b.geom)) DESC,
+          -- equal overlap (e.g. overlapping ways): fixed priority, so that the result does not depend on the row order
+          CASE parking WHEN 'allowed' THEN 1 WHEN 'implicit' THEN 2 WHEN 'forbidden' THEN 3 ELSE 4 END, parking
 );
 
 DROP TABLE IF EXISTS parking_intersection_polys;
@@ -708,7 +710,8 @@ CREATE TABLE parking_intersection_polys AS (
 	FROM joined
 	WHERE overlap > 0.33
 	ORDER BY
-		  edge_id, overlap DESC
+		  edge_id, overlap DESC,
+		  CASE parking WHEN 'allowed' THEN 1 WHEN 'implicit' THEN 2 WHEN 'forbidden' THEN 3 ELSE 4 END, parking -- equal overlap: fixed priority
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
