@@ -1,5 +1,6 @@
 import toolbox.helper as h
 from core import dataset_registry as registry
+from core import metadata
 from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
@@ -162,6 +163,10 @@ class OsmNetworkStep(DbStep):
                 'aoi_name': GlobalSettings.case_id
             }
             db.execute_template_sql_from_file("osm_network", params)
+            # keep the AOI the network is based on (exported as metadata - the shared AOI table may change with later imports)
+            db.execute(f"DROP TABLE IF EXISTS {schema}.{metadata.META_AOI_TABLE};")
+            if has_aoi:
+                db.execute(f"CREATE TABLE {schema}.{metadata.META_AOI_TABLE} AS SELECT geom FROM {data_schema}.{aoi_table} WHERE name = %s;", (GlobalSettings.case_id,))
             db.commit()
         h.logEndTask()
 

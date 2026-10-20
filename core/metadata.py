@@ -7,6 +7,7 @@ Tables in the case schema (written by the processing steps, so that the informat
   (dataset registry entry at that time - shared datasets may be replaced later, e.g. by another case)
 - meta_profiles: mode profiles used in the index step
 - meta_clip_area: area the network was clipped to (network step, OSM)
+- meta_aoi: AOI the network is based on (network step, OSM - the shared AOI table may change with later imports)
 
 Layers in the output GeoPackage: meta_run, meta_steps, meta_datasets (incl. origin of the data used), meta_profiles,
 and meta_areas (AOI, clip area, network extent, and coverage of the input datasets).
@@ -27,6 +28,7 @@ META_STEPS_TABLE = "meta_steps"
 META_DATASETS_TABLE = "meta_datasets"
 META_PROFILES_TABLE = "meta_profiles"
 META_CLIP_AREA_TABLE = "meta_clip_area"
+META_AOI_TABLE = "meta_aoi"
 
 
 def _connect(db_settings: DbSettings) -> PostgresConnection:
@@ -232,9 +234,10 @@ def create_meta_export_tables(db: PostgresConnection, schema: str, data_schema: 
         exports.append(('export_meta_profiles', 'meta_profiles', None))
     # areas: AOI, clip area of the network, network extent, coverage of the input datasets used
     parts = []
-    if exists('aoi', data_schema):
+    # AOI the network is based on (stored by the network step - not the current entry of the shared AOI table)
+    if exists(META_AOI_TABLE):
         parts.append(f"""SELECT 'aoi'::varchar AS area_type, NULL::varchar AS dataset, ST_Multi(ST_CollectionExtract(ST_Transform(geom, {target_srid}), 3)) AS geom
-                         FROM {data_schema}.aoi WHERE name = '{GlobalSettings.case_id}'""")
+                         FROM {schema}.{META_AOI_TABLE}""")
     if exists(META_CLIP_AREA_TABLE):
         parts.append(f"""SELECT 'clip_area'::varchar, NULL::varchar, ST_Multi(ST_CollectionExtract(ST_Transform(geom, {target_srid}), 3))
                          FROM {schema}.{META_CLIP_AREA_TABLE}""")

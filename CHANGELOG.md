@@ -50,6 +50,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - An existing OSM download is only reused if it covers the area of interest. OSM downloads now contain their bounding box. A provided OSM file covering only parts of the area (by bbox) results in a warning.
 - Ensure that a re-run starting with the attributes step does not use OSM data imported for another case in the meantime. The network step stores the bicycle route memberships of the network in the case schema, so the following steps do not depend on shared OSM tables.
 - Running the network step with `--skip import` after changing `buffer` or `clip` reports an error if the imported OSM data does not cover the new clip area (previously, edges at the boundary were missing).
+- The AOI exported in `meta_areas` is the one the network is based on (stored by the network step), not the current entry of the shared AOI table.
 - `parking`: edges with equal overlap of several parking values get the value by fixed priority (`allowed`, `implicit`, `forbidden`) - previously it depended on the order of the data, so results could differ between runs.
 - A `case_id` longer than 40 characters is reported with a readable error.
 - Frequently failing Overpass API download requests.
