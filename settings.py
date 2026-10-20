@@ -29,6 +29,8 @@ class GlobalSettings:
     overpass_max_area: float = 1500
     default_srid: int = 32633
     custom_srid = None
+    # SRID stored for the AOI of the case at the start of the run (None: not available)
+    stored_aoi_srid = None
     def get_target_srid()->int:
         return GlobalSettings.custom_srid or GlobalSettings.default_srid
 

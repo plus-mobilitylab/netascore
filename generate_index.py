@@ -65,6 +65,7 @@ with settings_stream:
         aoi_srid = get_stored_aoi_srid(db_settings)
         if aoi_srid:
             GlobalSettings.default_srid = aoi_srid
+            GlobalSettings.stored_aoi_srid = aoi_srid
             h.info(f"using the target SRID stored for the AOI of case '{GlobalSettings.case_id}': EPSG:{aoi_srid}")
 
     # check if all required sections are present first before taking any actions

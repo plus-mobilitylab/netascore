@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import re
@@ -502,6 +503,41 @@ def bbox_area_km2(min_lat: float, min_lon: float, max_lat: float, max_lon: float
     return r * r * math.radians(max_lon - min_lon) * (math.sin(math.radians(max_lat)) - math.sin(math.radians(min_lat)))
 
 
+def osm_file_bbox(path: str) -> tuple:
+    """Returns the bounding box (min lon, min lat, max lon, max lat) stated in the header of an OSM file - e.g. in extracts
+    from Geofabrik or in Overpass downloads with a global bbox (element 'bounds') - or None if none is stated (or osmium
+    is not available)."""
+    if shutil.which('osmium') is None:
+        return None
+    result = subprocess.run(["osmium", "fileinfo", "-g", "header.boxes", path], capture_output=True, text=True, check=True)
+    match = re.match(r"\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)", result.stdout.strip())
+    return tuple(float(v) for v in match.groups()) if match else None
+
+
+def bbox_share_covered(outer: tuple, inner: tuple, tolerance: float = 1e-6) -> float:
+    """Share (0..1) of the bounding box 'inner' within the bounding box 'outer' (both: min lon, min lat, max lon, max lat).
+    The tolerance (degrees) accounts for rounded coordinates (e.g. 7 decimal places in OSM files)."""
+    width = min(outer[2] + tolerance, inner[2]) - max(outer[0] - tolerance, inner[0])
+    height = min(outer[3] + tolerance, inner[3]) - max(outer[1] - tolerance, inner[1])
+    if width <= 0 or height <= 0:
+        return 0.0
+    return min(1.0, width * height / ((inner[2] - inner[0]) * (inner[3] - inner[1])))
+
+
+def check_osm_file_coverage(path: str, bbox: tuple) -> None:
+    """Warns if the OSM file covers only part of the bounding box (min lon, min lat, max lon, max lat) to be extracted
+    based on the bounding box in the file header."""
+    file_bbox = osm_file_bbox(path)
+    if file_bbox is None:
+        h.info(f"the OSM file '{os.path.basename(path)}' states no bounding box - its coverage of the area cannot be checked")
+        return
+    share = bbox_share_covered(file_bbox, bbox)
+    if share < 1:
+        h.majorInfo(f"WARNING: the OSM file '{os.path.basename(path)}' (bounding box {file_bbox}) only covers {share:.0%} of the "
+                    f"area to be imported {tuple(round(v, 5) for v in bbox)} - the network and the datasets derived from OSM "
+                    "will be incomplete.")
+
+
 class OsmImporter(DbStep):
     # used as optional importer (e.g. for GIP): only OSM files are supported (no AOI / download) - see run_optional_importers
     optional: bool = False
@@ -588,12 +624,9 @@ class OsmImporter(DbStep):
         db.commit()
         h.logEndTask()
 
-    def _set_aoi_from_geodata(self, filepath:str, db: PostgresConnection, data_schema: str, settings: dict):
+    def _read_aoi_file(self, filepath: str) -> str:
+        """Returns the AOI geometry (WKT, WGS84) from an AOI file: the feature(s) matching the case name, or all features."""
         import geopandas as gpd
-        # db settings
-        # first, set target schema
-        db.schema = data_schema
-        aoi_table = self.db_settings.entities.table_aoi
         aoi_name = GlobalSettings.case_id
         if not os.path.exists(filepath):
             raise Exception(f"Provided AOI input file path does not exist: '{filepath}'")
@@ -615,10 +648,48 @@ class OsmImporter(DbStep):
                     geom = dff.geometry.union_all()
             if geom is None or geom.is_empty:
                 geom = df.geometry.union_all()
-        else: 
+        else:
             geom = df.iloc[0].geometry
-        # generate AOI entry and insert geometry into AOI table
-        db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s, ST_GeomFromText(%s,4326));", (aoi_name, str(geom)))
+        return str(geom)
+
+    def _aoi_source(self, settings: dict) -> dict:
+        """Settings the AOI is created from (same precedence as on creation: bbox, AOI file, place name) - stored with
+        the AOI to detect changed settings on later runs."""
+        if h.has_keys(settings, ['bbox']):
+            return {'bbox': h.parse_bbox(settings['bbox'])}
+        if h.has_keys(settings, ['aoi_filename']):
+            return {'aoi_filename': str(settings['aoi_filename']).strip()}
+        return {'place_name': str(settings['place_name']).strip()}
+
+    def _aoi_geometry(self, source: dict) -> str:
+        """AOI geometry (WKT, WGS84) defined by the settings (bbox or AOI file) - None for place names (Nominatim query)."""
+        if 'bbox' in source:
+            min_lat, min_lon, max_lat, max_lon = source['bbox']
+            return f"POLYGON(({min_lon} {min_lat}, {max_lon} {min_lat}, {max_lon} {max_lat}, {min_lon} {max_lat}, {min_lon} {min_lat}))"
+        if 'aoi_filename' in source:
+            return self._read_aoi_file(os.path.join(GlobalSettings.data_directory, source['aoi_filename']))
+        return None
+
+    def _compare_existing_aoi(self, db: PostgresConnection, aoi_table: str, source: dict) -> tuple:
+        """Compares the AOI of the existing case with the current settings. Returns ('match', None), ('mismatch', reason),
+        or ('unknown', None) if this cannot be determined (AOI created from a place name by an older version of NetAScore)."""
+        stored = db.query_one(f"SELECT source FROM {aoi_table} WHERE name = %s;", (GlobalSettings.case_id,))[0]
+        if stored is not None and stored != json.loads(json.dumps(source)):
+            return 'mismatch', f"it was created from different settings (existing: {stored}, current: {source})"
+        # bbox or AOI file: the geometry is compared as well (the AOI file may have changed; AOIs without recorded settings)
+        geom = self._aoi_geometry(source)
+        if geom is not None:
+            same = db.query_one(f"SELECT ST_HausdorffDistance(geom, ST_GeomFromText(%s, 4326)) < 1e-7 FROM {aoi_table} WHERE name = %s;",
+                                (geom, GlobalSettings.case_id))[0]
+            if not same:
+                setting = f"AOI file '{source['aoi_filename']}'" if 'aoi_filename' in source else f"bbox {source['bbox']}"
+                return 'mismatch', f"its geometry differs from the current {setting}"
+        elif stored is None:
+            return 'unknown', None
+        if stored is None:  # created by an older version: record the settings now
+            db.ex(f"UPDATE {aoi_table} SET source = %s WHERE name = %s;", (json.dumps(source), GlobalSettings.case_id))
+            db.commit()
+        return 'match', None
 
     def _set_srid_for_aoi(self, db: PostgresConnection, data_schema: str):
         db.schema = data_schema
@@ -629,6 +700,10 @@ class OsmImporter(DbStep):
         if srid is None:
             srid = self._get_srid_for_AOI(db, aoi_name, aoi_table, data_schema)
             GlobalSettings.default_srid = srid
+            # the AOI was created again (e.g. changed settings): the SRID stored at the start of the run no longer applies
+            if GlobalSettings.stored_aoi_srid is not None and srid != GlobalSettings.stored_aoi_srid:
+                h.info(f"target SRID of case '{aoi_name}' changed to EPSG:{srid} (determined for the new AOI; "
+                       f"previously EPSG:{GlobalSettings.stored_aoi_srid})")
         else:
             # save cusom SRID to AOI table
             self._save_srid_for_AOI(srid, db, aoi_name, aoi_table, data_schema)
@@ -696,22 +771,39 @@ class OsmImporter(DbStep):
         opener = urllib.request.build_opener()
         opener.addheaders = [('User-agent', GlobalSettings.overpass_api_user)]
         urllib.request.install_opener(opener)
+        # set the bounding box as a global setting of the query to include it in response (element 'bounds')
         q_template: str = """
-            [timeout:180];
-            nwr[!"boundary"][!"place"][!power]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"](__bbox__);
+            [timeout:180][bbox:__bbox__];
+            nwr[!"boundary"][!"place"][!power]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"];
             (._;>;);
             out;"""
         net_file = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
-        file_exists = os.path.isfile(os.path.join(GlobalSettings.data_directory, net_file))
+        net_path = os.path.join(GlobalSettings.data_directory, net_file)
+        file_exists = os.path.isfile(net_path)
         if file_exists:
             on_existing = h.normalize_on_existing(settings.get('on_existing'), "section 'import'", default='abort')
             if on_existing in ('reuse', 'reuse_or_overwrite'):
-                h.info("Target file for OSM download already exists. Skipping download (re-using existing file). You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
-                return
-            if on_existing != 'overwrite':
+                # an existing download is reused if it covers the area (based on bounding box stated in the file)
+                min_lat, min_lon, max_lat, max_lon = bbox
+                file_bbox = osm_file_bbox(net_path)
+                covered = file_bbox is not None and bbox_share_covered(file_bbox, (min_lon, min_lat, max_lon, max_lat)) >= 1
+                if covered:
+                    h.info("reusing the existing OSM download (it covers the area of interest). You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
+                    return
+                if file_bbox is None and on_existing == 'reuse':
+                    h.majorInfo(f"WARNING: reusing the existing OSM download '{net_file}' - its area is unknown (downloaded with an older "
+                                "version of NetAScore), so it cannot be verified that it covers the area of interest.")
+                    return
+                if file_bbox is not None and on_existing == 'reuse':
+                    raise Exception(f"The existing OSM download '{net_file}' (bounding box {file_bbox}) does not cover the area of interest. "
+                                    "Set 'on_existing: reuse_or_overwrite' (or 'overwrite') in the import settings to download it again.")
+                h.majorInfo(f"downloading OSM data again: the existing download '{net_file}' "
+                            + ("does not state its area (downloaded with an older version of NetAScore)" if file_bbox is None
+                               else f"(bounding box {file_bbox}) does not cover the area of interest"))
+            elif on_existing != 'overwrite':
                 raise Exception("Target file for OSM download already exists. Aborting. Please resolve the conflict manually or specify a different value for 'on_existing' in the import settings. [reuse/reuse_or_overwrite/overwrite/abort]")
         self._check_download_area(bbox, settings)
-        if file_exists:
+        if file_exists and on_existing == 'overwrite':
             h.info("Target file for OSM download already exists. Deleting existing file and proceeding with download. You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
         q_str = q_template.replace("__bbox__", ",".join(str(v) for v in bbox))
         h.debugLog(f"prepared OSM overpass API query: \n'{q_str}")
@@ -789,6 +881,8 @@ class OsmImporter(DbStep):
             geom  geometry,
             srid  integer
         );""")
+        # settings the AOI was created from (bbox, AOI file, or place name) - compared on later runs
+        db.ex(f"ALTER TABLE {aoi_table} ADD COLUMN IF NOT EXISTS source jsonb;")
 
         # an AOI (bbox, AOI file, or place name) is required for OSM download; for OSM file imports it is optional and
         # (if given) used for clipping the network to the area of interest (see import setting 'clip')
@@ -811,37 +905,41 @@ class OsmImporter(DbStep):
 
         if has_aoi:
             ### handle conflicts (existing AOI entry with same caseID)
-            # check whether an AOI with the given name already exists
+            aoi_source = self._aoi_source(settings)
             excnt = db.query_one("SELECT COUNT(*) FROM " + aoi_table + " WHERE name = %s;", (aoi_name,))[0]
             if excnt > 0:
-                h.info(f"found {excnt} entry in existing AOI table with the given AOI name '{aoi_name}'")
-                # if exists, use param switch or ask whether to use an existing AOI or overwrite it
-                if  on_existing == 'overwrite':
-                    h.info("...you specified to overwrite the existing AOI entry.")
-                    # delete existing AOI from AOI table
+                if on_existing == 'overwrite':
+                    h.info(f"replacing the existing AOI of case '{aoi_name}' (on_existing: overwrite)")
                     db.ex("DELETE FROM " + schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
-                    # continue script execution
                 elif on_existing in ('reuse', 'reuse_or_overwrite'):
-                    # only the AOI query is skipped - the OSM download reuses an existing download file (see _load_osm_data_from_bbox),
-                    # otherwise it is downloaded for the existing AOI (e.g. if a previous run failed before or during the download)
-                    h.info("...you chose to re-use the existing AOI entry. Skipping AOI download.")
-                    reuse_aoi = True
+                    # the AOI is reused if it it matches the current settings (bbox, AOI file, or place name)
+                    status, reason = self._compare_existing_aoi(db, aoi_table, aoi_source)
+                    if status == 'match':
+                        h.info(f"reusing the existing AOI of case '{aoi_name}' (it matches the current settings)")
+                        reuse_aoi = True
+                    elif status == 'unknown' and on_existing == 'reuse':
+                        h.majorInfo(f"WARNING: reusing the existing AOI of case '{aoi_name}' of unknown origin (created with an older version "
+                                    "of NetAScore) - it cannot be verified that it matches the current setting 'place_name'.")
+                        reuse_aoi = True
+                    elif status == 'mismatch' and on_existing == 'reuse':
+                        raise Exception(f"The existing AOI of case '{aoi_name}' does not match the current settings: {reason}. "
+                                        "Set 'on_existing: reuse_or_overwrite' (or 'overwrite') in the import settings to create the AOI again.")
+                    else:
+                        why = reason if status == 'mismatch' else "its origin is unknown (created with an older version of NetAScore)"
+                        h.majorInfo(f"creating the AOI of case '{aoi_name}' again: {why}")
+                        db.ex("DELETE FROM " + schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
                 else:
                     raise Exception("An AOI with the given id already exists. Please resolve the conflict manually or provide a different option for the import setting 'on_existing': [reuse/reuse_or_overwrite/overwrite/abort]")
-            else:
-                h.info("AOI name '" + aoi_name + "' is not in use -> continuing with AOI download...")
 
-            ### import / query AOI and add it to AOI table
+            ### import / query AOI and add it to AOI table (incl. the settings it was created from)
             if not reuse_aoi:
-                if h.has_keys(settings, ['bbox']):               # import from bounding box
-                    bx = h.parse_bbox(settings['bbox'])  # min lat, min lon, max lat, max lon
-                    bbox_geom = f"st_setSRID(st_envelope(st_makeLine(st_makePoint({bx[1]},{bx[0]}), st_makePoint({bx[3]},{bx[2]}))), 4326)"
-                    db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s," + bbox_geom + ");", (aoi_name,))
-                elif h.has_keys(settings, ['aoi_filename']):     # import from given AOI polygon (geopackage file)
-                    filepath = os.path.join(directory, str(settings['aoi_filename']).strip())
-                    self._set_aoi_from_geodata(filepath, db, schema, settings)
-                elif h.has_keys(settings, ['place_name']):       # import from place name
+                geom = self._aoi_geometry(aoi_source)
+                if geom is not None:                            # bounding box or AOI file
+                    db.ex("INSERT INTO " + aoi_table + " (name, geom) VALUES (%s, ST_GeomFromText(%s, 4326));", (aoi_name, geom))
+                else:                                           # place name (Nominatim query)
                     self._load_osm_aoi_from_placename(db, schema, settings)
+                db.ex(f"UPDATE {aoi_table} SET source = %s WHERE name = %s;", (json.dumps(aoi_source), aoi_name))
+                db.commit()
 
             # determine target SRID based on the AOI (unless specified manually)
             self._set_srid_for_aoi(db, schema)
@@ -875,12 +973,16 @@ class OsmImporter(DbStep):
         if clip:
             bbox = self._get_extract_bbox(db, schema, settings)
             h.log(f"extracting OSM data for bounding box {bbox}")
+            # a provided file may cover only parts of the area (downloads cover it, except the margin of the extract)
+            if not use_overpass_api:
+                check_osm_file_coverage(osm_path, bbox)
             extract_path = os.path.join(directory, f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}_extract.osm.pbf")
             extract_osm(osm_path, extract_path, bbox)
             osm_path = extract_path
         elif clip_network:
             bbox = tuple(self.network_extent)
             h.log(f"extracting OSM data for the network extent {bbox}")
+            check_osm_file_coverage(osm_path, bbox)
             extract_path = os.path.join(directory, f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}_extract.osm.pbf")
             extract_osm(osm_path, extract_path, bbox)
             osm_path = extract_path
