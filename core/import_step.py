@@ -763,7 +763,7 @@ class OsmImporter(DbStep):
 
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
-        skip_download = False
+        reuse_aoi = False
 
         # open database connection
         h.debugLog('open database connection')
@@ -815,17 +815,17 @@ class OsmImporter(DbStep):
                     db.ex("DELETE FROM " + schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
                     # continue script execution
                 elif on_existing in ('reuse', 'reuse_or_overwrite'):
-                    # TODO: more precise behavior -> skip only AOI download (name query), or also OSM data download for existing AOI definition?
-                    #       (currently it skips both, so re-imports a locally available OSM download file / cached OSM data)
+                    # only the AOI query is skipped - the OSM download reuses an existing download file (see _load_osm_data_from_bbox),
+                    # otherwise it is downloaded for the existing AOI (e.g. if a previous run failed before or during the download)
                     h.info("...you chose to re-use the existing AOI entry. Skipping AOI download.")
-                    skip_download = True
+                    reuse_aoi = True
                 else:
                     raise Exception("An AOI with the given id already exists. Please resolve the conflict manually or provide a different option for the import setting 'on_existing': [reuse/reuse_or_overwrite/overwrite/abort]")
             else:
                 h.info("AOI name '" + aoi_name + "' is not in use -> continuing with AOI download...")
 
             ### import / query AOI and add it to AOI table
-            if not skip_download:
+            if not reuse_aoi:
                 if h.has_keys(settings, ['bbox']):               # import from bounding box
                     bx = h.parse_bbox(settings['bbox'])  # min lat, min lon, max lat, max lon
                     bbox_geom = f"st_setSRID(st_envelope(st_makeLine(st_makePoint({bx[1]},{bx[0]}), st_makePoint({bx[3]},{bx[2]}))), 4326)"
@@ -839,8 +839,8 @@ class OsmImporter(DbStep):
             # determine target SRID based on the AOI (unless specified manually)
             self._set_srid_for_aoi(db, schema)
 
-            # finally, query OSM data based on previously defined AOI
-            if use_overpass_api and not skip_download:
+            # finally, query OSM data based on previously defined AOI (an existing download file is reused depending on 'on_existing')
+            if use_overpass_api:
                 self._load_osm_data_for_aoi(db, schema, settings)
 
         # import osm file
