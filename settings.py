@@ -136,7 +136,7 @@ SETTINGS_KEYS = {
         'defaults': ['on_existing', 'clip'],
         'dem': ['filename', 'srid', 'on_existing', 'clip', 'coverage'],
         'noise': ['filename', 'layer', 'column_noise', 'value_mapping', 'on_existing', 'clip', 'coverage'],
-        'osm': ['filename', 'on_existing', 'place_name', 'bbox', 'aoi_filename', 'buffer', 'clip', 'interactive'],
+        'osm': ['filename', 'on_existing', 'clip'],
         **{dataset: ['filename', 'on_existing', 'clip', 'coverage']
            for dataset in ['building', 'crossing', 'facility', 'greenness', 'water', 'parking', 'sights']},
     },

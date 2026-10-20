@@ -503,6 +503,11 @@ def bbox_area_km2(min_lat: float, min_lon: float, max_lat: float, max_lon: float
 
 
 class OsmImporter(DbStep):
+    # used as optional importer (e.g. for GIP): only OSM files are supported (no AOI / download) - see run_optional_importers
+    optional: bool = False
+    # optional importer: extent of the network incl. margin (min lon, min lat, max lon, max lat) the OSM file is clipped to; None: no clipping
+    network_extent: tuple = None
+
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
 
@@ -776,7 +781,7 @@ class OsmImporter(DbStep):
         db.schema = schema
         aoi_table = self.db_settings.entities.table_aoi
         aoi_name = GlobalSettings.case_id
-        on_existing = h.normalize_on_existing(settings.get('on_existing'), "section 'import'", default='reuse')  # not set when used as optional importer (GIP)
+        on_existing = h.normalize_on_existing(settings.get('on_existing'), "section 'optional' > 'osm'" if self.optional else "section 'import'", default='reuse')
         # create AOI table if it not already exists
         db.ex(f"""CREATE TABLE IF NOT EXISTS {aoi_table} (
             id    serial NOT NULL PRIMARY KEY,
@@ -787,7 +792,8 @@ class OsmImporter(DbStep):
 
         # an AOI (bbox, AOI file, or place name) is required for OSM download; for OSM file imports it is optional and
         # (if given) used for clipping the network to the area of interest (see import setting 'clip')
-        has_aoi = h.has_any_key(settings, ['place_name', 'bbox', 'aoi_filename'])
+        # (optional importer: OSM file only - clipped to the network extent, if given)
+        has_aoi = not self.optional and h.has_any_key(settings, ['place_name', 'bbox', 'aoi_filename'])
         if not h.has_keys(settings, ['filename']):
             h.info("no OSM file provided. Checking for OSM query settings instead...")
             if not has_aoi:
@@ -798,7 +804,8 @@ class OsmImporter(DbStep):
 
         # clipping to the area of interest (requires an AOI and osmium)
         clip = has_aoi and h.get_clip_mode(settings) != 'none'
-        if clip and shutil.which('osmium') is None:
+        clip_network = self.optional and self.network_extent is not None
+        if (clip or clip_network) and shutil.which('osmium') is None:
             raise Exception("osmium is required for clipping OSM data to the area of interest, but was not found. "
                             "Please install osmium-tool (e.g. 'conda install -c conda-forge osmium-tool') or set the import setting 'clip: none'.")
 
@@ -870,6 +877,12 @@ class OsmImporter(DbStep):
             extract_path = os.path.join(directory, f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}_extract.osm.pbf")
             extract_osm(osm_path, extract_path, bbox)
             osm_path = extract_path
+        elif clip_network:
+            bbox = tuple(self.network_extent)
+            h.log(f"extracting OSM data for the network extent {bbox}")
+            extract_path = os.path.join(directory, f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}_extract.osm.pbf")
+            extract_osm(osm_path, extract_path, bbox)
+            osm_path = extract_path
 
         import_osm(db.connection_string, osm_path, os.path.join('resources', 'osm2pgsql_flex.lua'), schema, prefix='osm')  # 12 m 35 s
         if extract_path:
@@ -886,6 +899,9 @@ class OsmImporter(DbStep):
         if has_aoi:
             osm_options['buffer'] = float(settings.get('buffer') or 0)
             osm_options['clip'] = h.get_clip_mode(settings)
+        if clip_network:
+            osm_options['clip'] = 'network'
+            osm_options['extent'] = [round(v, 5) for v in bbox]
         osm_coverage = None
         if bbox is None:  # coverage: extent of the imported OSM data (otherwise: extracted area)
             osm_coverage = db.query_one(f"""SELECT ST_AsText(ST_SetSRID(ST_Extent(way)::geometry, 4326)) FROM (

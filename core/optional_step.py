@@ -313,19 +313,27 @@ def run_optional_importers(db_settings: DbSettings, optional_importer_settings: 
         if import_type == 'dem' and str(network_type).lower() in ('gip', 'gip2'):
             h.majorInfo("NOTE: the DEM is not imported - for GIP, gradients are computed from the elevation data contained in the GIP dataset.")
             continue
-        required = ['filename', 'srid'] if import_type == 'dem' else ['filename']
-        h.require_keys(settings, required, f"error: optional importer '{import_type}' needs the following keys: {', '.join(required)}")
+        if import_type == 'osm':
+            # optional OSM import (for GIP): OSM files only
+            h.require_keys(settings, ['filename'], "error: the optional OSM import requires an OSM file, e.g. an extract from "
+                           "https://download.geofabrik.de - it is clipped to the extent of the network (unless 'clip: none' is set).")
+        else:
+            required = ['filename', 'srid'] if import_type == 'dem' else ['filename']
+            h.require_keys(settings, required, f"error: optional importer '{import_type}' needs the following keys: {', '.join(required)}")
         settings = dict(settings)
         if not settings.get('on_existing'):
             settings['on_existing'] = default_on_existing
         # setting 'clip': 'network' (default) - only import data within the network extent; 'none' - import the whole file
-        # (the optional OSM importer uses the 'clip' setting of the OSM import instead)
-        clip = 'none' if import_type == 'osm' else str(settings.get('clip') or default_clip).strip().lower()
+        clip = str(settings.get('clip') or default_clip).strip().lower()
         if clip not in ['network', 'none']:
             h.majorInfo(f"error: invalid value '{clip}' for setting 'clip' of optional importer '{import_type}'. Allowed values: [network/none]")
             sys.exit(1)
         if clip == 'none' and extent:
             h.info(f"optional importer '{import_type}': clipping disabled - importing the whole file")
         optional_importer = create_optional_importer(db_settings, import_type)
-        optional_importer.extent = extent if clip == 'network' else None
+        if import_type == 'osm':
+            optional_importer.optional = True
+            optional_importer.network_extent = extent if clip == 'network' else None
+        else:
+            optional_importer.extent = extent if clip == 'network' else None
         optional_importer.run_step(settings)

@@ -36,6 +36,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Processing steps (network, attributes, index, export) always replace previous outputs in the database; `on_existing` in the `database` section is no longer used (use the command line option `--skip` to skip steps).
 - Setting `on_existing` uses the values `reuse`, `reuse_or_overwrite`, `overwrite`, and `abort` (previously `skip`, `delete`, `abort`). The old values are still accepted (`skip` corresponds to `reuse`).
 - Processing order: optional imports now run after the network step (import, network, optional, attributes, index, export). Optional data (vector data and DEM) is only imported for the extent of the network (incl. 50 m margin), unless `clip: none` is set for the respective optional import.
+- Optional OSM import (for Austrian GIP data): the OSM file is clipped to the network extent by default, like other optional datasets (setting `clip`: `network`).
 - GIP import setting `filename_A` is renamed to `filename` (for consistency with OSM file imports).
 - now `designated_route` is directly derived direction-specific from membership of OSM ways in bicycle route relations (previously: geometric overlap with the route). Proposed routes (`state=proposed`) are not regarded. For GIP imports, routes still apply to both directions of a link (as included in GIP input data).
 - OSM import uses the flex output of osm2pgsql (the pgsql output is deprecated). After updating, run the import step again for existing OSM data.

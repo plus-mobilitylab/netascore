@@ -24,9 +24,10 @@ optional:
     #   "60-64": 62
     # coverage: noise_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)
 
-  osm:
-    filename: austria-latest.osm.pbf # required mainly for walkability indicators
-    # NOTE: if an OSM file is provided, the layers 'building', 'crossing', 'facility', 'greennesss' and 'water' are extracted from OSM
+  osm: # required mainly for walkability indicators
+    filename: austria-latest.osm.pbf # OSM file (required), e.g. from https://download.geofabrik.de
+    # NOTE: when providing an OSM file the layers 'building', 'crossing', 'facility', 'greennesss' and 'water' are extracted from OSM
+    # clip: network # network (default): only import OSM data within the network extent (requires osmium); none: import the whole file
   # building:
     # filename: building.gpkg # GeoPackage
   # crossing:
