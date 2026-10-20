@@ -116,14 +116,16 @@ class OsmNetworkStep(DbStep):
         # will throw an exception in case of mismatch
         registry.check_osm_import(db, self.db_settings.entities.data_schema)
 
-        # determine clipping of the network to the area of interest (requires an AOI entry, e.g. from OSM download)
+        # AOI of the case (e.g. from OSM download or 'bbox' / 'place_name' / 'aoi_filename' of an OSM file import)
+        data_schema = self.db_settings.entities.data_schema
+        aoi_table = self.db_settings.entities.table_aoi
+        has_aoi_table = db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{data_schema}.{aoi_table}",))[0]
+        has_aoi = has_aoi_table and db.query_one(f"SELECT COUNT(*) FROM {data_schema}.{aoi_table} WHERE name = %s AND geom IS NOT NULL;",
+                                                 (GlobalSettings.case_id,))[0] > 0
+
+        # determine clipping of the network to the area of interest (requires an AOI entry)
         clip_mode = h.get_clip_mode(settings)
         if clip_mode != 'none':
-            data_schema = self.db_settings.entities.data_schema
-            aoi_table = self.db_settings.entities.table_aoi
-            has_aoi_table = db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{data_schema}.{aoi_table}",))[0]
-            has_aoi = has_aoi_table and db.query_one(f"SELECT COUNT(*) FROM {data_schema}.{aoi_table} WHERE name = %s AND geom IS NOT NULL;",
-                                                     (GlobalSettings.case_id,))[0] > 0
             if not has_aoi:
                 h.info(f"No AOI found for case '{GlobalSettings.case_id}' - network is not clipped. Specify 'bbox', 'place_name', or 'aoi_filename' in the import settings to enable clipping.")
                 clip_mode = 'none'
@@ -132,6 +134,18 @@ class OsmNetworkStep(DbStep):
         buffer = 0
         if settings and h.has_keys(settings, ['buffer']):
             buffer = settings['buffer']
+
+        # the imported OSM data has to cover the clip area (e.g. not if 'buffer' was increased and the import step skipped)
+        clip_area = None
+        if clip_mode != 'none':
+            clip_area = db.query_one(f"""
+                SELECT ST_AsText(ST_Transform(CASE
+                           WHEN %(clip_mode)s = 'aoi' THEN ST_Buffer(ST_Transform(geom, %(srid)s), %(buffer)s)
+                           ELSE ST_SetSRID(ST_Expand(box2d(ST_Transform(geom, %(srid)s)), %(buffer)s), %(srid)s)
+                       END, 4326))
+                FROM {data_schema}.{aoi_table} WHERE name = %(aoi_name)s;""",
+                {'clip_mode': clip_mode, 'srid': GlobalSettings.get_target_srid(), 'buffer': buffer, 'aoi_name': GlobalSettings.case_id})[0]
+        registry.check_osm_import_extent(db, data_schema, clip_area)
 
         # execute "osm_network"
         h.logBeginTask('execute "osm_network"')

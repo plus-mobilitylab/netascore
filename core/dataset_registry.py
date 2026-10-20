@@ -220,6 +220,22 @@ def check_osm_import(db: PostgresConnection, schema: str) -> None:
                         "Please run the import step (again) for the current case.")
 
 
+def check_osm_import_extent(db: PostgresConnection, schema: str, clip_area_wkt: str = None) -> None:
+    """Ensures that the OSM data (imported for the current case, see check_osm_import) covers the area the network is
+    clipped to (WKT, WGS84; None: network not clipped) - e.g. not if 'buffer' or 'clip' were changed and the import step
+    was skipped."""
+    import_extent, options = db.query_one(f"SELECT ST_AsText(import_extent), options FROM {schema}.{OSM_IMPORT_TABLE};")
+    if import_extent is None:  # whole OSM file imported
+        return
+    if clip_area_wkt is None:
+        raise Exception(f"The OSM data was only imported for the area of interest (import settings: {options}), but the network "
+                        "is not clipped to it now (no AOI or 'clip: none'). Please run the import step again.")
+    covered = db.query_one("SELECT ST_Covers(ST_GeomFromText(%s, 4326), ST_GeomFromText(%s, 4326));", (import_extent, clip_area_wkt))[0]
+    if not covered:
+        raise Exception(f"The area the network is clipped to (current settings 'buffer' / 'clip') extends beyond the area the OSM "
+                        f"data was imported for (import settings: {options}). Please run the import step again.")
+
+
 # --- coverage of source data (WKT polygon in WGS84) ---
 
 def _wgs84() -> osr.SpatialReference:
