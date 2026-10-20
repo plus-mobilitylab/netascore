@@ -313,6 +313,9 @@ def run_optional_importers(db_settings: DbSettings, optional_importer_settings: 
         if import_type == 'dem' and str(network_type).lower() in ('gip', 'gip2'):
             h.majorInfo("NOTE: the DEM is not imported - for GIP, gradients are computed from the elevation data contained in the GIP dataset.")
             continue
+        if import_type == 'osm' and str(network_type).lower() == 'osm':
+            h.majorInfo("NOTE: the optional OSM import is skipped - for OSM imports, the OSM data of the import step is used.")
+            continue
         if import_type == 'osm':
             # optional OSM import (for GIP): OSM files only
             h.require_keys(settings, ['filename'], "error: the optional OSM import requires an OSM file, e.g. an extract from "
