@@ -175,6 +175,51 @@ def register(db: PostgresConnection, schema: str, dataset: str, source: dict, op
     db.commit()
 
 
+# --- OSM import (tables osm_point, osm_line, osm_polygon, osm_bicycle_route) ---
+# The OSM tables in the shared data schema are replaced by each OSM import (also by the optional OSM import of other
+# cases). The network step now checks that they were imported for the current case. They are not part of
+# the dataset registry, as they are not used as input datasets of the attributes step.
+
+OSM_IMPORT_TABLE = "osm_import"
+
+
+def start_osm_import(db: PostgresConnection, schema: str) -> None:
+    """Removes the record of the previous OSM import (the OSM tables are replaced - incomplete if the import fails)."""
+    db.execute(f"DROP TABLE IF EXISTS {schema}.{OSM_IMPORT_TABLE};")
+    db.commit()
+
+
+def record_osm_import(db: PostgresConnection, schema: str, source: dict, options: dict, extent: tuple = None) -> None:
+    """Records a completed OSM import: case, source file, settings affecting the imported area, and extracted area
+    (min lon, min lat, max lon, max lat; None: whole file)."""
+    db.execute(f"""
+        DROP TABLE IF EXISTS {schema}.{OSM_IMPORT_TABLE};
+        CREATE TABLE {schema}.{OSM_IMPORT_TABLE} (case_id varchar, source jsonb, options jsonb,
+                                                 import_extent geometry(Polygon, 4326), imported_at timestamptz);
+        INSERT INTO {schema}.{OSM_IMPORT_TABLE}
+        SELECT %(case_id)s, %(source)s, %(options)s,
+               CASE WHEN %(has_extent)s THEN ST_MakeEnvelope(%(x1)s, %(y1)s, %(x2)s, %(y2)s, 4326) END, now();
+        """, {'case_id': GlobalSettings.case_id, 'source': json.dumps(source), 'options': json.dumps(options),
+              'has_extent': extent is not None, 'x1': extent[0] if extent else None, 'y1': extent[1] if extent else None,
+              'x2': extent[2] if extent else None, 'y2': extent[3] if extent else None})
+    db.commit()
+
+
+def check_osm_import(db: PostgresConnection, schema: str) -> None:
+    """Ensures that the OSM tables in the data schema were imported for the current case"""
+    row = None
+    if db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{schema}.{OSM_IMPORT_TABLE}",))[0]:
+        row = db.query_one(f"SELECT case_id, source->>'file', imported_at FROM {schema}.{OSM_IMPORT_TABLE};")
+    if row is None:
+        raise Exception(f"No completed OSM import found in schema '{schema}' (import not run, failed, or ran with an older "
+                        "version of NetAScore). Please run the import step (again).")
+    case_id, source_file, imported_at = row
+    if case_id != GlobalSettings.case_id:
+        raise Exception(f"The OSM data in schema '{schema}' was imported for case '{case_id}' ({source_file}, "
+                        f"{imported_at:%Y-%m-%d %H:%M}) - not for the current case '{GlobalSettings.case_id}'. "
+                        "Please run the import step (again) for the current case.")
+
+
 # --- coverage of source data (WKT polygon in WGS84) ---
 
 def _wgs84() -> osr.SpatialReference:

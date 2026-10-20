@@ -536,13 +536,13 @@ DROP TABLE pedestrian_infrastructure;
 -- calculate indicator "designated_route"
 -- ---------------------------------------------------------------------------------------------------------------------
 
--- edges are part of a route if their OSM way is a member of the route relation (table "osm_bicycle_route" from the
--- OSM import); routes only along one direction of the way (member role "forward" / "backward") apply to this direction
+-- edges are part of a route if their OSM way is a member of the route relation (table "network_bicycle_route" from the
+-- network step); routes only along one direction of the way (member role "forward" / "backward") apply to this direction
 -- only; per direction, the highest network level applies
 DROP TABLE IF EXISTS designated_route;
 CREATE TABLE designated_route AS ( -- 1 s
     WITH route AS (
-        SELECT way_id AS osm_id, route_level, direction,
+        SELECT osm_id, route_level, direction,
                CASE route_level
                    WHEN 'international' THEN 1
                    WHEN 'national' THEN 2
@@ -550,7 +550,7 @@ CREATE TABLE designated_route AS ( -- 1 s
                    WHEN 'local' THEN 4
                    ELSE 5
                END AS rank
-        FROM osm_bicycle_route
+        FROM network_bicycle_route
     )
     SELECT b.edge_id,
            (array_agg(a.route_level ORDER BY a.rank) FILTER (WHERE a.direction IN ('both', 'forward')))[1] AS designated_route_ft,

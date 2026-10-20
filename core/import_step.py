@@ -852,6 +852,7 @@ class OsmImporter(DbStep):
 
         # import osm file
         h.logBeginTask('import osm file')
+        registry.start_osm_import(db, schema)
         db.drop_table("osm_point", schema=schema)
         db.drop_table("osm_line", schema=schema)
         db.drop_table("osm_polygon", schema=schema)
@@ -902,6 +903,8 @@ class OsmImporter(DbStep):
         if clip_network:
             osm_options['clip'] = 'network'
             osm_options['extent'] = [round(v, 5) for v in bbox]
+        # the OSM tables are now complete: record for which case (and area) they were imported (checked by the network step)
+        registry.record_osm_import(db, schema, osm_source, osm_options, bbox)
         osm_coverage = None
         if bbox is None:  # coverage: extent of the imported OSM data (otherwise: extracted area)
             osm_coverage = db.query_one(f"""SELECT ST_AsText(ST_SetSRID(ST_Extent(way)::geometry, 4326)) FROM (

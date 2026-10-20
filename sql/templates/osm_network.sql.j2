@@ -398,6 +398,20 @@ CREATE INDEX network_edge_geom_idx ON network_edge USING gist(geom); -- 21 s
 DROP TABLE network_point;
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- create table "network_bicycle_route": bicycle route memberships of each segment (for indicator "designated_route")
+-- (copy of relevant parts of "osm_bicycle_route" - avoid replacement by later OSM imports in shared data schema)
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_bicycle_route;
+CREATE TABLE network_bicycle_route AS (
+    SELECT a.way_id AS osm_id, a.relation_id, a.route_level, a.direction, a.network, a.name, a.ref
+    FROM osm_bicycle_route a
+    WHERE EXISTS (SELECT FROM network_edge b WHERE b.osm_id = a.way_id)
+);
+
+CREATE INDEX network_bicycle_route_osm_id_idx ON network_bicycle_route (osm_id);
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 

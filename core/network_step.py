@@ -1,4 +1,5 @@
 import toolbox.helper as h
+from core import dataset_registry as registry
 from core.db_step import DbStep
 from settings import DbSettings, GlobalSettings, InputType
 from toolbox.dbhelper import PostgresConnection
@@ -111,6 +112,10 @@ class OsmNetworkStep(DbStep):
         db.execute_sql_from_file("osm_delete_dangling_edges", "sql/functions")
         db.commit()
 
+        # the OSM tables in the shared data schema are replaced by every OSM import - make sure they match the current case
+        # will throw an exception in case of mismatch
+        registry.check_osm_import(db, self.db_settings.entities.data_schema)
+
         # determine clipping of the network to the area of interest (requires an AOI entry, e.g. from OSM download)
         clip_mode = h.get_clip_mode(settings)
         if clip_mode != 'none':
@@ -130,7 +135,7 @@ class OsmNetworkStep(DbStep):
 
         # execute "osm_network"
         h.logBeginTask('execute "osm_network"')
-        if db.handle_conflicting_output_tables(['network_edge', 'network_node']):
+        if db.handle_conflicting_output_tables(['network_edge', 'network_node', 'network_bicycle_route']):
             params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,

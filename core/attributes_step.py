@@ -262,9 +262,9 @@ class OsmAttributesStep(DbStep):
         db.schema = schema
 
         # new import of bicycle routes (indicator "designated_route") since NetAScore 2.0 (osm2pgsql flex output)
-        if not db.exists("osm_bicycle_route", self.db_settings.entities.data_schema):
-            raise Exception("table 'osm_bicycle_route' not found - the OSM data was imported with an earlier version of NetAScore. "
-                            "Please run the import step again.")
+        if not db.exists("network_bicycle_route", schema):
+            raise Exception("table 'network_bicycle_route' not found - the network was created with an earlier version of NetAScore. "
+                            "Please run the import and network steps again.")
 
         # create functions
         h.log('create functions')

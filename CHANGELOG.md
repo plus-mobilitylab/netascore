@@ -46,6 +46,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 
 ### Fixed
 
+- Ensure that a re-run starting with the attributes step does not use OSM data imported for another case in the meantime. The network step stores the bicycle route memberships of the network in the case schema, so the following steps do not depend on shared OSM tables.
 - Frequently failing Overpass API download requests.
 - Failed Overpass API requests are reported with the HTTP status or error (also at log level 1), incl. errors the Overpass API reports within the response (e.g. query timeout or out of memory - incomplete data) and truncated responses. If all endpoints fail, a hint explains how to use a downloaded OSM extract instead. Incomplete downloads are deleted, so they are not re-used by the next run.
 - Reusing an existing AOI (`on_existing: reuse` / `reuse_or_overwrite`) no longer skips the OSM download: if no download file exists (e.g. because a previous run failed before or during the download), the OSM data is downloaded for the existing AOI.
