@@ -25,6 +25,8 @@ class GlobalSettings:
         "https://overpass.kumi.systems/api/interpreter"
     ]
     overpass_api_user = "NetAScore-Python"
+    # maximum area (km²) of OSM downloads from the Overpass API (larger areas: use an OSM extract, e.g. from Geofabrik)
+    overpass_max_area: float = 1500
     default_srid: int = 32633
     custom_srid = None
     def get_target_srid()->int:
@@ -126,7 +128,7 @@ SETTINGS_KEYS = {
     'database': ['host', 'port', 'dbname', 'username', 'password', 'on_existing'],  # on_existing: no longer used (note)
     'import': {
         'osm': ['type', 'filename', 'on_existing', 'place_name', 'bbox', 'aoi_filename', 'buffer', 'clip', 'interactive',
-                'include_rail', 'include_aerialway'],
+                'max_download_area', 'include_rail', 'include_aerialway'],
         'gip': ['type', 'filename', 'filename_A', 'on_existing', 'regional_code', 'bbox'],  # filename_A: renamed (note)
         'gip2': ['type', 'filename', 'filename_A', 'on_existing', 'regional_code', 'bbox'],
     },

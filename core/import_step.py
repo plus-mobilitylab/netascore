@@ -1,3 +1,4 @@
+import math
 import os
 import re
 import shutil
@@ -495,6 +496,12 @@ class Gip2Importer(DbStep):
         db.close()
 
 
+def bbox_area_km2(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> float:
+    """Returns the area (km²) of a bounding box given in WGS84 (on a sphere with the mean earth radius)."""
+    r = 6371.0088
+    return r * r * math.radians(max_lon - min_lon) * (math.sin(math.radians(max_lat)) - math.sin(math.radians(min_lat)))
+
+
 class OsmImporter(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
@@ -662,9 +669,25 @@ class OsmImporter(DbStep):
                                 )
         h.debugLog(f"Determined Bounding box: {bbox}")
         # load OSM data from bounding box
-        self._load_osm_data_from_bbox(str(bbox)[1:-1], settings)
+        self._load_osm_data_from_bbox(bbox, settings)
 
-    def _load_osm_data_from_bbox(self, bbox: str, settings: dict):
+    def _check_download_area(self, bbox: tuple, settings: dict):
+        """Ensures that the Overpass API is only queried for small areas: larger areas require an OSM extract (e.g. Geofabrik)."""
+        max_area = float(settings.get('max_download_area') or GlobalSettings.overpass_max_area)
+        area = bbox_area_km2(*bbox)
+        h.log(f"area of the OSM download: {area:.0f} km² (maximum: {max_area:.0f} km²)")
+        if area <= max_area:
+            return
+        h.majorInfo(f"ERROR: the area of the OSM download ({area:.0f} km²) exceeds the maximum area for Overpass API downloads ({max_area:.0f} km²).\n"
+                    "Please download an OSM extract covering your area of interest (e.g. from https://download.geofabrik.de), "
+                    "save it to the data directory and add it to the 'import' section of your settings file:\n"
+                    "    filename: my_extract.osm.pbf   #(replace with actual filename)\n"
+                    "  Keep 'place_name', 'bbox', or 'aoi_filename' to clip the extract to your area of interest.\n"
+                    "  The maximum area can be changed with the import setting 'max_download_area' (in km²) - large downloads may fail or overload the Overpass API servers.")
+        raise Exception("OSM download area too large for the Overpass API. Terminating.")
+
+    def _load_osm_data_from_bbox(self, bbox: tuple, settings: dict):
+        """Downloads OSM data for the bounding box (min_lat, min_lon, max_lat, max_lon) from the Overpass API."""
         opener = urllib.request.build_opener()
         opener.addheaders = [('User-agent', GlobalSettings.overpass_api_user)]
         urllib.request.install_opener(opener)
@@ -674,16 +697,18 @@ class OsmImporter(DbStep):
             (._;>;);
             out;"""
         net_file = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
-        if os.path.isfile(os.path.join(GlobalSettings.data_directory, net_file)):
+        file_exists = os.path.isfile(os.path.join(GlobalSettings.data_directory, net_file))
+        if file_exists:
             on_existing = h.normalize_on_existing(settings.get('on_existing'), "section 'import'", default='abort')
             if on_existing in ('reuse', 'reuse_or_overwrite'):
                 h.info("Target file for OSM download already exists. Skipping download (re-using existing file). You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
                 return
             if on_existing != 'overwrite':
                 raise Exception("Target file for OSM download already exists. Aborting. Please resolve the conflict manually or specify a different value for 'on_existing' in the import settings. [reuse/reuse_or_overwrite/overwrite/abort]")
-            else:
-                h.info("Target file for OSM download already exists. Deleting existing file and proceeding with download. You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
-        q_str = q_template.replace("__bbox__", bbox)
+        self._check_download_area(bbox, settings)
+        if file_exists:
+            h.info("Target file for OSM download already exists. Deleting existing file and proceeding with download. You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
+        q_str = q_template.replace("__bbox__", ",".join(str(v) for v in bbox))
         h.debugLog(f"prepared OSM overpass API query: \n'{q_str}")
 
         h.logBeginTask("Starting OSM data download...")

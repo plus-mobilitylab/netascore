@@ -7,6 +7,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 ### Added
 
 - Place name, bounding box, and geofile (`aoi_filename`) as OSM download areas. Place names are now resolved with Nominatim for better results.
+- Overpass API downloads are limited to areas up to 1500 km² (import setting `max_download_area`). Larger areas require an OSM extract (e.g. from Geofabrik).
 - UTM zone of the area centroid when `target_srid` is omitted for those downloads.
 - OSM network clipping to the area of interest (import setting `clip`: `bbox` (default), `aoi`, or `none`). Also available for OSM file imports when `place_name`, `bbox`, or `aoi_filename` is given. Only the relevant part of the OSM data is imported (requires osmium).
 - Parking indicator (`allowed`, `implicit`, `forbidden`).
