@@ -115,12 +115,19 @@ CREATE TABLE intersections_all AS ( -- 53 s, 1.673.203
     FROM link_points AS a,
          link_points AS b
     WHERE ST_Intersects(a.geom, b.geom)
-      AND NOT ST_Equals(a.geom_startpoint, b.geom_startpoint)
-      AND NOT ST_Equals(a.geom_startpoint, b.geom_endpoint)
-      AND NOT ST_Equals(a.geom_endpoint, b.geom_startpoint)
-      AND NOT ST_Equals(a.geom_endpoint, b.geom_endpoint)
       AND a.osm_id < b.osm_id
 );
+
+-- links touching themselves: start or end point on the link's own course (e.g. turning loops; closed rings excluded) -
+-- the link is split there, so that its end is connected
+INSERT INTO intersections_all
+SELECT e.geom,
+       a.osm_id, a.bridge, a.tunnel, a.escalator, a.indoor, a.layer, a.geom_startpoint, a.geom_endpoint,
+       a.osm_id, a.bridge, a.tunnel, a.escalator, a.indoor, a.layer, a.geom_startpoint, a.geom_endpoint
+FROM link_points a
+    CROSS JOIN LATERAL (VALUES (a.geom_startpoint), (a.geom_endpoint)) AS e(geom)
+WHERE NOT ST_Equals(a.geom_startpoint, a.geom_endpoint)
+  AND (SELECT count(*) FROM ST_DumpPoints(a.geom) d WHERE ST_Equals(d.geom, e.geom)) > 1;
 
 -- turn geometry collections and multipoints to points
 INSERT INTO intersections_all -- 1 s, 189
@@ -129,6 +136,14 @@ SELECT (ST_Dump(ST_CollectionExtract(geom, 1))).geom AS geom,
        osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2
 FROM intersections_all
 WHERE ST_GeometryType(geom) = 'ST_GeometryCollection';
+
+-- overlapping links (intersection is a line): the ends of the overlapping sections are intersections
+INSERT INTO intersections_all
+SELECT (ST_Dump(ST_Boundary(ST_CollectionExtract(geom, 2)))).geom AS geom,
+       osm_id_1, bridge_1, tunnel_1, escalator_1, indoor_1, layer_1, geom_startpoint_1, geom_endpoint_1,
+       osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2
+FROM intersections_all
+WHERE ST_GeometryType(geom) IN ('ST_LineString', 'ST_MultiLineString', 'ST_GeometryCollection');
 
 INSERT INTO intersections_all -- 1 s, 110.743
 SELECT (ST_Dump(geom)).geom AS geom,
@@ -144,11 +159,18 @@ WHERE ST_GeometryType(geom) = 'ST_GeometryCollection'
    OR ST_GeometryType(geom) = 'ST_MultiLineString'
    OR ST_GeometryType(geom) = 'ST_MultiPoint';
 
--- delete intersections that are at the same point
+-- links meeting at points where both of them end anyway do not need to be split
+DELETE FROM intersections_all
+WHERE (ST_Equals(geom, geom_startpoint_1) OR ST_Equals(geom, geom_endpoint_1))
+  AND (ST_Equals(geom, geom_startpoint_2) OR ST_Equals(geom, geom_endpoint_2))
+  AND osm_id_1 <> osm_id_2;
+
+-- intersections of all pairs of links (several pairs can intersect at the same point, e.g. a link ending at a crossing of
+-- two others): each pair is corrected separately below (bridges, layers, tunnels) and a link is split at a point if any
+-- of its pairs remains there (see "intersecting_links")
 DROP TABLE IF EXISTS intersections;
 CREATE TABLE intersections AS ( -- 15 s, 1.654.581
-    -- TODO: DISTINCT ON might not work here
-    SELECT DISTINCT ON (geom) row_number() OVER (ORDER BY geom, osm_id_1, bridge_1, tunnel_1, escalator_1, indoor_1, layer_1, geom_startpoint_1, geom_endpoint_1, osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2) AS id, *
+    SELECT row_number() OVER (ORDER BY geom, osm_id_1, osm_id_2) AS id, *
     FROM intersections_all
 );
 
@@ -261,7 +283,10 @@ CREATE TABLE network_corrected AS ( -- 32 s, 3.876.291
             SELECT seg.geom::geometry(LineString, {{target_srid}}) AS geom,
                    ST_LineLocatePoint(a.geom, ST_StartPoint(seg.geom)) AS start_pos,
                    ST_LineLocatePoint(a.geom, ST_EndPoint(seg.geom)) AS end_pos
-            FROM (SELECT (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom AS geom) seg
+            -- each part is split again in reverse direction (and turned back): ST_Split does not split a line at a point
+            -- equal to its start point, even if the line passes this point again (links touching themselves)
+            FROM (SELECT ST_Reverse((ST_Dump(ST_Split(ST_Reverse(p.geom), b.intersection_geom))).geom) AS geom
+                  FROM (SELECT (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom AS geom) p) seg
         ) s
 
     UNION

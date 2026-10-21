@@ -48,6 +48,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 
 ### Fixed
 
+- OSM network: improved split logic to catch all edge intersections. Some cases of self-touching edges or several pairs intersecting at the same point were missed in previous versions. Edge ids of the affected ways change after applying this fix.
 - Changed AOI settings (`place_name`, `bbox`, `aoi_filename`) are no longer ignored when re-running a case with `reuse` setting: the AOI records the settings it was created from and is only reused if they match (with `reuse_or_overwrite` it is created again, incl. a new UTM zone if `target_srid` is omitted; with `reuse` an error is reported). For `bbox` and `aoi_filename`, the geometry is compared as well.
 - An existing OSM download is only reused if it covers the area of interest. OSM downloads now contain their bounding box. A provided OSM file covering only parts of the area (by bbox) results in a warning.
 - Ensure that a re-run starting with the attributes step does not use OSM data imported for another case in the meantime. The network step stores the bicycle route memberships of the network in the case schema, so the following steps do not depend on shared OSM tables.
