@@ -51,21 +51,21 @@ CREATE TABLE access_car AS ( -- 7 s, 3.875.334
            END AS motor_vehicle_backward,
            CASE
                WHEN oneway IS NULL THEN NULL
-               WHEN oneway = 'no' THEN 'no'
-               WHEN oneway = ANY ('{-1,1}') THEN 'opposite'
-               ELSE 'yes'
+               WHEN oneway = ANY ('{no,false,0,reversible,alternating}') THEN 'no' -- reversible / alternating: usable in both directions (at different times)
+               WHEN oneway = ANY ('{-1,reverse}') THEN 'opposite'
+               ELSE 'yes' -- yes, true, 1
            END AS oneway,
            CASE
                WHEN tags -> 'oneway:motor_vehicle' IS NULL THEN NULL
-               WHEN tags -> 'oneway:motor_vehicle' = 'no' THEN 'no'
-               WHEN tags -> 'oneway:motor_vehicle' = ANY ('{-1,1}') THEN 'opposite'
-               ELSE 'yes'
+               WHEN tags -> 'oneway:motor_vehicle' = ANY ('{no,false,0,reversible,alternating}') THEN 'no' -- reversible / alternating: usable in both directions (at different times)
+               WHEN tags -> 'oneway:motor_vehicle' = ANY ('{-1,reverse}') THEN 'opposite'
+               ELSE 'yes' -- yes, true, 1
            END AS oneway_motor_vehicle,
            CASE
                WHEN tags -> 'oneway:vehicle' IS NULL THEN NULL
-               WHEN tags -> 'oneway:vehicle' = 'no' THEN 'no'
-               WHEN tags -> 'oneway:vehicle' = ANY ('{-1,1}') THEN 'opposite'
-               ELSE 'yes'
+               WHEN tags -> 'oneway:vehicle' = ANY ('{no,false,0,reversible,alternating}') THEN 'no' -- reversible / alternating: usable in both directions (at different times)
+               WHEN tags -> 'oneway:vehicle' = ANY ('{-1,reverse}') THEN 'opposite'
+               ELSE 'yes' -- yes, true, 1
            END AS oneway_vehicle,
            CASE
                WHEN junction IS NULL THEN NULL
@@ -167,9 +167,9 @@ CREATE TABLE access_bicycle AS ( -- 9 s, 3.875.334
                END AS bicycle_backward,
            CASE
                WHEN tags -> 'oneway:bicycle' IS NULL THEN NULL
-               WHEN tags -> 'oneway:bicycle' = 'no' THEN 'no'
-               WHEN tags -> 'oneway:bicycle' = ANY ('{-1,opposite}') THEN 'opposite'
-               ELSE 'yes'
+               WHEN tags -> 'oneway:bicycle' = ANY ('{no,false,0,reversible,alternating}') THEN 'no' -- reversible / alternating: usable in both directions (at different times)
+               WHEN tags -> 'oneway:bicycle' = ANY ('{-1,reverse,opposite}') THEN 'opposite'
+               ELSE 'yes' -- yes, true, 1
            END AS oneway_bicycle,
            CASE
                WHEN junction IS NULL THEN NULL
@@ -178,9 +178,9 @@ CREATE TABLE access_bicycle AS ( -- 9 s, 3.875.334
            END AS roundabout,
            CASE
                WHEN oneway IS NULL THEN NULL
-               WHEN oneway = 'no' THEN 'no'
-               WHEN oneway = ANY ('{-1,1,opposite}') THEN 'opposite'
-               ELSE 'yes'
+               WHEN oneway = ANY ('{no,false,0,reversible,alternating}') THEN 'no' -- reversible / alternating: usable in both directions (at different times)
+               WHEN oneway = ANY ('{-1,reverse,opposite}') THEN 'opposite'
+               ELSE 'yes' -- yes, true, 1
            END AS oneway,
            CASE
                WHEN tags -> 'cycleway' IS NULL THEN NULL
