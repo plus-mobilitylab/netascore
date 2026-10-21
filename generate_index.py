@@ -13,7 +13,7 @@ from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
 from core import metadata
-from settings import DbSettings, GlobalSettings, NETASCORE_VERSION, warn_unknown_settings
+from settings import DbSettings, GlobalSettings, netascore_code_pushed, netascore_code_url, netascore_version_info, warn_unknown_settings
 
 parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Score Toolbox for Sustainable Mobility')
 parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
@@ -34,7 +34,9 @@ if args.loglevel:
     h.verbose_level = int(args.loglevel[0])
     h.majorInfo(f"using log level {h.verbose_level}")
 
-h.majorInfo(f"Running NetAScore version {NETASCORE_VERSION}")
+h.majorInfo(f"Running NetAScore version {netascore_version_info()}")
+if netascore_code_url():
+    h.info(f"code: {netascore_code_url()}" + (" (commit not pushed yet)" if netascore_code_pushed() is False else ""))
 h.info(f'loading {settings_stream.name}')
 h.info(f'skip steps: {str(skip_steps)}')
 

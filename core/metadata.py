@@ -1,8 +1,8 @@
 """Helper class for metadata of a NetAScore run (stored in the db case schema and exported to the output GeoPackage).
 
 Tables in the case schema (written by the processing steps, so that the information is kept if steps are skipped later):
-- meta_run: key / value pairs (NetAScore version, settings, input file, steps of the last run incl. completion time, run duration, ...)
-- meta_steps: one row per processing step (time, duration, NetAScore version, and settings of the run in which the step was executed last)
+- meta_run: key / value pairs (NetAScore version and code state, settings, input file, steps of the last run incl. completion time, run duration, ...)
+- meta_steps: one row per processing step (time, duration, NetAScore version and code state, and settings of the run in which the step was executed last)
 - meta_datasets: use of the input datasets in the attributes step (status, share of the network covered, ...) and their origin
   (dataset registry entry at that time - shared datasets may be replaced later, e.g. by another case)
 - meta_profiles: mode profiles used in the index step
@@ -20,7 +20,7 @@ import subprocess
 from datetime import datetime
 
 import toolbox.helper as h
-from settings import DbSettings, GlobalSettings, NETASCORE_VERSION
+from settings import DbSettings, GlobalSettings, NETASCORE_VERSION, netascore_code_url, netascore_commit
 from toolbox.dbhelper import PostgresConnection
 
 META_RUN_TABLE = "meta_run"
@@ -71,6 +71,8 @@ def start_run(db_settings: DbSettings, settings: dict, settings_file: str, skipp
     db.close()
     record_run_info(db_settings, {
         'netascore_version': NETASCORE_VERSION,
+        'netascore_commit': netascore_commit(),
+        'netascore_code_url': netascore_code_url(),
         'started_at': _run['started'].isoformat(timespec='seconds'),
         'case_id': GlobalSettings.case_id,
         'settings_file': settings_file,
@@ -97,13 +99,16 @@ def complete_step(db_settings: DbSettings, step: str) -> None:
         CREATE TABLE IF NOT EXISTS {schema}.{META_STEPS_TABLE} (
             step varchar PRIMARY KEY, run_started_at timestamp(0), step_started_at timestamp(0), step_completed_at timestamp(0),
             duration_s numeric, netascore_version varchar, settings_file varchar, settings text);
-        INSERT INTO {schema}.{META_STEPS_TABLE} VALUES (%(step)s, %(run)s, %(started)s, %(completed)s, %(duration)s, %(version)s, %(file)s, %(settings)s)
+        ALTER TABLE {schema}.{META_STEPS_TABLE} ADD COLUMN IF NOT EXISTS netascore_commit varchar; 
+        INSERT INTO {schema}.{META_STEPS_TABLE} (step, run_started_at, step_started_at, step_completed_at, duration_s, netascore_version,
+                                                 netascore_commit, settings_file, settings)
+        VALUES (%(step)s, %(run)s, %(started)s, %(completed)s, %(duration)s, %(version)s, %(commit)s, %(file)s, %(settings)s)
         ON CONFLICT (step) DO UPDATE SET run_started_at = EXCLUDED.run_started_at, step_started_at = EXCLUDED.step_started_at,
             step_completed_at = EXCLUDED.step_completed_at, duration_s = EXCLUDED.duration_s, netascore_version = EXCLUDED.netascore_version,
-            settings_file = EXCLUDED.settings_file, settings = EXCLUDED.settings;""",
+            netascore_commit = EXCLUDED.netascore_commit, settings_file = EXCLUDED.settings_file, settings = EXCLUDED.settings;""",
         {'step': step, 'run': run_started.replace(microsecond=0), 'started': started.replace(microsecond=0),
          'completed': completed.replace(microsecond=0),
-         'duration': round((completed - started).total_seconds(), 1), 'version': NETASCORE_VERSION,
+         'duration': round((completed - started).total_seconds(), 1), 'version': NETASCORE_VERSION, 'commit': netascore_commit(),
          'file': _run['settings_file'], 'settings': json.dumps(_run['settings']) if _run['settings'] is not None else None})
     db.commit()
     db.close()
@@ -216,7 +221,7 @@ def create_meta_export_tables(db: PostgresConnection, schema: str, data_schema: 
     if exists(META_STEPS_TABLE):
         db.execute(f"""CREATE TABLE {schema}.export_meta_steps AS
                        SELECT step, run_started_at::text, step_started_at::text, step_completed_at::text, duration_s,
-                              netascore_version, settings_file, settings
+                              netascore_version, netascore_commit, settings_file, settings
                        FROM {schema}.{META_STEPS_TABLE} ORDER BY step_started_at;""")
         exports.append(('export_meta_steps', 'meta_steps', None))
     # input datasets: use in this case + origin of the data used (as recorded in the attributes step)

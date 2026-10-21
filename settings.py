@@ -1,4 +1,6 @@
 import os
+import re
+import subprocess
 
 import toolbox.helper as h
 from dataclasses import dataclass
@@ -6,6 +8,74 @@ from enum import Enum
 
 
 NETASCORE_VERSION = "2.0.0"
+NETASCORE_REPOSITORY = "https://github.com/plus-mobilitylab/netascore"
+
+_code_state = {}  # cached result of _get_code_state()
+
+
+def _github_url(remote: str) -> str:
+    """HTTPS URL of a GitHub repository given as Git remote (HTTPS or SSH) - None for other hosts."""
+    match = re.fullmatch(r"(?:https://|git@|ssh://git@)github\.com[:/](.+?)(?:\.git)?/?", remote.strip())
+    return f"https://github.com/{match.group(1)}" if match else None
+
+
+def _get_code_state() -> dict:
+    """Code state of NetAScore: 'commit' - branch and 'git describe' of the Git checkout (e.g. 'dev-main, v1.1.1-144-g37365cd',
+    with suffix '-dirty' if there are uncommitted changes) or - without Git history, e.g. in the Docker image - the value of the
+    environment variable NETASCORE_COMMIT (set when building the image); 'url' - link to the release tag or commit on GitHub;
+    'pushed' - whether the commit is on a remote branch. Values are None if unknown (e.g. code downloaded as ZIP)."""
+    if _code_state:
+        return _code_state
+    commit = url = pushed = None
+    directory = os.path.dirname(os.path.abspath(__file__))
+    git = lambda *args: subprocess.run(["git", *args], cwd=directory, capture_output=True, text=True, timeout=10, check=True).stdout.strip()
+    try:
+        describe = git("describe", "--tags", "--dirty", "--always")
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+        commit = describe if branch in ("", "HEAD") else f"{branch}, {describe}"  # 'HEAD': detached (e.g. a checked out tag)
+        try:
+            repository = _github_url(git("remote", "get-url", "origin"))  # forks: link to the fork
+        except subprocess.SubprocessError:
+            repository = NETASCORE_REPOSITORY
+        if repository:
+            try:  # exactly on a release tag
+                url = f"{repository}/tree/{git('describe', '--tags', '--exact-match')}"
+            except subprocess.SubprocessError:
+                url = f"{repository}/commit/{git('rev-parse', 'HEAD')}"
+            pushed = bool(git("branch", "-r", "--contains", "HEAD"))
+    except (OSError, subprocess.SubprocessError):  # no Git installed / no Git checkout
+        commit = os.environ.get("NETASCORE_COMMIT") or None
+        if commit:
+            # e.g. 'dev-main, v1.1.1-144-g37365cd-dirty' (commit 37365cd) or 'v2.0.0' (release tag)
+            describe = re.sub(r"-dirty$", "", commit.split(", ")[-1])
+            match = re.search(r"-g([0-9a-f]{7,40})$", describe)
+            if match or re.fullmatch(r"[0-9a-f]{7,40}", describe):
+                url = f"{NETASCORE_REPOSITORY}/commit/{match.group(1) if match else describe}"
+            else:
+                url = f"{NETASCORE_REPOSITORY}/tree/{describe}"
+    _code_state.update(commit=commit, url=url, pushed=pushed)
+    return _code_state
+
+
+def netascore_commit() -> str:
+    """Code state of NetAScore, e.g. 'dev-main, v1.1.1-144-g37365cd' - None if unknown."""
+    return _get_code_state()['commit']
+
+
+def netascore_code_url() -> str:
+    """Link to the release tag or commit of the code on GitHub - None if unknown."""
+    return _get_code_state()['url']
+
+
+def netascore_code_pushed() -> bool:
+    """Whether the commit is on a remote branch (so the URL works)"""
+    return _get_code_state()['pushed']
+
+
+def netascore_version_info() -> str:
+    """Version incl. code state, e.g. '2.0.0 (dev-main, v1.1.1-144-g37365cd)' - for log output."""
+    commit = netascore_commit()
+    return f"{NETASCORE_VERSION} ({commit})" if commit else NETASCORE_VERSION
 
 
 class InputType(Enum):
