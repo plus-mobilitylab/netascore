@@ -20,7 +20,7 @@ import:
   # --- Area of interest (the following settings) ---
   #     Only the data within the area of interest (bbox, place_name, or aoi_filename; incl. buffer) is imported and processed.
   #     Without area of interest or with 'clip: none', the whole file is imported.
-  #     See settings_osm_query.yml and https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html#additional-options-for-osm):
+  #     See settings_osm_query.yml and https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html#additional-options-for-osm
   bbox: [47.7957, 13.0117, 47.8410, 13.0748] # [min lat, min lon, max lat, max lon] (WGS84) - here: central Salzburg
   # place_name: Salzburg
   # aoi_filename: aoi.gpkg # polygon(s) of the area of interest (GeoPackage; features named like the case_id, or all features)
@@ -59,6 +59,11 @@ profiles:
     profile_name: walk
     filename: profile_walk.yml
     filter_access_walk: True
+  # -
+  #   profile_name: bike_incwalk # bikeability incl. segments only accessible on foot (e.g. push the bike) - for routing purposes
+  #   filename: profile_bike.yml
+  #   filter_access_bike: True
+  #   filter_access_walk: True
 
 export:
   type: geopackage

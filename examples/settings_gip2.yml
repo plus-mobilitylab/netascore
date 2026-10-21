@@ -67,6 +67,11 @@ profiles:
     profile_name: walk
     filename: profile_walk.yml
     filter_access_walk: True
+  # -
+  #   profile_name: bike_incwalk # bikeability incl. segments only accessible on foot (e.g. push the bike) - for routing purposes
+  #   filename: profile_bike.yml
+  #   filter_access_bike: True
+  #   filter_access_walk: True
 
 export:
   type: geopackage
