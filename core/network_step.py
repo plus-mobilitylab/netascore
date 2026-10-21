@@ -128,7 +128,7 @@ class OsmNetworkStep(DbStep):
         clip_mode = h.get_clip_mode(settings)
         if clip_mode != 'none':
             if not has_aoi:
-                h.info(f"No AOI found for case '{GlobalSettings.case_id}' - network is not clipped. Specify 'bbox', 'place_name', or 'aoi_filename' in the import settings to enable clipping.")
+                h.majorInfo(f"No AOI found for case '{GlobalSettings.case_id}' - network is not clipped. Specify 'bbox', 'place_name', or 'aoi_filename' in the import settings to enable clipping.")
                 clip_mode = 'none'
             else:
                 h.info(f"clipping network to the area of interest (clip mode: '{clip_mode}')")

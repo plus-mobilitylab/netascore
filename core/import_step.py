@@ -605,11 +605,11 @@ class OsmImporter(DbStep):
                 print("You chose to continue with AOI #", fid)
                 fid -= 1 # back to 0-based index value
             else:
-                h.info("Using the first search result. If you want to use a different AOI, either provide more query parameters or add 'interactive: True' to the import settings for an interactive choice.")
+                h.majorInfo("Using the first search result. If you want to use a different AOI, either provide more query parameters or add 'interactive: True' to the import settings for an interactive choice.")
         # selected AOI
         h.logBeginTask("importing AOI to db table...")
         area = areas.iloc[fid]
-        h.info(f"continuing with AOI: {area.addresstype} '{area.display_name}'")
+        h.majorInfo(f"continuing with AOI: {area.addresstype} '{area.display_name}'")
         # extract largest single-polygon in case of Multi-Polygon input
         area_geom = None
         if area.geometry.geom_type == "MultiPolygon":
@@ -702,7 +702,7 @@ class OsmImporter(DbStep):
             GlobalSettings.default_srid = srid
             # the AOI was created again (e.g. changed settings): the SRID stored at the start of the run no longer applies
             if GlobalSettings.stored_aoi_srid is not None and srid != GlobalSettings.stored_aoi_srid:
-                h.info(f"target SRID of case '{aoi_name}' changed to EPSG:{srid} (determined for the new AOI; "
+                h.majorInfo(f"target SRID of case '{aoi_name}' changed to EPSG:{srid} (determined for the new AOI; "
                        f"previously EPSG:{GlobalSettings.stored_aoi_srid})")
         else:
             # save cusom SRID to AOI table

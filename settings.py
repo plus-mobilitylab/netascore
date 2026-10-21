@@ -58,7 +58,7 @@ class DbSettings:
         username = str(settings_template.get('username') or '')
         password = str(settings_template.get('password') or '')
         if settings_template.get('on_existing') is not None:
-            h.info("'on_existing' in section 'database' is no longer used: processing steps always replace their outputs."
+            h.majorInfo("'on_existing' in section 'database' is no longer used: processing steps always replace their outputs. "
                    "Use the command line option '--skip' to skip steps; settings for input data: 'on_existing' in sections 'import' and 'optional'.")
 
         if len(username) == 0:
