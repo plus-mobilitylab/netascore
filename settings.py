@@ -22,7 +22,8 @@ def _github_url(remote: str) -> str:
 def _get_code_state() -> dict:
     """Code state of NetAScore: 'commit' - branch and 'git describe' of the Git checkout (e.g. 'dev-main, v1.1.1-144-g37365cd',
     with suffix '-dirty' if there are uncommitted changes) or - without Git history, e.g. in the Docker image - the value of the
-    environment variable NETASCORE_COMMIT (set when building the image); 'url' - link to the release tag or commit on GitHub;
+    environment variable NETASCORE_COMMIT (set when building the image); 'url' - link to the repository state at the release
+    tag or commit on GitHub (e.g. https://github.com/plus-mobilitylab/netascore/tree/v2.0.0);
     'pushed' - whether the commit is on a remote branch. Values are None if unknown (e.g. code downloaded as ZIP)."""
     if _code_state:
         return _code_state
@@ -41,7 +42,7 @@ def _get_code_state() -> dict:
             try:  # exactly on a release tag
                 url = f"{repository}/tree/{git('describe', '--tags', '--exact-match')}"
             except subprocess.SubprocessError:
-                url = f"{repository}/commit/{git('rev-parse', 'HEAD')}"
+                url = f"{repository}/tree/{git('rev-parse', 'HEAD')}"
             pushed = bool(git("branch", "-r", "--contains", "HEAD"))
     except (OSError, subprocess.SubprocessError):  # no Git installed / no Git checkout
         commit = os.environ.get("NETASCORE_COMMIT") or None
@@ -49,10 +50,7 @@ def _get_code_state() -> dict:
             # e.g. 'dev-main, v1.1.1-144-g37365cd-dirty' (commit 37365cd) or 'v2.0.0' (release tag)
             describe = re.sub(r"-dirty$", "", commit.split(", ")[-1])
             match = re.search(r"-g([0-9a-f]{7,40})$", describe)
-            if match or re.fullmatch(r"[0-9a-f]{7,40}", describe):
-                url = f"{NETASCORE_REPOSITORY}/commit/{match.group(1) if match else describe}"
-            else:
-                url = f"{NETASCORE_REPOSITORY}/tree/{describe}"
+            url = f"{NETASCORE_REPOSITORY}/tree/{match.group(1) if match else describe}"
     _code_state.update(commit=commit, url=url, pushed=pushed)
     return _code_state
 
@@ -63,7 +61,7 @@ def netascore_commit() -> str:
 
 
 def netascore_code_url() -> str:
-    """Link to the release tag or commit of the code on GitHub - None if unknown."""
+    """Link to the repository state at the release tag or commit on GitHub - None if unknown."""
     return _get_code_state()['url']
 
 
