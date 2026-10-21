@@ -41,6 +41,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - GIP import setting `filename_A` is renamed to `filename` (for consistency with OSM file imports).
 - now `designated_route` is directly derived direction-specific from membership of OSM ways in bicycle route relations (previously: geometric overlap with the route). Proposed routes (`state=proposed`) are not regarded. For GIP imports, routes still apply to both directions of a link (as included in GIP input data).
 - OSM import uses the flex output of osm2pgsql (the pgsql output is deprecated). After updating, run the import step again for existing OSM data.
+- Example settings files harmonized: each example has its own `case_id` and exports to `netascore_<case_id>.gpkg`; the OSM download example now uses `on_existing: reuse_or_overwrite`; all available settings are documented in the examples; development examples now use OSM download will run without adding further settings.
 - Docker database image `postgis/postgis:18-3.6`.
 - Dependencies: jinjasql2 replaces JinjaSql. Flask, igraph, and pandas are no longer required.
 - Settings and profile files require `version: 2.0`.

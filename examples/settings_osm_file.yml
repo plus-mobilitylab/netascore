@@ -1,27 +1,42 @@
 version: 2.0
+# documentation of all settings: https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html
+
+# global settings that are relevant across processing steps
 global:
-  case_id: salzburg # unique id (name) - useful if working with different datasets / areas of interest
-# this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
+  case_id: salzburg_file # unique id (name) - useful for working with different datasets / areas of interest
+  # target_srid: 32633 # optional: coordinate system to use (only metric currently supported, e.g. UTM); default: UTM zone of the area of interest (auto-determined)
+
+# using an existing database on the host machine, accessed from within a Docker container
 database:
   host: gateway.docker.internal
   port: 5432
   dbname: netascore
-  # user and password to be specified as ENV variables (DB_USERNAME, DB_PASSWORD) for production environments instead of hardcoding them here
-# -- end of optional db part --
+  # username and password: preferably given as environment variables DB_USERNAME and DB_PASSWORD
+
 import:
   type: osm
-  filename: austria-latest.osm.pbf
-  # optional: clip the network to an area of interest ('place_name', 'bbox', or 'aoi_filename' as for OSM download)
-  #place_name: Salzburg
-  #buffer: 1000
-  #clip: bbox # 'bbox' (bounding box of the AOI + buffer, default), 'aoi' (AOI geometry + buffer), or 'none'
+  filename: austria-latest.osm.pbf # OSM file (pbf / xml), e.g. from https://download.geofabrik.de
+  # on_existing: reuse # reuse (default), reuse_or_overwrite, overwrite, abort - for the area of interest and the datasets derived from OSM
+  # --- Area of interest (the following settings) ---
+  #     Only the data within the area of interest (bbox, place_name, or aoi_filename; incl. buffer) is imported and processed.
+  #     Without area of interest or with 'clip: none', the whole file is imported.
+  #     See settings_osm_query.yml and https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html#additional-options-for-osm):
+  bbox: [47.7957, 13.0117, 47.8410, 13.0748] # [min lat, min lon, max lat, max lon] (WGS84) - here: central Salzburg
+  # place_name: Salzburg
+  # aoi_filename: aoi.gpkg # polygon(s) of the area of interest (GeoPackage; features named like the case_id, or all features)
+  buffer: 1000 # in m - extends the area of interest
+  clip: bbox # 'bbox' (bounding box of the AOI + buffer, default), 'aoi' (AOI geometry + buffer), or 'none' (whole file)
+  # include_rail: False # optional: include railways in the network (default: False)
+  # include_aerialway: False # optional: include aerial ways (e.g. cable cars) in the network (default: False)
+
 optional:
-  # defaults: # optional: settings for all optional imports (can be overridden for each dataset)
+  # defaults: # optional - settings for all optional imports (can be overridden for each dataset)
   #   on_existing: reuse # reuse (default), reuse_or_overwrite, overwrite, abort
   #   clip: network # network (default): only import data within the network extent; none: import the whole file
   dem:
     filename: austria.tif # GeoTIFF
     srid: 31287
+    # coverage: dem_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)
   noise:
     filename: noise.gpkg # GeoPackage
     # layer: noise_lden # name of the layer to import - required if the file contains more than one layer with geometry
@@ -30,9 +45,11 @@ optional:
     #   "55-59": 57
     #   "60-64": 62
     # coverage: noise_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)
+  # the datasets 'building', 'crossing', 'facility', 'greenness', 'water', 'parking', and 'sights' are derived from the OSM data of the import
 
 index:
-  compute_explanation: False
+  compute_explanation: True # adds columns explaining the index values (set to False for a smaller output, e.g. for large networks)
+
 profiles:
   -
     profile_name: bike
@@ -42,6 +59,7 @@ profiles:
     profile_name: walk
     filename: profile_walk.yml
     filter_access_walk: True
+
 export:
   type: geopackage
   filename: netascore_<case_id>.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes

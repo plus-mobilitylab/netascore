@@ -1,32 +1,38 @@
 version: 2.0
+# documentation of all settings: https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html
 
-# global settings that are relevant across individual processing steps
+# global settings that are relevant across processing steps
 global:
-  #target_srid: 32633 # NOTE: currently, only metric unit systems (e.g. UTM) supported
-  case_id: salzburg # unique id (name) - useful if working with different datasets / areas of interest
+  case_id: salzburg # unique id (name) - useful for working with different datasets / areas of interest
+  # target_srid: 32633 # optional: coordinate system to use (only metric currently supported, e.g. UTM); default: UTM zone of the area of interest (auto-determined)
 
-# this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
+# using the database of the Docker setup (host 'netascore-db', see docker-compose.yml)
 database:
-  # for production environments, user and password should be specified as ENV variables instead
-  password: postgres
-  username: postgres
   host: netascore-db
   port: 5432
   dbname: postgres
-# -- end of optional db part --
+  # username and password: preferably given as environment variables DB_USERNAME and DB_PASSWORD
+  username: postgres
+  password: postgres
 
 import:
   type: osm
-  on_existing: overwrite # reuse, reuse_or_overwrite, overwrite, abort
+  on_existing: reuse_or_overwrite # reuse (default), reuse_or_overwrite, overwrite, abort - for the area of interest, the OSM download, and the datasets derived from OSM
   place_name: Salzburg
-  #alternative for querying using bounding box (target_srid is optional; if omitted, the UTM zone of the area centroid is used):
-  #bbox: 47.7957,13.0117,47.8410,13.0748
+  # alternatives for defining the area of interest (instead of place_name):
+  # bbox: [47.7957, 13.0117, 47.8410, 13.0748] # [min lat, min lon, max lat, max lon] (WGS84)
+  # aoi_filename: aoi.gpkg # polygon(s) of the area of interest (GeoPackage; features named like the case_id, or all features)
   interactive: False # if true, allows for interactive choice in case multiple results were returned for given AOI query (otherwise first is used)
-  buffer: 1000
+  buffer: 1000 # in m - extends the area of interest
   clip: bbox # clip the network to the area of interest: 'bbox' (bounding box of the AOI + buffer, default), 'aoi' (AOI geometry + buffer), or 'none'
+  # max_download_area: 1500 # optional: maximum area (km²) of OSM downloads from the Overpass API (default: 1500) - for larger areas use an OSM file (see settings_osm_file.yml and https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html#additional-options-for-osm)
+  # include_rail: False # optional: include railways in the network (default: False)
+  # include_aerialway: False # optional: include aerial ways (e.g. cable cars) in the network (default: False)
+
+# optional datasets: e.g. a DEM for gradients and noise data (see settings_osm_file.yml and https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html#section-optional)
 
 index:
-  compute_explanation: True
+  compute_explanation: True # adds columns explaining the index values (set to False to reduce output size, e.g. for large networks)
 
 profiles:
   -
