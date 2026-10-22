@@ -84,8 +84,8 @@ CREATE TABLE access_car AS ( -- 7 s, 3.875.334
                ELSE 'yes'
            END AS motor_vehicle,
            CASE
-               WHEN tags -> 'motorcar' IS NULL THEN NULL
-               WHEN tags -> 'motorcar' = ANY ('{no,agricultural,private,forestry}') THEN 'no'
+               WHEN motorcar IS NULL THEN NULL
+               WHEN motorcar = ANY ('{no,agricultural,private,forestry}') THEN 'no'
                ELSE 'yes'
            END AS motorcar,
            CASE
@@ -111,7 +111,8 @@ CREATE TABLE access_car AS ( -- 7 s, 3.875.334
            END AS vehicle,
            CASE
                WHEN highway IS NULL THEN NULL
-               WHEN highway = ANY ('{bridleway,cycleway,footway,path,pedestrian,platform,steps}') THEN 'no'
+               WHEN highway = 'steps' THEN 'steps' -- no access, also with explicit permissions (see calculate_access_car)
+               WHEN highway = ANY ('{bridleway,cycleway,footway,path,pedestrian,platform}') THEN 'no'
                ELSE 'yes'
            END AS highway
     FROM network_edge
@@ -212,8 +213,9 @@ CREATE TABLE access_bicycle AS ( -- 9 s, 3.875.334
            END AS bicycle,
            CASE
                WHEN highway IS NULL THEN NULL
+               WHEN highway = 'steps' THEN 'steps' -- no access, also with explicit permissions (see calculate_access_bicycle)
                WHEN highway = ANY ('{bus_guideway,crossing,emergency_bay,escape,footway,motorway,motorway_link,'
-                   'pedestrian,platform,steps}') THEN 'no'
+                   'pedestrian,platform}') THEN 'no'
                ELSE 'yes'
            END AS highway
     FROM network_edge

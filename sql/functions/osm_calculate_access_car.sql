@@ -17,6 +17,9 @@ RETURNS int AS $BODY$
 	    car_access int;
 	BEGIN
 	    car_access:=case
+            -- steps: no access, also with explicit permissions (e.g. motorcar=designated)
+            when highway='steps'
+                then 0 -- restrict access
             -- check motor vehicle forward restrictions and permissions
             when motor_vehicle_fwd_bkw='yes'
                 then 1 -- allow access
