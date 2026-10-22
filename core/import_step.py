@@ -505,6 +505,10 @@ class Gip2Importer(DbStep):
         db.close()
 
 
+# datasets derived from the OSM import (shared data schema, see OsmImporter)
+OSM_DERIVED_DATASETS = ['building', 'crossing', 'facility', 'greenness', 'water', 'parking', 'sights']
+
+
 def bbox_area_km2(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> float:
     """Returns the area (km²) of a bounding box given in WGS84 (on a sphere with the mean earth radius)."""
     r = 6371.0088
@@ -922,6 +926,9 @@ class OsmImporter(DbStep):
             use_overpass_api = True
         else:
             h.info("using existing OSM file for import step.")
+            osm_file = os.path.join(directory, str(settings['filename']).strip())
+            if not os.path.isfile(osm_file):
+                raise Exception(f"OSM file '{settings['filename']}' not found in the data directory '{directory}'. Please check the import setting 'filename'.")
 
         # no area of interest in the settings: an AOI of a previous run of the case no longer applies (otherwise, the
         # network step would clip the network to it) - the row of the case is kept without geometry: it holds the target
@@ -987,6 +994,29 @@ class OsmImporter(DbStep):
             if use_overpass_api:
                 self._load_osm_data_for_aoi(db, schema, settings)
 
+        filename = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
+        if not use_overpass_api:
+            filename = str(settings['filename']).strip()
+        osm_path = os.path.join(directory, filename)
+        source_path = osm_path
+
+        # datasets derived from OSM data are recorded in the dataset registry (shared data schema) - these are reused
+        # (depending on 'on_existing') if they were created from the same OSM data and identical settings
+        osm_source = registry.file_signature(source_path)
+        # settings defining the spatial extent (normalized, so that e.g. a default value and the same value given explicitly equal)
+        osm_options = {key: str(settings[key]).strip() for key in ['place_name', 'aoi_filename'] if settings.get(key) is not None}
+        if settings.get('bbox') is not None:
+            osm_options['bbox'] = h.parse_bbox(settings['bbox'])
+        if has_aoi:
+            osm_options['buffer'] = float(settings.get('buffer') or 0)
+            osm_options['clip'] = h.get_clip_mode(settings)
+        if clip_network:
+            osm_options['clip'] = 'network'
+            osm_options['extent'] = [round(v, 5) for v in self.network_extent]
+        # stop before the OSM tables (shared with other cases) are replaced if a dataset derived from them could not be
+        # created with the current 'on_existing' setting
+        registry.check_import_conflicts(db, schema, OSM_DERIVED_DATASETS, on_existing, osm_source, osm_options)
+
         # import osm file
         h.logBeginTask('import osm file')
         registry.start_osm_import(db, schema)
@@ -999,12 +1029,6 @@ class OsmImporter(DbStep):
         db.drop_table("osm_roads", schema=schema)  # still created by earlier osm2pgsql imports (before NetAScore 2.0.0)
         db.drop_table("osm_ways", schema=schema)
         db.commit()
-
-        filename = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
-        if not use_overpass_api:
-            filename = settings['filename']
-        osm_path = os.path.join(directory, filename)
-        source_path = osm_path
 
         # if the network is clipped to the AOI, only import the relevant part of the OSM data
         extract_path = None
@@ -1036,19 +1060,6 @@ class OsmImporter(DbStep):
         if not has_aoi and not self.optional and GlobalSettings.custom_srid is None:
             self._set_srid_from_osm_data(db, schema)
 
-        # datasets derived from OSM data are recorded in the dataset registry (shared data schema) - these are reused
-        # (depending on 'on_existing') if they were created from the same OSM data with the same settings
-        osm_source = registry.file_signature(source_path)
-        # settings defining the spatial extent (normalized, so that e.g. a default value and the same value given explicitly equal)
-        osm_options = {key: str(settings[key]).strip() for key in ['place_name', 'aoi_filename'] if settings.get(key) is not None}
-        if settings.get('bbox') is not None:
-            osm_options['bbox'] = h.parse_bbox(settings['bbox'])
-        if has_aoi:
-            osm_options['buffer'] = float(settings.get('buffer') or 0)
-            osm_options['clip'] = h.get_clip_mode(settings)
-        if clip_network:
-            osm_options['clip'] = 'network'
-            osm_options['extent'] = [round(v, 5) for v in bbox]
         # the OSM tables are now complete: record for which case (and area) they were imported (checked by the network step)
         registry.record_osm_import(db, schema, osm_source, osm_options, bbox)
         osm_coverage = None

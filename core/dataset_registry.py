@@ -86,6 +86,29 @@ def _mismatches(db: PostgresConnection, schema: str, dataset: str, entry: dict, 
     return reasons
 
 
+def check_import_conflicts(db: PostgresConnection, schema: str, datasets: list, on_existing: str, source: dict, options: dict) -> None:
+    """Checks whether prepare_import would stop for any of the datasets with the given 'on_existing' setting ('abort': dataset exists; 
+    'reuse': existing dataset does not match) - raises an exception listing all of them. 
+    Used before replacing data that other datasets depend on (e.g. the OSM tables)."""
+    if on_existing not in ('reuse', 'abort'):
+        return
+    init_registry(db, schema)
+    conflicts = []
+    for dataset in datasets:
+        entry = _get_entry(db, schema, dataset)
+        if not db.exists(dataset, schema) or (entry is not None and entry['interrupted']):
+            continue  # imported anyway
+        if on_existing == 'abort':
+            conflicts.append(f"'{dataset}' already exists")
+        elif entry is not None:
+            reasons = _mismatches(db, schema, dataset, entry, source, options, None)
+            if reasons:
+                conflicts.append(f"'{dataset}' does not match the current settings ({', '.join(s for s, _ in reasons)})")
+    if conflicts:
+        raise Exception(f"Existing dataset(s) {'; '.join(conflicts)} - with 'on_existing: {on_existing}' they would not be replaced. "
+                        "Nothing was changed. Set 'on_existing: reuse_or_overwrite' (or 'overwrite') in the import settings to import them again.")
+
+
 def prepare_import(db: PostgresConnection, schema: str, dataset: str, tables: list, on_existing: str,
                    source: dict, options: dict, extent: tuple = None) -> bool:
     """Decides whether the dataset needs to be imported (True) or the existing data is reused (False).
