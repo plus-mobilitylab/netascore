@@ -238,19 +238,20 @@ def create_meta_export_tables(db: PostgresConnection, schema: str, data_schema: 
         db.execute(f"CREATE TABLE {schema}.export_meta_profiles AS SELECT * FROM {schema}.{META_PROFILES_TABLE} ORDER BY profile_name;")
         exports.append(('export_meta_profiles', 'meta_profiles', None))
     # areas: AOI, clip area of the network, network extent, coverage of the input datasets used
+    # (each part names its columns: depending on the case, any of them may be missing, e.g. the AOI for GIP)
     parts = []
     # AOI the network is based on (stored by the network step - not the current entry of the shared AOI table)
     if exists(META_AOI_TABLE):
         parts.append(f"""SELECT 'aoi'::varchar AS area_type, NULL::varchar AS dataset, ST_Multi(ST_CollectionExtract(ST_Transform(geom, {target_srid}), 3)) AS geom
                          FROM {schema}.{META_AOI_TABLE}""")
     if exists(META_CLIP_AREA_TABLE):
-        parts.append(f"""SELECT 'clip_area'::varchar, NULL::varchar, ST_Multi(ST_CollectionExtract(ST_Transform(geom, {target_srid}), 3))
+        parts.append(f"""SELECT 'clip_area'::varchar AS area_type, NULL::varchar AS dataset, ST_Multi(ST_CollectionExtract(ST_Transform(geom, {target_srid}), 3)) AS geom
                          FROM {schema}.{META_CLIP_AREA_TABLE}""")
     if exists('network_edge'):
-        parts.append(f"""SELECT 'network_extent'::varchar, NULL::varchar, ST_Multi(ST_SetSRID(ST_Extent(geom)::geometry, {target_srid}))
+        parts.append(f"""SELECT 'network_extent'::varchar AS area_type, NULL::varchar AS dataset, ST_Multi(ST_SetSRID(ST_Extent(geom)::geometry, {target_srid})) AS geom
                          FROM {schema}.network_edge""")
     if exists(META_DATASETS_TABLE):
-        parts.append(f"""SELECT 'dataset_coverage'::varchar, dataset::varchar, ST_Multi(ST_CollectionExtract(ST_Transform(coverage, {target_srid}), 3))
+        parts.append(f"""SELECT 'dataset_coverage'::varchar AS area_type, dataset::varchar AS dataset, ST_Multi(ST_CollectionExtract(ST_Transform(coverage, {target_srid}), 3)) AS geom
                          FROM {schema}.{META_DATASETS_TABLE} WHERE status IN ('used', 'partial') AND coverage IS NOT NULL""")
     if parts:
         db.execute(f"""CREATE TABLE {schema}.export_meta_areas AS
