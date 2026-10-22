@@ -192,7 +192,7 @@ def extract_osm(path_in: str, path_out: str, bbox: tuple) -> None:
 
 
 def get_stored_aoi_srid(db_settings: DbSettings):
-    """Returns the target SRID stored with the AOI of the current case (determined during a previous import), if any."""
+    """Returns the target SRID determined for the current case during a previous import, if any."""
     db = PostgresConnection.from_settings_object(db_settings)
     try:
         db.connect()
@@ -708,6 +708,25 @@ class OsmImporter(DbStep):
             # save cusom SRID to AOI table
             self._save_srid_for_AOI(srid, db, aoi_name, aoi_table, data_schema)
 
+    def _set_srid_from_osm_data(self, db: PostgresConnection, data_schema: str):
+        """Determines the target SRID (UTM zone) from imported OSM data if no AOI is specified: mean location of ways (highway)"""
+        db.execute_sql_from_file("determine_utmzone", "sql/functions")
+        srid = db.query_one(f"""SELECT utmzone(ST_SetSRID(ST_MakePoint(avg(ST_X(c)), avg(ST_Y(c))), 4326))
+                                FROM (SELECT ST_Centroid(way) AS c FROM {data_schema}.osm_line WHERE highway IS NOT NULL) t;""")[0]
+        if srid is None:
+            h.majorInfo(f"WARNING: no ways found in the OSM data to determine the target SRID - using EPSG:{GlobalSettings.default_srid}")
+            return
+        previous = GlobalSettings.stored_aoi_srid
+        GlobalSettings.default_srid = srid
+        aoi_table = self.db_settings.entities.table_aoi
+        db.ex(f"UPDATE {data_schema}.{aoi_table} SET srid = %s WHERE name = %s AND geom IS NULL;", (srid, GlobalSettings.case_id))
+        db.commit()
+        if previous is not None and previous != srid:
+            h.majorInfo(f"target SRID of case '{GlobalSettings.case_id}' changed to EPSG:{srid} (determined from the extent of the OSM network data; "
+                        f"previously EPSG:{previous})")
+        else:
+            h.info(f"target SRID EPSG:{srid} determined from the extent of the OSM network data (no area of interest given)")
+
     def _get_extract_bbox(self, db: PostgresConnection, data_schema: str, settings: dict, margin: int = 200) -> tuple:
         """Returns the bounding box (min_lon, min_lat, max_lon, max_lat) of the clipping area (see 'osm_network' template),
         extended by a margin (in m) to include surrounding features (e.g. buildings, greenness) for edges at its boundary."""
@@ -896,6 +915,16 @@ class OsmImporter(DbStep):
         else:
             h.info("using existing OSM file for import step.")
 
+        # no area of interest in the settings: an AOI of a previous run of the case no longer applies (otherwise, the
+        # network step would clip the network to it) - the row of the case is kept without geometry: it holds the target
+        # SRID determined from the OSM data after the import (rows without geometry are no AOI, e.g. for the network step)
+        if not has_aoi and not self.optional:
+            if db.query_one("SELECT COUNT(*) FROM " + aoi_table + " WHERE name = %s AND geom IS NOT NULL;", (aoi_name,))[0] > 0:
+                h.majorInfo(f"AOI of case '{aoi_name}' (from a previous run) removed - no area of interest in the import settings: the whole OSM file is processed")
+            db.ex("DELETE FROM " + schema + "." + aoi_table + " WHERE name = %s;", (aoi_name,))
+            db.ex("INSERT INTO " + aoi_table + " (name, geom, srid) VALUES (%s, NULL, NULL);", (aoi_name,))
+            db.commit()
+
         # clipping to the area of interest (requires an AOI and osmium)
         clip = has_aoi and h.get_clip_mode(settings) != 'none'
         clip_network = self.optional and self.network_extent is not None
@@ -904,6 +933,8 @@ class OsmImporter(DbStep):
                             "Please install osmium-tool (e.g. 'conda install -c conda-forge osmium-tool') or set the import setting 'clip: none'.")
 
         if has_aoi:
+            # a row without geometry only holds the target SRID of a previous import without area of interest
+            db.ex("DELETE FROM " + aoi_table + " WHERE name = %s AND geom IS NULL;", (aoi_name,))
             ### handle conflicts (existing AOI entry with same caseID)
             aoi_source = self._aoi_source(settings)
             excnt = db.query_one("SELECT COUNT(*) FROM " + aoi_table + " WHERE name = %s;", (aoi_name,))[0]
@@ -991,6 +1022,11 @@ class OsmImporter(DbStep):
         if extract_path:
             os.remove(extract_path)
         h.logEndTask()
+
+        # without area of interest (and without 'target_srid'): UTM zone of the imported OSM data (before the datasets
+        # derived from OSM are created in the target SRID)
+        if not has_aoi and not self.optional and GlobalSettings.custom_srid is None:
+            self._set_srid_from_osm_data(db, schema)
 
         # datasets derived from OSM data are recorded in the dataset registry (shared data schema) - these are reused
         # (depending on 'on_existing') if they were created from the same OSM data with the same settings

@@ -9,6 +9,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Place name, bounding box, and geofile (`aoi_filename`) as OSM download areas. Place names are now resolved with Nominatim for better results.
 - Overpass API downloads are limited to areas up to 1500 km² (import setting `max_download_area`). Larger areas require an OSM extract (e.g. from Geofabrik).
 - UTM zone of the area centroid when `target_srid` is omitted for those downloads.
+- The UTM zone of a case created with an OSM file is now determined as mean position of imported ways if neither `target_srid` nor an area of interest are given and stored in the AOI table.
 - OSM network clipping to the area of interest (import setting `clip`: `bbox` (default), `aoi`, or `none`). Also available for OSM file imports when `place_name`, `bbox`, or `aoi_filename` is given. Only the relevant part of the OSM data is imported (requires osmium).
 - Parking indicator (`allowed`, `implicit`, `forbidden`).
 - Bicycle infrastructure class `bicycle_road` for bicycle roads with motor traffic.
@@ -53,6 +54,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - OSM tag interpretation of `motorcar` fixed. 
 - OSM steps (`highway=steps`) never allow car or bicycle access, even with explicit permissions set.
 - Changed AOI settings (`place_name`, `bbox`, `aoi_filename`) are no longer ignored when re-running a case with `reuse` setting: the AOI records the settings it was created from and is only reused if they match (with `reuse_or_overwrite` it is created again, incl. a new UTM zone if `target_srid` is omitted; with `reuse` an error is reported). For `bbox` and `aoi_filename`, the geometry is compared as well.
+- Removing a defined area of interest from import settings now processes the whole file again when re-run (no more cached AOI clipping from previous settings).
 - An existing OSM download is only reused if it covers the area of interest. OSM downloads now contain their bounding box. A provided OSM file covering only parts of the area (by bbox) results in a warning.
 - Ensure that a re-run starting with the attributes step does not use OSM data imported for another case in the meantime. The network step stores the bicycle route memberships of the network in the case schema, so the following steps do not depend on shared OSM tables.
 - Running the network step with `--skip import` after changing `buffer` or `clip` reports an error if the imported OSM data does not cover the new clip area (previously, edges at the boundary were missing).

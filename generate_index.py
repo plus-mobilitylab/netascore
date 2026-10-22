@@ -73,7 +73,7 @@ with settings_stream:
         if aoi_srid:
             GlobalSettings.default_srid = aoi_srid
             GlobalSettings.stored_aoi_srid = aoi_srid
-            h.info(f"using the target SRID stored for the AOI of case '{GlobalSettings.case_id}': EPSG:{aoi_srid}")
+            h.info(f"using the target SRID determined for case '{GlobalSettings.case_id}' in a previous import: EPSG:{aoi_srid}")
 
     # check if all required sections are present first before taking any actions
     if 'import' not in skip_steps:

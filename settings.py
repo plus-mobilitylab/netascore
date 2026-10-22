@@ -95,6 +95,7 @@ class GlobalSettings:
     overpass_api_user = "NetAScore-Python"
     # maximum area (km²) of OSM downloads from the Overpass API (larger areas: use an OSM extract, e.g. from Geofabrik)
     overpass_max_area: float = 1500
+    # SRID used if no 'target_srid' is given - replaced by the UTM zone of the defined AOI or OSM data extent
     default_srid: int = 32633
     custom_srid = None
     # SRID stored for the AOI of the case at the start of the run (None: not available)
