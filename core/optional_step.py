@@ -18,7 +18,7 @@ gdal.UseExceptions()
 ogr.UseExceptions()
 
 
-def import_raster(connection_string: str, path: str, schema: str, table: str, input_srid: int = 0) -> None:
+def import_raster(connection_string: str, path: str, schema: str, table: str, input_srid: int = 0, env: dict = None) -> None:
     if not os.path.exists(path):
         raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
     """Takes in a path to a geotiff raster file and imports it to a database raster table."""
@@ -28,7 +28,7 @@ def import_raster(connection_string: str, path: str, schema: str, table: str, in
     # raster2pgsql | psql - connected in Python (no shell, works cross-platform); both exit codes are checked
     dump = subprocess.Popen(['raster2pgsql', '-s', str(input_srid), '-I', '-C', '-M', path, '-t', 'auto', f"{schema}.{table}"],
                             stdout=subprocess.PIPE)
-    load = subprocess.run(['psql', connection_string, '--variable', 'ON_ERROR_STOP=on', '--quiet'], stdin=dump.stdout)
+    load = subprocess.run(['psql', connection_string, '--variable', 'ON_ERROR_STOP=on', '--quiet'], stdin=dump.stdout, env=env)
     dump.stdout.close()
     if dump.wait() != 0 or load.returncode != 0:
         raise Exception(f"Import of raster '{path}' failed (raster2pgsql: exit code {dump.returncode}, psql: exit code {load.returncode}).")
@@ -46,8 +46,9 @@ def clip_raster(path_in: str, path_out: str, window: tuple) -> bool:
     min_y, max_y = max(window[1], raster_y[0]), min(window[3], raster_y[1])
     if min_x >= max_x or min_y >= max_y:
         return False
-    subprocess.run(f"gdal_translate -q -projwin {min_x} {max_y} {max_x} {min_y} -co COMPRESS=DEFLATE -co TILED=YES \"{path_in}\" \"{path_out}\"",
-        shell=True, check=True)
+    subprocess.run(['gdal_translate', '-q', '-projwin', str(min_x), str(max_y), str(max_x), str(min_y), '-co', 'COMPRESS=DEFLATE',
+                    '-co', 'TILED=YES', path_in, path_out],
+        check=True)
     return True
 
 
@@ -105,7 +106,7 @@ class VectorImporter(OptionalImporter):
 
     def import_data(self, db: PostgresConnection, schema: str, path: str, layers: list, settings: dict) -> tuple:
         table = (self.tables or [self.dataset])[0]
-        import_step.import_geopackage(db.connection_string_old, path, schema, table=table, layers=layers,
+        import_step.import_geopackage(db.connection_string_old, path, schema, table=table, layers=layers, env=db.tool_env(),
             target_srid=GlobalSettings.get_target_srid(), geometry_types=self.geometry_types, extent=self.extent)
         return GlobalSettings.get_target_srid(), registry.vector_coverage(path, layers)
 
@@ -135,7 +136,7 @@ class DemImporter(OptionalImporter):
                 return None, None
             path = clipped_path
         # raster is imported without reprojection - during the attributes step, the network will be temporarily reprojected to DEM srid.
-        import_raster(db.connection_string, path, schema, table='dem', input_srid=dem_srid)  # 4 m 34 s
+        import_raster(db.connection_string, path, schema, table='dem', input_srid=dem_srid, env=db.tool_env())  # 4 m 34 s
         #if clipped_path:
         #    os.remove(clipped_path)
         return dem_srid, coverage

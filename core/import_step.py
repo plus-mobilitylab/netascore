@@ -108,15 +108,16 @@ def create_sql(file_txt: str) -> None:
     file_sql.close()
 
 
-def import_csv(connection_string: str, path: str, schema: str, table: str) -> None:
-    """Takes in a path to a csv file and imports it to a database table."""
+def import_csv(connection_string: str, path: str, schema: str, table: str, env: dict = None) -> None:
+    """Takes in a path to a csv file and imports it to a database table ('env': environment incl. the database password)."""
     h.log(f"Importing CSV '{path}' into database: '{schema}.{table}'")
+    quoted_path = path.replace("'", "''")  # file name as SQL string literal
     # INFO: for psql in Windows, connection_string MUST be the LAST parameter - otherwise, further arguments are ignored
-    subprocess.run(['psql', '-c', f"\\copy {schema}.{table} from '{path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'", connection_string],
-        check=True)
+    subprocess.run(['psql', '-c', f"\\copy {schema}.{table} from '{quoted_path}' WITH CSV DELIMITER ';' NULL '' HEADER ENCODING 'utf-8'", connection_string],
+        check=True, env=env)
 
 
-def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, target_srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None, extent: tuple = None) -> None:  # TODO: @CW: extend error handling
+def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, target_srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None, extent: tuple = None, env: dict = None) -> None:  # TODO: @CW: extend error handling
     """Takes in a path to a geopackage file and imports it to a database table."""
     if not os.path.exists(path):
         raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
@@ -145,41 +146,47 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
     if fid.lower() in field_names:
         h.log(f"input data contains an attribute '{fid}' - using 'import_fid' as ID column of table '{table}'")
         fid = "import_fid"
-    fid = f"-lco FID={fid}"
-    transform = f"-t_srs EPSG:{target_srid}" if target_srid else ""
-    geometry_type = "-nlt GEOMETRY" if len(layers_geometry_types) > 1 else ""
+    # ogr2ogr arguments (passed as list - no shell, so file names and values may contain any characters)
+    options = ['-lco', f'FID={fid}', '-skipfailures', '-lco', 'GEOMETRY_NAME=geom', '-nln', f'{schema}.{table}']
+    if target_srid:
+        options += ['-t_srs', f'EPSG:{target_srid}']
+    if len(layers_geometry_types) > 1:
+        options += ['-nlt', 'GEOMETRY']
     # spatial filter (min lon, min lat, max lon, max lat) - uses the spatial index of the input file
-    spatial_filter = f"-spat {' '.join(str(v) for v in extent)} -spat_srs EPSG:4326" if extent else ""
+    if extent:
+        options += ['-spat', *[str(v) for v in extent], '-spat_srs', 'EPSG:4326']
 
     for layer in layers:
         h.log(f"import layer \"{layer}\"")
         geometry_column = data_source.GetLayerByName(layer).GetGeometryColumn()
 
-        select = f"-select \"{attributes}\"" if attributes else ""
+        layer_options = ['-select', attributes] if attributes else []
         conditions = []
         if is_gpkg and geometry_column:
             # skip empty geometries (e.g. polygons with empty rings) - these can crash the PostGIS backend on insert
             conditions.append(f"ST_IsEmpty({geometry_column}) = 0")
         if geometry_types:
             conditions.append(f"ST_GeometryType({geometry_column}) IN ({geometry_types})")
-        where = f"-where \"{' AND '.join(conditions)}\"" if conditions else ""
-        
-        result = subprocess.run(f"ogr2ogr -f PostgreSQL \"PG:{connection_string}\" {fid} -skipfailures -lco GEOMETRY_NAME=geom -nln {schema}.{table} {transform} {geometry_type} {spatial_filter} {select} {where} \"{path}\" \"{layer}\"", 
-            shell=True, check=True)
+        if conditions:
+            layer_options += ['-where', ' AND '.join(conditions)]
+
+        result = subprocess.run(['ogr2ogr', '-f', 'PostgreSQL', f'PG:{connection_string}', *options, *layer_options, path, layer],
+            check=True, env=env)
         h.debugLog(f"ogr2ogr returned code: {result.returncode}")
         #h.debugLog(f"ogr2ogr stdout: {result.args}")
 
 
-def import_osm(connection_string: str, path: str, path_config: str, schema: str, prefix: str = None) -> None:
+def import_osm(connection_string: str, path: str, path_config: str, schema: str, prefix: str = None, env: dict = None) -> None:
     """Takes in a path to an OSM file (pbf / xml) and imports it to database tables using the flex output of osm2pgsql
     (Lua configuration 'path_config' - defines the tables). The prefix applies to the middle tables (slim mode: stored in
     the database instead of memory), which osm2pgsql drops after the import (--drop)."""
-    prefix = f"--prefix {prefix}" if prefix else ""
     # osm2pgsql output: warnings and progress (also if the output is redirected, e.g. to a file); all details from log level 3 on
     log_level = "info" if h.get_current_log_level() >= h.LOG_LEVEL_3_DETAILED else "warn"
     h.info(f"importing OSM data from '{path}'")
-    subprocess.run(f"osm2pgsql --log-level={log_level} --log-progress=true --database={connection_string} --schema={schema} --middle-schema={schema} {prefix} --slim --drop --output=flex --style=\"{path_config}\" \"{path}\"",
-        shell=True, check=True)
+    subprocess.run(['osm2pgsql', f'--log-level={log_level}', '--log-progress=true', f'--database={connection_string}', f'--schema={schema}',
+                    f'--middle-schema={schema}', *(['--prefix', prefix] if prefix else []), '--slim', '--drop', '--output=flex',
+                    f'--style={path_config}', path],
+        check=True, env=env)
 
 
 def extract_osm(path_in: str, path_out: str, bbox: tuple) -> None:
@@ -187,8 +194,8 @@ def extract_osm(path_in: str, path_out: str, bbox: tuple) -> None:
     Strategy 'smart' keeps ways and multipolygon relations complete (also beyond the bounding box)."""
     bbox_str = ",".join(str(v) for v in bbox)
     h.info(f"extracting OSM subset from '{path_in}'")
-    subprocess.run(f"osmium extract --bbox {bbox_str} --strategy smart --overwrite --output=\"{path_out}\" \"{path_in}\"",
-        shell=True, check=True)
+    subprocess.run(['osmium', 'extract', '--bbox', bbox_str, '--strategy', 'smart', '--overwrite', f'--output={path_out}', path_in],
+        check=True)
 
 
 def get_stored_aoi_srid(db_settings: DbSettings):
@@ -263,7 +270,7 @@ class GipImporter(DbStep):
             db.execute_sql_from_file(f"{os.path.splitext(file['filename'])[0]}", os.path.join(directory, os.path.splitext(settings['filename'])[0]))
             db.commit()
 
-            import_csv(db.connection_string, os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.csv"), schema, table=file['table'])
+            import_csv(db.connection_string, os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.csv"), schema, table=file['table'], env=db.tool_env())
 
             db.add_primary_key(file['table'], file['columns'], schema=schema)
             db.commit()
@@ -484,7 +491,8 @@ class Gip2Importer(DbStep):
                 db.connection_string,
                 os.path.join(tables_dir, f"{stem}.csv"),
                 schema,
-                table=item['table']
+                table=item['table'],
+                env=db.tool_env()
             )
 
             db.add_primary_key(item['table'], item['pk'], schema=schema)
@@ -1018,7 +1026,7 @@ class OsmImporter(DbStep):
             extract_osm(osm_path, extract_path, bbox)
             osm_path = extract_path
 
-        import_osm(db.connection_string, osm_path, os.path.join('resources', 'osm2pgsql_flex.lua'), schema, prefix='osm')  # 12 m 35 s
+        import_osm(db.connection_string, osm_path, os.path.join('resources', 'osm2pgsql_flex.lua'), schema, prefix='osm', env=db.tool_env()) 
         if extract_path:
             os.remove(extract_path)
         h.logEndTask()

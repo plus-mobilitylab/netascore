@@ -1,3 +1,6 @@
+import os
+from urllib.parse import quote
+
 import psycopg2 as psy
 import toolbox.helper as h
 from jinjasql import JinjaSql
@@ -45,17 +48,25 @@ class PostgresConnection:
     def dbname(self):
         return self._dbname
 
-    # read-only connection string
+    # connection strings for external tools without password - it is passed as env var PGPASSWORD
     def get_connection_string(self) -> str:
-        return f"postgresql://{self.user}:{self.pw}@{self.host}:{str(self.port)}/{self.dbname}"
+        """Connection URI (user and database name URL-encoded)."""
+        user = f"{quote(str(self.user), safe='')}@" if self.user else ""
+        return f"postgresql://{user}{self.host}:{str(self.port)}/{quote(str(self.dbname), safe='')}"
     connection_string: str = property(get_connection_string)
 
     def get_connection_string_old(self) -> str:
-        if self.pw:
-            return f"dbname='{self.dbname}' host='{self.host}' port='{str(self.port)}' user='{self.user}' password='{self.pw}'"
-        else:
-            return f"dbname='{self.dbname}' host='{self.host}' port='{str(self.port)}' user='{self.user}'"
+        """Key/value connection string (e.g. for ogr2ogr 'PG:...'; values quoted, backslashes and quotes escaped)."""
+        value = lambda v: "'" + str(v).replace("\\", "\\\\").replace("'", "\\'") + "'"
+        return f"dbname={value(self.dbname)} host={value(self.host)} port={value(self.port)} user={value(self.user)}"
     connection_string_old: str = property(get_connection_string_old)
+
+    def tool_env(self) -> dict:
+        """Environment for external tools connecting to the database"""
+        env = dict(os.environ)
+        if self.pw:
+            env["PGPASSWORD"] = str(self.pw)
+        return env
 
     def connect(self):
         # skip if already connected

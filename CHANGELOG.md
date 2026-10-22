@@ -69,6 +69,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Noise re-import no longer duplicates values.
 - Settings paths may contain a backslash.
 - Settings files given without directory (e.g. `python generate_index.py settings.yml`): mode profiles were not found.
+- Database passwords and file names with special characters no longer break the import or export.
 - Missing input files report a readable error.
 - DEM import now reports errors of `raster2pgsql`.
 - For GIP imports, a DEM given in the optional section is no longer imported and a warning is issued (gradients are computed from the elevation data contained in the GIP dataset, as before).

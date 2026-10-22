@@ -11,14 +11,13 @@ from settings import DbSettings, GlobalSettings
 from toolbox.dbhelper import PostgresConnection
 
 
-def export_geopackage(connection_string: str, path: str, schema: str, table: str, layer: str, fid: str, geometry_type: str = None, update: bool = False, progress: bool = True) -> None: 
-    """Takes in a database table and exports it to a geopackage layer."""
-    geometry_type = f"-nlt {geometry_type}" if geometry_type else ""
-    update = "-update" if update else ""
-    progress = "-progress" if progress else ""
-
-    subprocess.run(f"ogr2ogr -f \"GPKG\" \"{path}\" PG:\"{connection_string}\" -lco FID={fid} -lco GEOMETRY_NAME=geom -nln {layer} {geometry_type} {update} {progress} -sql \"SELECT * FROM {schema}.{table}\"", 
-        shell=True, check=True)
+def export_geopackage(connection_string: str, path: str, schema: str, table: str, layer: str, fid: str, geometry_type: str = None, update: bool = False, progress: bool = True, env: dict = None) -> None:
+    """Takes in a database table and exports it to a geopackage layer ('env': environment incl. the database password)."""
+    # arguments passed as list (no shell): file names may contain any characters
+    options = (['-nlt', geometry_type] if geometry_type else []) + (['-update'] if update else []) + (['-progress'] if progress else [])
+    subprocess.run(['ogr2ogr', '-f', 'GPKG', path, f'PG:{connection_string}', '-lco', f'FID={fid}', '-lco', 'GEOMETRY_NAME=geom',
+                    '-nln', layer, *options, '-sql', f'SELECT * FROM {schema}.{table}'],
+        check=True, env=env)
 
 
 def read_layer_style(style_dir: str, layer: str) -> tuple:
@@ -114,11 +113,11 @@ class GeopackageExporter(DbStep):
 
         # export layers "edge" and "node"
         h.logBeginTask('export layer "edge"')
-        export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table='export_edge', layer='edge', fid='edge_id', geometry_type='LINESTRING')
+        export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table='export_edge', layer='edge', fid='edge_id', geometry_type='LINESTRING', env=db.tool_env())
         h.logEndTask()
 
         h.logBeginTask('export layer "node"')
-        export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table='export_node', layer='node', fid='node_id', geometry_type='POINT', update=True)
+        export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table='export_node', layer='node', fid='node_id', geometry_type='POINT', update=True, env=db.tool_env())
         h.logEndTask()
 
         # export metadata of the run: settings and data sources, input datasets, mode profiles, areas (AOI, clip area, coverage)
@@ -131,7 +130,7 @@ class GeopackageExporter(DbStep):
         exports = metadata.create_meta_export_tables(db, schema, self.db_settings.entities.data_schema, GlobalSettings.get_target_srid())
         for table, layer, geometry_type in exports:
             export_geopackage(db.connection_string_old, os.path.join(directory, filename), schema, table=table, layer=layer, fid='fid',
-                              geometry_type=geometry_type, update=True, progress=False)
+                              geometry_type=geometry_type, update=True, progress=False, env=db.tool_env())
         metadata.drop_meta_export_tables(db, schema)
         h.logEndTask()
 
