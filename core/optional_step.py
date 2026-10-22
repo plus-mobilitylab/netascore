@@ -18,6 +18,34 @@ gdal.UseExceptions()
 ogr.UseExceptions()
 
 
+def _path_is_within(path: str, directory: str) -> bool:
+    """Returns True if the path is located within the directory (resolves symlinks, case-insensitive on Windows)."""
+    path, directory = (os.path.normcase(os.path.realpath(p)) for p in (path, directory))
+    try:
+        return os.path.commonpath([path, directory]) == directory
+    except ValueError:  # e.g. different drives on Windows
+        return False
+
+
+def external_gdal_tool_env(tool: str) -> dict:
+    """Returns the environment for an external tool that uses GDAL (e.g. raster2pgsql). If the tool is not part of the
+    Python environment (e.g. system PostGIS within a conda environment), the plugin directories of the Python environment
+    are removed from GDAL_DRIVER_PATH: these plugins are built for a different GDAL version and fail to load (error messages)."""
+    env = os.environ.copy()
+    tool_path = shutil.which(tool)
+    driver_path = env.get('GDAL_DRIVER_PATH')
+    if not driver_path or tool_path is None or _path_is_within(tool_path, sys.prefix):
+        return env
+    entries = [p for p in driver_path.split(os.pathsep) if p]
+    keep = [p for p in entries if not _path_is_within(p, sys.prefix)]
+    if len(keep) < len(entries):
+        h.log(f"{tool} is not part of the Python environment - not using its GDAL plugins: {', '.join(p for p in entries if p not in keep)}")
+        if keep:
+            env['GDAL_DRIVER_PATH'] = os.pathsep.join(keep)
+        else:
+            del env['GDAL_DRIVER_PATH']
+    return env
+
 def import_raster(connection_string: str, path: str, schema: str, table: str, input_srid: int = 0, env: dict = None) -> None:
     if not os.path.exists(path):
         raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
@@ -27,7 +55,7 @@ def import_raster(connection_string: str, path: str, schema: str, table: str, in
             raise Exception(f"{tool} (part of PostgreSQL / PostGIS) is required for importing raster data (DEM), but was not found.")
     # raster2pgsql | psql - connected in Python (no shell, works cross-platform); both exit codes are checked
     dump = subprocess.Popen(['raster2pgsql', '-s', str(input_srid), '-I', '-C', '-M', path, '-t', 'auto', f"{schema}.{table}"],
-                            stdout=subprocess.PIPE)
+                            stdout=subprocess.PIPE, env=external_gdal_tool_env('raster2pgsql'))
     load = subprocess.run(['psql', connection_string, '--variable', 'ON_ERROR_STOP=on', '--quiet'], stdin=dump.stdout, env=env)
     dump.stdout.close()
     if dump.wait() != 0 or load.returncode != 0:

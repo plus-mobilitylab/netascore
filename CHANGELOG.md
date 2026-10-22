@@ -72,6 +72,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Database passwords and file names with special characters no longer break the import or export.
 - Missing input files report a readable error.
 - DEM import now reports errors of `raster2pgsql`.
+- DEM import with `raster2pgsql` from outside the conda environment (e.g. system PostGIS): the GDAL plugins of the conda environment are no longer loaded to prevent errors.
 - For GIP imports, a DEM given in the optional section is no longer imported and a warning is issued (gradients are computed from the elevation data contained in the GIP dataset, as before).
 - For OSM imports, an OSM file given in the optional section is no longer imported and a note is issued.
 - AOI files (`aoi_filename`) in other coordinate systems than WGS84 are now transformed. AOI files without coordinate reference system report an error.
