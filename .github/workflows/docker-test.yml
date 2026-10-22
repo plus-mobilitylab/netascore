@@ -1,0 +1,108 @@
+# Test of the Docker image: builds the image and runs NetAScore for a small area (OSM download from the Overpass API)
+# against a PostGIS database, then checks the output GeoPackage. As with examples/docker-compose.yml, both containers
+# share a Docker network and NetAScore reaches the database by its host name 'netascore-db' (default database host).
+# The database password contains special characters and is passed as environment variable DB_PASSWORD.
+# Runs on pull requests to main and manually (Actions > Docker test > Run workflow) 
+name: Docker test
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DB_PASSWORD: "p@ss:w/o#rd?%x 'q' $HOME;&"
+    services:
+      netascore-db:  # service name = host name in the Docker network of the job
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: "p@ss:w/o#rd?%x 'q' $HOME;&"
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # incl. tags (code state: git describe)
+
+      - name: Build image
+        run: |
+          # code state as determined by NetAScore (settings.py): "<branch>, <git describe>" - without branch if detached (e.g. pull requests)
+          branch=$(git rev-parse --abbrev-ref HEAD)
+          describe=$(git describe --tags --dirty --always)
+          if [ "$branch" = "HEAD" ]; then commit="$describe"; else commit="$branch, $describe"; fi
+          echo "NETASCORE_COMMIT=$commit" >> "$GITHUB_ENV"
+          docker build --build-arg NETASCORE_COMMIT="$commit" -t netascore:test .
+
+      - name: Prepare test case
+        run: |
+          mkdir -p ci-data
+          cp examples/profile_bike.yml examples/profile_walk.yml ci-data/
+          cat > ci-data/settings_ci.yml <<'EOF'
+          version: 2.0
+          global:
+            case_id: ci_salzburg
+          database:
+            # host / port / dbname: defaults (netascore-db / 5432 / postgres); password: environment variable DB_PASSWORD
+            username: postgres
+          import:
+            type: osm
+            on_existing: reuse_or_overwrite
+            bbox: [47.795, 13.035, 47.805, 13.050]
+            buffer: 200
+          index:
+            compute_explanation: True
+          profiles:
+            - profile_name: bike
+              filename: profile_bike.yml
+              filter_access_bike: True
+            - profile_name: walk
+              filename: profile_walk.yml
+              filter_access_walk: True
+          export:
+            type: geopackage
+            filename: netascore_<case_id>.gpkg
+          EOF
+
+      - name: Run NetAScore (Docker)
+        run: |
+          docker run --rm --network "${{ job.services.netascore-db.network }}" -e DB_PASSWORD \
+            -v "$PWD/ci-data:/usr/src/netascore/data" netascore:test data/settings_ci.yml
+
+      - name: Check output
+        run: |
+          python3 - <<'EOF'
+          import os, sqlite3, sys
+          path = "ci-data/netascore_ci_salzburg.gpkg"
+          if not os.path.isfile(path):
+              sys.exit(f"output file {path} not found")
+          c = sqlite3.connect(path)
+          q = lambda s: c.execute(s).fetchone()[0]
+          edges, bike, walk = q("SELECT count(*) FROM edge"), q("SELECT count(index_bike_ft) FROM edge"), q("SELECT count(index_walk_ft) FROM edge")
+          meta = dict(c.execute("SELECT key, value FROM meta_run").fetchall())
+          print(f"edges: {edges}, with bike index: {bike}, with walk index: {walk}")
+          print(f"netascore_version: {meta.get('netascore_version')}, netascore_commit: {meta.get('netascore_commit')}, code url: {meta.get('netascore_code_url')}")
+          errors = []
+          if edges < 100:
+              errors.append("too few edges")
+          if bike == 0 or walk == 0:
+              errors.append("index not computed")
+          if meta.get("netascore_commit") != os.environ["NETASCORE_COMMIT"]:
+              errors.append(f"code state not recorded (expected '{os.environ['NETASCORE_COMMIT']}')")
+          if os.environ["DB_PASSWORD"].encode() in open(path, "rb").read():
+              errors.append("database password found in the output file")
+          if errors:
+              sys.exit("check failed: " + "; ".join(errors))
+          print("output OK")
+          EOF
