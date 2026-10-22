@@ -11,10 +11,10 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - UTM zone of the area centroid when `target_srid` is omitted for those downloads.
 - The UTM zone of a case created with an OSM file is now determined as mean position of imported ways if neither `target_srid` nor an area of interest are given and stored in the AOI table.
 - OSM network clipping to the area of interest (import setting `clip`: `bbox` (default), `aoi`, or `none`). Also available for OSM file imports when `place_name`, `bbox`, or `aoi_filename` is given. Only the relevant part of the OSM data is imported (requires osmium).
-- Parking indicator (`allowed`, `implicit`, `forbidden`).
+- Parking indicator (`allowed`, `implicit`, `forbidden`), computed for OSM and GIP. In version 1.x, parking columns were placeholders. Mode profiles from 1.x need to map the new values.
 - Bicycle infrastructure class `bicycle_road` for bicycle roads with motor traffic.
 - Sights indicator for applications in tourism with an exemplary mode profile `profile_bike_tourism.yml`.
-- for Austria: new GIP 2.0 import (`type: gip2`).
+- For Austria: new GIP 2.0 import (`type: gip2`).
 - Option to add source attributes to the export (`include_source_attributes`): either `True` for a predefined set of columns, or a list of column names / OSM tag keys. (exported with prefix `gip_` / `osm_`).
 - Import for noise data with custom column name (optional setting `column_noise`, default `noise`), non-numeric values (optional `value_mapping` to numeric values), and several layers (setting `layer`, required if the file contains more than one geometry layer).
 - Dataset registry for shared datasets (optional imports and datasets derived from OSM): source, import settings, coordinate system, and covered area are recorded. Existing datasets are only reused if they match the current import settings (when using the option `on_existing: reuse`), or imported again (`reuse_or_overwrite`). Optional imports accept the additional property `coverage` (polygons of the covered area).
@@ -40,11 +40,12 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Processing order: optional imports now run after the network step (import, network, optional, attributes, index, export). Optional data (vector data and DEM) is only imported for the extent of the network (incl. 50 m margin), unless `clip: none` is set for the respective optional import.
 - Optional OSM import (for Austrian GIP data): the OSM file is clipped to the network extent by default, like other optional datasets (setting `clip`: `network`).
 - GIP import setting `filename_A` is renamed to `filename` (for consistency with OSM file imports).
-- now `designated_route` is directly derived direction-specific from membership of OSM ways in bicycle route relations (previously: geometric overlap with the route). Proposed routes (`state=proposed`) are not regarded. For GIP imports, routes still apply to both directions of a link (as included in GIP input data).
+- `designated_route` is now derived directly from the membership of OSM ways in bicycle route relations, per direction (previously: geometric overlap with the route). Proposed routes (`state=proposed`) are not regarded. For GIP imports, routes still apply to both directions of a link (as included in GIP input data).
 - OSM import uses the flex output of osm2pgsql (the pgsql output is deprecated). After updating, run the import step again for existing OSM data.
-- Example settings files harmonized: each example has its own `case_id` and exports to `netascore_<case_id>.gpkg`; the OSM download example now uses `on_existing: reuse_or_overwrite`; all available settings are documented in the examples; development examples now use OSM download will run without adding further settings.
+- Example settings files harmonized: each example has its own `case_id` and exports to `netascore_<case_id>.gpkg`; the OSM download example now uses `on_existing: reuse_or_overwrite`; all available settings are documented in the examples; the development examples now use  OSM download and run without further settings.
+- Docker image based on `debian:trixie` with Python 3.13 (previously `python:3.8.17-bullseye`).
 - Docker database image `postgis/postgis:18-3.6`.
-- Dependencies: jinjasql2 replaces JinjaSql. Flask, igraph, pandas, requests, and osm2geojson are no longer required.
+- Dependencies: jinjasql2 replaces JinjaSql. New: geopandas (>= 1.0), geopy, and osmium (osmium-tool, for clipping the OSM data); osm2pgsql 1.9 or newer is required (for flex output). Flask, igraph, pandas, requests, and osm2geojson are no longer required.
 - Settings and profile files require `version: 2.0`.
 
 ### Fixed
@@ -85,5 +86,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 
 ### Removed
 
-- Place-name filters `admin_level` and `zip_code`. Please use more precise `place_name`values instead - e.g. "Oberndorf, Salzburg, Österreich". You may check via openstreetmap.org (using Nominatim)
+- Place-name filters `admin_level` and `zip_code`. Please use more precise `place_name` values instead - e.g. "Oberndorf, Salzburg, Österreich". You may check via openstreetmap.org (using Nominatim)
 - Directional parking columns `parking_ft` and `parking_tf` (unused).
+- osm2pgsql style file `resources/default.style` (pgsql output) - replaced by the flex configuration `resources/osm2pgsql_flex.lua`. Custom styles need to be adapted.
+- Documentation files `attributes.md`, `docker.md`, and `settings.md` - now the documentation is available at https://plus-mobilitylab.github.io/netascore-documentation/
