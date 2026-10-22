@@ -1,22 +1,24 @@
 """Helper class for metadata of a NetAScore run (stored in the db case schema and exported to the output GeoPackage).
 
 Tables in the case schema (written by the processing steps, so that the information is kept if steps are skipped later):
-- meta_run: key / value pairs (NetAScore version and code state, settings, input file, steps of the last run incl. completion time, run duration, ...)
+- meta_run: key / value pairs (NetAScore version and code state, settings (YAML, without passwords), input file, steps of the last run incl. completion time, run duration, ...)
 - meta_steps: one row per processing step (time, duration, NetAScore version and code state, and settings of the run in which the step was executed last)
 - meta_datasets: use of the input datasets in the attributes step (status, share of the network covered, ...) and their origin
   (dataset registry entry at that time - shared datasets may be replaced later, e.g. by another case)
-- meta_profiles: mode profiles used in the index step
+- meta_profiles: mode profiles used in the index step (incl. original text of the profile files and their SHA-256 checksum)
 - meta_clip_area: area the network was clipped to (network step, OSM)
 - meta_aoi: AOI the network is based on (network step, OSM - the shared AOI table may change with later imports)
 
 Layers in the output GeoPackage: meta_run, meta_steps, meta_datasets (incl. origin of the data used), meta_profiles,
 and meta_areas (AOI, clip area, network extent, and coverage of the input datasets).
 """
+import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
+import yaml
 from datetime import datetime
 
 import toolbox.helper as h
@@ -76,7 +78,7 @@ def start_run(db_settings: DbSettings, settings: dict, settings_file: str, skipp
         'started_at': _run['started'].isoformat(timespec='seconds'),
         'case_id': GlobalSettings.case_id,
         'settings_file': settings_file,
-        'settings': _run['settings'],
+        'settings': settings_yaml(_run['settings']),
         'skipped_steps': skipped_steps,
     })
 
@@ -109,7 +111,7 @@ def complete_step(db_settings: DbSettings, step: str) -> None:
         {'step': step, 'run': run_started.replace(microsecond=0), 'started': started.replace(microsecond=0),
          'completed': completed.replace(microsecond=0),
          'duration': round((completed - started).total_seconds(), 1), 'version': NETASCORE_VERSION, 'commit': netascore_commit(),
-         'file': _run['settings_file'], 'settings': json.dumps(_run['settings']) if _run['settings'] is not None else None})
+         'file': _run['settings_file'], 'settings': settings_yaml(_run['settings'])})
     db.commit()
     db.close()
 
@@ -118,6 +120,14 @@ def record_run_duration(db_settings: DbSettings) -> None:
     """Records the duration of the current run so far (key 'run_duration_s')."""
     if _run['started'] is not None:
         record_run_info(db_settings, {'run_duration_s': round((datetime.now() - _run['started']).total_seconds())})
+
+
+def settings_yaml(settings: dict) -> str:
+    """Settings (without passwords) as YAML text: keeps the types of keys and values (e.g. numeric
+    keys of 'value_mapping') and can be used as settings file again (after adding the password)."""
+    if settings is None:
+        return None
+    return yaml.safe_dump(settings, sort_keys=False, allow_unicode=True, default_flow_style=False)
 
 
 def sanitized_settings(settings: dict) -> dict:
@@ -197,12 +207,15 @@ def record_profiles(db_settings: DbSettings, profiles: list) -> None:
     db = _connect(db_settings)
     db.execute(f"""
         DROP TABLE IF EXISTS {schema}.{META_PROFILES_TABLE};
-        CREATE TABLE {schema}.{META_PROFILES_TABLE} (profile_name varchar PRIMARY KEY, profile_file varchar, filter_access_car boolean,
-            filter_access_bike boolean, filter_access_walk boolean, weights text, profile_content text);""")
+        CREATE TABLE {schema}.{META_PROFILES_TABLE} (profile_name varchar PRIMARY KEY, profile_file varchar, profile_file_sha256 varchar,
+            filter_access_car boolean, filter_access_bike boolean, filter_access_walk boolean, weights text, profile_content text);""")
     for p in profiles:
-        db.execute(f"""INSERT INTO {schema}.{META_PROFILES_TABLE} VALUES (%s, %s, %s, %s, %s, %s, %s);""",
-                   (p.profile_name, os.path.basename(p.filename), bool(p.access_car), bool(p.access_bike), bool(p.access_walk),
-                    json.dumps({k: v for k, v in p.profile['weights'].items() if v is not None}), json.dumps(p.profile)))
+        # profile_content: original text of the profile file (YAML incl. comments - exact, e.g. keys such as 'null', and
+        # reusable as profile file); weights: weights used (JSON)
+        db.execute(f"""INSERT INTO {schema}.{META_PROFILES_TABLE} VALUES (%s, %s, %s, %s, %s, %s, %s, %s);""",
+                   (p.profile_name, os.path.basename(p.filename), hashlib.sha256(p.file_text.encode("utf-8")).hexdigest(),
+                    bool(p.access_car), bool(p.access_bike), bool(p.access_walk),
+                    json.dumps({k: v for k, v in p.profile['weights'].items() if v is not None}), p.file_text))
     db.commit()
     db.close()
 

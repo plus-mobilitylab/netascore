@@ -1,3 +1,4 @@
+import copy
 import os
 import re
 import sys
@@ -48,8 +49,10 @@ class ModeProfile:
         if not os.path.isfile(filename):
             h.majorInfo(f"error: mode profile file '{filename}' (profile '{self.profile_name}') not found.")
             sys.exit(1)
-        with open(filename) as file:
-            self.profile = yaml.safe_load(file)
+        # original text of the profile file (stored as metadata of the run - exact incl. comments)
+        with open(filename, encoding="utf-8") as file:
+            self.file_text = file.read()
+        self.profile = yaml.safe_load(self.file_text)
         h.require_file_version(self.profile, filename, "examples/profile_bike.yml")
         self._validate(filename)
 
@@ -100,6 +103,8 @@ def load_profiles(base_path: str, profile_definitions: dict):
     return [ModeProfile(base_path, definition) for definition in profile_definitions]
 
 def _build_sql_overrides(overrides_yml: dict) -> str:
+    # work on a copy: keys are removed while compiling the SQL - keep the original to store it as metadata
+    overrides_yml = copy.deepcopy(overrides_yml)
     # load yml: extract output details and prepare target variable names
     indicator_name = h.get_safe_name(overrides_yml.get('indicator'))
     h.require_keys(overrides_yml, ["output"], f"No 'output' key provided in overrides definition for '{indicator_name}'.")
@@ -229,6 +234,8 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
     return value_assignments
 
 def _build_sql_indicator_mapping(indicator_yml: dict) -> str:
+    # work on a copy: keys are removed while compiling the SQL - keep the original to store it as metadata
+    indicator_yml = copy.deepcopy(indicator_yml)
     indicator_name = h.get_safe_name(indicator_yml.get('indicator'))
     value_assignments = _build_sql_indicator_mapping_internal_(indicator_yml)
     # compile full indicator SQL around indicator mapping code
