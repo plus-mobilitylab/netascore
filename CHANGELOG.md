@@ -44,7 +44,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - OSM import uses the flex output of osm2pgsql (the pgsql output is deprecated). After updating, run the import step again for existing OSM data.
 - Example settings files harmonized: each example has its own `case_id` and exports to `netascore_<case_id>.gpkg`; the OSM download example now uses `on_existing: reuse_or_overwrite`; all available settings are documented in the examples; development examples now use OSM download will run without adding further settings.
 - Docker database image `postgis/postgis:18-3.6`.
-- Dependencies: jinjasql2 replaces JinjaSql. Flask, igraph, and pandas are no longer required.
+- Dependencies: jinjasql2 replaces JinjaSql. Flask, igraph, pandas, requests, and osm2geojson are no longer required.
 - Settings and profile files require `version: 2.0`.
 
 ### Fixed

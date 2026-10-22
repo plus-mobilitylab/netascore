@@ -10,8 +10,6 @@ dependencies:
   - osmium-tool
   - psycopg2
   - pyyaml
-  - requests
   - pip
   - pip:
     - jinjasql2
-    - osm2geojson
