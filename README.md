@@ -69,20 +69,30 @@ This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 #### How to proceed?
 
 Most likely, you want to execute an analysis for a specific area of your interest - please have a look at the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Quickstart.html#run-netascore-for-your-own-area-of-interest) for how to achieve this with just changing one line in the settings file.
-If you need more detailled instructions or want to know more about the project, please consolidate the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html).
+If you need more detailed instructions or want to know more about the project, please consult the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html).
 
 ### Running NetAScore locally (without Docker)
 
-For running NetAScore without Docker you need several software packages and Python libraries installed on your machine. You find all details in the section ["Run NetAScore manually with Python"](https://plus-mobilitylab.github.io/netascore-documentation/Run-NetAScore-manually-with-Python.html).
+For running NetAScore without Docker you need a PostgreSQL database with PostGIS extension and several software packages and Python libraries on your machine. You find all details in the section ["Run NetAScore manually with Python"](https://plus-mobilitylab.github.io/netascore-documentation/Run-NetAScore-manually-with-Python.html).
 
 **NetAScore uses the following technologies:**
 
-- python 3
-- PostgreSQL with PostGIS extension
-- Docker (optional)
-- psql
-- ogr2ogr
-- osm2pgsql
-- osmium
-- raster2pgsql
-- [several python libraries](../main/requirements.txt)
+- Python 3.9 or newer (tested with 3.13) and [several Python libraries](requirements.txt)
+- PostgreSQL with PostGIS extension (database)
+- osm2pgsql (1.9 or newer) and osmium - for OSM imports
+- GDAL tools (`ogr2ogr`, `gdal_translate`) incl. the PostgreSQL driver
+- psql (PostgreSQL client)
+- raster2pgsql (part of PostGIS) - for importing a DEM (optional dataset `dem`)
+- git (optional) - to record the code state of NetAScore in the output metadata
+- Docker (optional) - see above
+
+**Recommended installation: conda environment.** [environment.yml](environment.yml) includes all of the above except the database and `raster2pgsql`:
+
+```
+conda env create -f environment.yml
+conda activate netascore
+```
+
+`raster2pgsql` is only needed for DEM imports. On Linux and macOS you can add it to the environment with `conda install -n netascore -c conda-forge postgis`. On Windows (where PostGIS is not available via conda), use `raster2pgsql` of your PostGIS installation (e.g. installed with the Stack Builder of PostgreSQL).
+
+**Alternative: system packages and pip.** Install osm2pgsql, osmium, GDAL (incl. Python bindings), and the PostgreSQL / PostGIS client tools with the package manager of your system, then the Python libraries with `pip install -r requirements.txt` (this is how the Docker image is built). Note: the Python package `gdal` needs to match the GDAL version installed on your system (e.g. `pip install gdal==$(gdal-config --version)`).

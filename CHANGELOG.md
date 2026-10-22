@@ -22,7 +22,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Metadata in the output GeoPackage: `meta_run` (NetAScore version, settings as YAML without passwords, input file incl. OSM data timestamp, processing steps of the last run incl. completion time, run duration), `meta_steps` (per processing step: time, duration, version, and settings of the run in which it was executed last), `meta_datasets` (input datasets: use, share of the network covered, origin), `meta_profiles` (mode profiles: original content of the profile files, SHA-256 checksum, weights), and `meta_areas` (AOI, clip area, network extent, coverage of the input datasets). A summary of the run is printed at the end.
 - Code state of NetAScore in the console output and the metadata (`netascore_commit` in `meta_run` and `meta_steps`): branch and Git commit (`-dirty` for uncommitted changes), or for Docker images the build argument `NETASCORE_COMMIT`.
 - Layer styles in the output GeoPackage, applied by default when a layer is opened in QGIS: for the `edge` layer one style per mode profile showing its index (higher value of both directions; the style of the first profile is the default), and for further layers (e.g. `meta_areas`).
-- Conda environment `netascore` (`environment.yml`, Python 3.13).
+- Conda environment `netascore` (`environment.yml`, Python 3.13) incl. osm2pgsql, osmium, and the GDAL tools - only `raster2pgsql` (for DEM imports) needs to come from a PostGIS installation.
 
 ### Changed
 
