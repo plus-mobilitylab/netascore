@@ -27,9 +27,9 @@ parser.add_argument('--loglevel', nargs=1, choices=["1", "2", "3", "4"],
 args = parser.parse_args()
 settings_stream = args.settings_file
 skip_steps = args.skip or []
-base_path = settings_stream.name.rsplit('/', 1)[0]
-if settings_stream.name.find("\\") > 0: # allow use of backslash
-    base_path = settings_stream.name.rsplit('\\', 1)[0]
+# directory of the settings file (mode profiles are referenced relative to it); backslashes are accepted as separator
+# on all systems; no directory given (e.g. 'settings.yml'): current directory
+base_path = os.path.dirname(settings_stream.name.replace("\\", "/")) or "."
 if args.loglevel:
     h.verbose_level = int(args.loglevel[0])
     h.majorInfo(f"using log level {h.verbose_level}")
