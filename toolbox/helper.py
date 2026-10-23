@@ -200,6 +200,20 @@ def normalize_on_existing(value, context: str, default: str = 'abort') -> str:
         sys.exit(1)
     return v
 
+def get_buffer(settings: dict) -> float:
+    """Returns the import setting 'buffer' (in m) around the area of interest - 0 if omitted or empty."""
+    value = settings.get('buffer') if isinstance(settings, dict) else None
+    if value is None or str(value).strip() == '':
+        return 0.0
+    try:
+        buffer = float(str(value).strip())
+    except ValueError:
+        raise Exception(f"Invalid value '{value}' for import setting 'buffer' - expected a number (in m).")
+    if buffer < 0:
+        raise Exception(f"Invalid value '{value}' for import setting 'buffer' - expected a number >= 0 (in m).")
+    return buffer
+
+
 def get_clip_mode(settings: dict) -> str:
     """Returns the clip mode from the import settings: 'bbox' (default), 'aoi', or 'none'."""
     clip_mode = 'bbox'

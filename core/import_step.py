@@ -819,7 +819,7 @@ class OsmImporter(DbStep):
         extended by a margin (in m) to include surrounding features (e.g. buildings, greenness) for edges at its boundary."""
         aoi_table = self.db_settings.entities.table_aoi
         srid = GlobalSettings.get_target_srid()
-        buffer = settings['buffer'] if h.has_keys(settings, ['buffer']) else 0
+        buffer = h.get_buffer(settings)
         return db.query_one(f"""
             WITH clip_area AS (
                 SELECT CASE
@@ -845,9 +845,7 @@ class OsmImporter(DbStep):
         srid = GlobalSettings.get_target_srid()
 
         # get BBox for network coverage (larger than chosen AOI -> prevent edge effects)
-        buffer = 0
-        if h.has_keys(settings, ['buffer']):
-            buffer = settings['buffer']
+        buffer = h.get_buffer(settings)
         bbox = db.query_one("WITH a as (SELECT ST_Transform(ST_setSRID(ST_EXPAND(box2d(ST_Transform(geom, %s)),%s),%s), 4326) as bbox FROM " + 
                                     aoi_table + """ WHERE name=%s) 
                                     SELECT ST_YMIN(bbox), ST_XMIN(bbox), ST_YMAX(bbox), ST_XMAX(bbox) FROM a;""", 
@@ -891,21 +889,28 @@ class OsmImporter(DbStep):
             if on_existing in ('reuse', 'reuse_or_overwrite'):
                 # an existing download is reused if it covers the area (based on bounding box stated in the file)
                 min_lat, min_lon, max_lat, max_lon = bbox
-                file_bbox = osm_file_bbox(net_path)
-                covered = file_bbox is not None and bbox_share_covered(file_bbox, (min_lon, min_lat, max_lon, max_lat)) >= 1
-                if covered:
+                # check for e.g. an incomplete download 
+                file_error = _overpass_response_error(net_path)
+                if file_error is not None and on_existing == 'reuse':
+                    raise Exception(f"The existing OSM download '{net_file}' is not valid ({file_error}). Delete it or set 'on_existing: "
+                                    "reuse_or_overwrite' (or 'overwrite') in the import settings to download it again.")
+                file_bbox = osm_file_bbox(net_path) if file_error is None else None
+                if file_error is not None:
+                    h.majorInfo(f"downloading OSM data again: the existing download '{net_file}' is not valid ({file_error})")
+                elif file_bbox is not None and bbox_share_covered(file_bbox, (min_lon, min_lat, max_lon, max_lat)) >= 1:
                     h.info("reusing the existing OSM download (it covers the area of interest). You can change this behavior with the import setting 'on_existing'. [reuse/reuse_or_overwrite/overwrite/abort]")
                     return
-                if file_bbox is None and on_existing == 'reuse':
+                elif file_bbox is None and on_existing == 'reuse':
                     h.majorInfo(f"WARNING: reusing the existing OSM download '{net_file}' - its area is unknown (downloaded with an older "
                                 "version of NetAScore), so it cannot be verified that it covers the area of interest.")
                     return
-                if file_bbox is not None and on_existing == 'reuse':
+                elif file_bbox is not None and on_existing == 'reuse':
                     raise Exception(f"The existing OSM download '{net_file}' (bounding box {file_bbox}) does not cover the area of interest. "
                                     "Set 'on_existing: reuse_or_overwrite' (or 'overwrite') in the import settings to download it again.")
-                h.majorInfo(f"downloading OSM data again: the existing download '{net_file}' "
-                            + ("does not state its area (downloaded with an older version of NetAScore)" if file_bbox is None
-                               else f"(bounding box {file_bbox}) does not cover the area of interest"))
+                else:
+                    h.majorInfo(f"downloading OSM data again: the existing download '{net_file}' "
+                                + ("does not state its area (downloaded with an older version of NetAScore)" if file_bbox is None
+                                   else f"(bounding box {file_bbox}) does not cover the area of interest"))
             elif on_existing != 'overwrite':
                 raise Exception("Target file for OSM download already exists. Aborting. Please resolve the conflict manually or specify a different value for 'on_existing' in the import settings. [reuse/reuse_or_overwrite/overwrite/abort]")
         self._check_download_area(bbox, settings)
@@ -1083,7 +1088,7 @@ class OsmImporter(DbStep):
         if settings.get('bbox') is not None:
             osm_options['bbox'] = h.parse_bbox(settings['bbox'])
         if has_aoi:
-            osm_options['buffer'] = float(settings.get('buffer') or 0)
+            osm_options['buffer'] = h.get_buffer(settings)
             osm_options['clip'] = h.get_clip_mode(settings)
         if clip_network:
             osm_options['clip'] = 'network'

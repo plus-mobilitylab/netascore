@@ -1,11 +1,14 @@
 -- ---------------------------------------------------------------------------------------------------------------------
--- osm_network
+-- osm_attributes
 -- ---------------------------------------------------------------------------------------------------------------------
 
 SET search_path =
     {{ schema_network | sqlsafe }},
     {{ schema_data | sqlsafe }},
     public;
+
+-- buffer tables of the network (created once per run, shared by several indicators) - remove leftovers of an aborted run
+DROP TABLE IF EXISTS network_buffer_2, network_buffer_20, network_buffer_30;
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- create tables "network_edge_attributes", "network_node_attributes"

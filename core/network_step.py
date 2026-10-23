@@ -134,9 +134,7 @@ class OsmNetworkStep(DbStep):
                 clip_mode = 'none'
             else:
                 h.info(f"clipping network to the area of interest (clip mode: '{clip_mode}')")
-        buffer = 0
-        if settings and h.has_keys(settings, ['buffer']):
-            buffer = settings['buffer']
+        buffer = h.get_buffer(settings)
 
         # the imported OSM data has to cover the clip area (e.g. not if 'buffer' was increased and the import step skipped)
         clip_area = None

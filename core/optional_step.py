@@ -146,7 +146,12 @@ class DemImporter(OptionalImporter):
         return {'srid': self._dem_srid(settings)}
 
     def _dem_srid(self, settings: dict) -> int:
-        return int(re.sub(r"[^0-9]", "", str(settings['srid'])))
+        # e.g. 25832 or 'EPSG:25832'
+        match = re.fullmatch(r"\s*(?:EPSG:)?\s*([0-9]+)\s*", str(settings['srid']), re.IGNORECASE)
+        if not match:
+            raise Exception(f"Invalid value '{settings['srid']}' for setting 'srid' of the optional import 'dem' - expected an "
+                            "EPSG code, e.g. 25832 or 'EPSG:25832'.")
+        return int(match.group(1))
 
     def import_data(self, db: PostgresConnection, schema: str, path: str, layers: list, settings: dict) -> tuple:
         dem_srid = self._dem_srid(settings)

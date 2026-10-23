@@ -70,6 +70,11 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Frequently failing Overpass API download requests.
 - Failed Overpass API requests are reported with the HTTP status or error (also at log level 1), incl. errors the Overpass API reports within the response (e.g. query timeout or out of memory - incomplete data) and truncated responses. If all endpoints fail, a hint explains how to use a downloaded OSM extract instead. Incomplete downloads are deleted, so they are not re-used by the next run.
 - Reusing an existing AOI (`on_existing: reuse` / `reuse_or_overwrite`) no longer skips the OSM download: if no download file exists (e.g. because a previous run failed before or during the download), the OSM data is downloaded for the existing AOI.
+- An existing invalid OSM download (e.g. incomplete because the process was killed during the download) is no longer re-used: it is downloaded again (`on_existing: reuse_or_overwrite`) or reported (`reuse`).
+- Empty import setting `buffer` (no value) is treated as 0 - previously, the network was empty. Invalid values (e.g. text, negative numbers) are reported.
+- Invalid `srid` of the optional import `dem` (e.g. `EPSG:` without number) is reported with a readable error.
+- Temporary buffer tables of an aborted attributes step are no longer reused by the next run (could result in wrong indicator values if the network changed in between).
+- GIP 2.0 network step: the temporary table `gip2_bbox_link` is removed after use.
 - OSM tag lookups for cycle-route scope, bicycle roads, unhewn cobblestone, and `sidewalk:right` / `sidewalk:both`.
 - Revised OSM max speed defaults. 
 - `water`: only line geometries (no polygons) in input data are now properly considered - previously resulted in value 0.
