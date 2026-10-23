@@ -1,5 +1,5 @@
-# This is the default bikeability mode profile provided with NetAScore,
-# developed and tested by the MobilityLab at University of Salzburg.
+# This is an exemplary mode profile for tourism-oriented bikeability: based on the default bikeability profile,
+# extended by the attractiveness of the surroundings (indicators greenness, water, sights, and noise).
 # Feel free to copy, edit and adjust for specific use cases.
 
 version: 2.0

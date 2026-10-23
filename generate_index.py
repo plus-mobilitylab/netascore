@@ -15,10 +15,13 @@ from core.optional_step import run_optional_importers
 from core import metadata
 from settings import DbSettings, GlobalSettings, netascore_code_pushed, netascore_code_url, netascore_version_info, warn_unknown_settings
 
-parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Score Toolbox for Sustainable Mobility')
+parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Score Toolbox for Sustainable Mobility',
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,  # epilog: URL not wrapped
+                                 epilog="documentation of the settings:\n"
+                                        "  https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html")
 parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
-                    help="""file that contains all settings (input data, referenced mode profiles,...) - runs a demo for Salzburg, Austria if omitted. 
-                    More details available in the online documentation at: https://github.com/plus-mobilitylab/netascore""")
+                    help="""file that contains all settings (input data, referenced mode profiles,...) - e.g.
+                    examples/settings_osm_query.yml (example for Salzburg, Austria - its database settings are for the Docker setup)""")
 parser.add_argument('--skip', nargs='+', choices=['import', 'network', 'optional', 'attributes', 'index', 'export'],
                     help='skip one or more of these steps (in order of execution) - e.g. "--skip import network"')
 parser.add_argument('--loglevel', nargs=1, choices=["1", "2", "3", "4"],

@@ -60,7 +60,7 @@ NetAScore first loads an area of interest by place name from the Overpass API, t
 
 #### What the results look like:
 
-Currently, NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. Then in layer preferences define a symbology that visualizes one of the computed index values - e.g. `index_bike_ft` for *bikeability* (`_ft`: bikeability in forward-direction of each segment). Please note that from version 1.0 onwards, an index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
+NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. It opens with a predefined style showing the index of the first mode profile (higher value of both directions). Styles for the other mode profiles are available by right-click on the `edge`layer(*Styles* > *index_<index_name>*). From version 1.0 onwards, an index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
 
 This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
