@@ -837,21 +837,36 @@ DROP TABLE gradient;
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS number_lanes_ft;
 ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS number_lanes_tf;
 
+-- lanes per direction: 'lanes:forward' / 'lanes:backward', otherwise 'lanes' - for one-way: all lanes for direction
+-- (OSM interpretation as for access; one-way implied for roundabouts and motorways), otherwise half per direction
 DROP TABLE IF EXISTS network_edge_attributes_tmp;
 CREATE TABLE network_edge_attributes_tmp AS (
+    WITH lanes AS (
+        SELECT edge_id, tags,
+               CASE WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes')::numeric END AS lanes,
+               CASE
+                   WHEN oneway = ANY ('{yes,true,1}') THEN 'forward'
+                   WHEN oneway = ANY ('{-1,reverse}') THEN 'backward'
+                   WHEN oneway IS NULL AND (junction = ANY ('{roundabout,circular}') OR highway = 'motorway') THEN 'forward'
+                   ELSE 'both' -- no, false, 0, reversible, alternating, or no 'oneway' tag
+               END AS travel_direction
+        FROM network_edge
+    )
     SELECT a.*,
            CASE
-               WHEN (tags -> 'lanes:forward') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes:forward')::numeric
-               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN (tags -> 'lanes')::numeric -- TODO: may need improvement
-               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes')::numeric * 0.5
+               WHEN (b.tags -> 'lanes:forward') ~ E'^([0-9]{1,2})$' THEN (b.tags -> 'lanes:forward')::numeric
+               WHEN b.travel_direction = 'forward' THEN b.lanes
+               WHEN b.travel_direction = 'backward' THEN 0 * b.lanes  -- NULL if the number of lanes is unknown
+               ELSE b.lanes * 0.5
            END::numeric AS number_lanes_ft,
            CASE
-               WHEN (tags -> 'lanes:backward') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes:backward')::numeric
-               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN 0::numeric -- TODO: may need improvement
-               WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes')::numeric * 0.5
+               WHEN (b.tags -> 'lanes:backward') ~ E'^([0-9]{1,2})$' THEN (b.tags -> 'lanes:backward')::numeric
+               WHEN b.travel_direction = 'backward' THEN b.lanes
+               WHEN b.travel_direction = 'forward' THEN 0 * b.lanes  -- NULL if the number of lanes is unknown
+               ELSE b.lanes * 0.5
            END::numeric AS number_lanes_tf
     FROM network_edge_attributes a
-        LEFT JOIN network_edge b USING (edge_id)
+        LEFT JOIN lanes b USING (edge_id)
 );
 
 DROP TABLE network_edge_attributes;

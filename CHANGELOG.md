@@ -55,6 +55,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - OSM tag interpretation of `motorcar` fixed. 
 - OSM steps (`highway=steps`) never allow car or bicycle access, even with explicit permissions set.
 - Fixed conversion of OSM `width` values without a number (e.g. `m`) and accepting values with decimal comma.
+- `number_lanes` (OSM): improved detection of one-way roads, implied one-way (roundabouts, motorways).
 - Changed AOI settings (`place_name`, `bbox`, `aoi_filename`) are no longer ignored when re-running a case with `reuse` setting: the AOI records the settings it was created from and is only reused if they match (with `reuse_or_overwrite` it is created again, incl. a new UTM zone if `target_srid` is omitted; with `reuse` an error is reported). For `bbox` and `aoi_filename`, the geometry is compared as well.
 - Removing a defined area of interest from import settings now processes the whole file again when re-run (no more cached AOI clipping from previous settings).
 - An existing OSM download is only reused if it covers the area of interest. OSM downloads now contain their bounding box. A provided OSM file covering only parts of the area (by bbox) results in a warning.
