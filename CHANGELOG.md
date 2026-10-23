@@ -40,6 +40,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Processing order: optional imports now run after the network step (import, network, optional, attributes, index, export). Optional data (vector data and DEM) is only imported for the extent of the network (incl. 50 m margin), unless `clip: none` is set for the respective optional import.
 - Optional OSM import (for Austrian GIP data): the OSM file is clipped to the network extent by default, like other optional datasets (setting `clip`: `network`).
 - GIP import setting `filename_A` is renamed to `filename` (for consistency with OSM file imports).
+- GIP imports (`gip` and `gip2`) now respect `on_existing`. Default: reused if imported from the same file (name, size, modification time). The network and attributes steps check that the GIP tables were imported from the file given in the settings.
 - `designated_route` is now derived directly from the membership of OSM ways in bicycle route relations, per direction (previously: geometric overlap with the route). Proposed routes (`state=proposed`) are not regarded. For GIP imports, routes still apply to both directions of a link (as included in GIP input data).
 - OSM import uses the flex output of osm2pgsql (the pgsql output is deprecated). After updating, run the import step again for existing OSM data.
 - Example settings files harmonized: each example has its own `case_id` and exports to `netascore_<case_id>.gpkg`; the OSM download example now uses `on_existing: reuse_or_overwrite`; all available settings are documented in the examples; the development examples now use  OSM download and run without further settings.
@@ -80,6 +81,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Missing input files report a readable error.
 - DEM import now reports errors of `raster2pgsql`.
 - DEM import with `raster2pgsql` from outside the conda environment (e.g. system PostGIS): the GDAL plugins of the conda environment are no longer loaded to prevent errors.
+- GIP imports: files unpacked or converted from a GIP export are no longer reused after the zip file was replaced (e.g. by a newer GIP export with the same name). For GIP 2.0, an IDF file extracted next to the zip file is only used if it matches the size of the one in the zip file.
 - For GIP imports, a DEM given in the optional section is no longer imported and a warning is issued (gradients are computed from the elevation data contained in the GIP dataset, as before).
 - For OSM imports, an OSM file given in the optional section is no longer imported and a note is issued.
 - AOI files (`aoi_filename`) in other coordinate systems than WGS84 are now transformed. AOI files without coordinate reference system report an error.

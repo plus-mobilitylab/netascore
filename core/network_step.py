@@ -21,6 +21,7 @@ class GipNetworkStep(DbStep):
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
+        registry.check_gip_import(db, self.db_settings.entities.data_schema, 'gip', settings.get('filename') if settings else None)
 
         # execute "gip_network"
         h.logBeginTask('execute "gip_network"')
@@ -62,6 +63,7 @@ class Gip2NetworkStep(DbStep):
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
+        registry.check_gip_import(db, self.db_settings.entities.data_schema, 'gip2', settings.get('filename') if settings else None)
         db.verify_input_tables_exist(
             ['gip2_node', 'gip2_link', 'gip2_linkcoordinate', 'gip2_linear_use_part', 'gip2_bikehike'],
             schema=self.db_settings.entities.data_schema

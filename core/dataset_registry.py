@@ -207,20 +207,22 @@ def register(db: PostgresConnection, schema: str, dataset: str, source: dict, op
 OSM_IMPORT_TABLE = "osm_import"
 
 
-def start_osm_import(db: PostgresConnection, schema: str) -> None:
-    """Removes the record of the previous OSM import (the OSM tables are replaced - incomplete if the import fails)."""
-    db.execute(f"DROP TABLE IF EXISTS {schema}.{OSM_IMPORT_TABLE};")
+def start_osm_import(db: PostgresConnection, schema: str, record_table: str = OSM_IMPORT_TABLE) -> None:
+    """Removes the record of the previous OSM import (the OSM tables are replaced - incomplete if the import fails).
+    Also used for GIP imports (record_table: see GIP_IMPORT_TABLES)."""
+    db.execute(f"DROP TABLE IF EXISTS {schema}.{record_table};")
     db.commit()
 
 
-def record_osm_import(db: PostgresConnection, schema: str, source: dict, options: dict, extent: tuple = None) -> None:
+def record_osm_import(db: PostgresConnection, schema: str, source: dict, options: dict, extent: tuple = None,
+                      record_table: str = OSM_IMPORT_TABLE) -> None:
     """Records a completed OSM import: case, source file, settings affecting the imported area, and extracted area
-    (min lon, min lat, max lon, max lat; None: whole file)."""
+    (min lon, min lat, max lon, max lat; None: whole file). Also used for GIP imports (record_table: see GIP_IMPORT_TABLES)."""
     db.execute(f"""
-        DROP TABLE IF EXISTS {schema}.{OSM_IMPORT_TABLE};
-        CREATE TABLE {schema}.{OSM_IMPORT_TABLE} (case_id varchar, source jsonb, options jsonb,
-                                                 import_extent geometry(Polygon, 4326), imported_at timestamptz);
-        INSERT INTO {schema}.{OSM_IMPORT_TABLE}
+        DROP TABLE IF EXISTS {schema}.{record_table};
+        CREATE TABLE {schema}.{record_table} (case_id varchar, source jsonb, options jsonb,
+                                             import_extent geometry(Polygon, 4326), imported_at timestamptz);
+        INSERT INTO {schema}.{record_table}
         SELECT %(case_id)s, %(source)s, %(options)s,
                CASE WHEN %(has_extent)s THEN ST_MakeEnvelope(%(x1)s, %(y1)s, %(x2)s, %(y2)s, 4326) END, now();
         """, {'case_id': GlobalSettings.case_id, 'source': json.dumps(source), 'options': json.dumps(options),
@@ -258,6 +260,81 @@ def check_osm_import_extent(db: PostgresConnection, schema: str, clip_area_wkt: 
     if not covered:
         raise Exception(f"The area the network is clipped to (current settings 'buffer' / 'clip') extends beyond the area the OSM "
                         f"data was imported for (import settings: {options}). Please run the import step again.")
+
+
+
+# --- GIP import (tables gip_* / gip2_*) ---
+# Like the OSM tables, the GIP tables in the shared data schema are not part of the dataset registry. They contain the
+# whole GIP dataset (covering Austria), so they can be used by all GIP cases - the import record identifies the source file.
+
+GIP_IMPORT_TABLES = {'gip': "gip_import", 'gip2': "gip2_import"}
+
+
+def _get_import_source(db: PostgresConnection, schema: str, record_table: str) -> tuple:
+    """Returns source and case of the recorded (completed) import - or None if there is no record."""
+    if not db.query_one("SELECT to_regclass(%s) IS NOT NULL;", (f"{schema}.{record_table}",))[0]:
+        return None
+    return db.query_one(f"SELECT source, case_id, imported_at FROM {schema}.{record_table};")
+
+
+def start_gip_import(db: PostgresConnection, schema: str, import_type: str) -> None:
+    """Removes the record of the previous GIP import (the GIP tables are replaced - incomplete if the import fails)."""
+    start_osm_import(db, schema, GIP_IMPORT_TABLES[import_type])
+
+
+def record_gip_import(db: PostgresConnection, schema: str, import_type: str, source: dict) -> None:
+    """Records a completed GIP import (case, source file)."""
+    record_osm_import(db, schema, source, {}, record_table=GIP_IMPORT_TABLES[import_type])
+
+
+def gip_import_needed(db: PostgresConnection, schema: str, import_type: str, tables: list, on_existing: str, source: dict) -> bool:
+    """Decides whether the GIP tables need to be imported (True) or the existing ones are reused (False) - based on the
+    import record and the 'on_existing' setting. Tables without import record (import interrupted or imported with an
+    older version of NetAScore) are imported again."""
+    if not all(db.exists(table, schema) for table in tables):
+        return True
+    if on_existing == 'abort':
+        raise Exception(f"The {import_type.upper()} tables already exist in schema '{schema}'. Please resolve the conflict manually "
+                        "or set 'on_existing' to 'reuse', 'reuse_or_overwrite', or 'overwrite'.")
+    if on_existing == 'overwrite':
+        h.majorInfo(f"importing {import_type.upper()} data, overwriting the existing tables ('on_existing: overwrite').")
+        return True
+    record = _get_import_source(db, schema, GIP_IMPORT_TABLES[import_type])
+    if record is None:
+        h.majorInfo(f"importing {import_type.upper()} data again: the existing tables have no import record (previous import "
+                    "interrupted or imported with an older version of NetAScore).")
+        return True
+    existing, case_id, imported_at = record
+    if existing == json.loads(json.dumps(source)):
+        h.info(f"reusing the existing {import_type.upper()} tables (imported from the same file '{source['file']}' for case "
+               f"'{case_id}', {imported_at:%Y-%m-%d %H:%M})")
+        return False
+    if on_existing == 'reuse':
+        raise Exception(f"The existing {import_type.upper()} tables were imported from a different or changed source file (existing: "
+                        f"{existing}, current: {source}). Set 'on_existing: reuse_or_overwrite' (or 'overwrite') in the import settings to "
+                        "import the current file - this replaces the existing tables (used by all GIP cases).")
+    changed = "the file was changed since" if existing.get('file') == source['file'] else f"imported from '{existing.get('file')}'"
+    h.majorInfo(f"importing {import_type.upper()} data, overwriting the existing tables ({changed}).")
+    return True
+
+
+def check_gip_import(db: PostgresConnection, schema: str, import_type: str, filename: str) -> None:
+    """Ensures that the GIP tables in the data schema were imported from the file given in the import settings (they may
+    have been replaced by another case since)."""
+    record = _get_import_source(db, schema, GIP_IMPORT_TABLES[import_type])
+    if record is None:
+        raise Exception(f"No completed {import_type.upper()} import found in schema '{schema}' (import not run, failed, or ran "
+                        "with an older version of NetAScore). Please run the import step (again).")
+    if not filename:
+        return
+    existing, case_id, imported_at = record
+    path = os.path.join(GlobalSettings.data_directory, filename)
+    # compare the whole file signature if the file is available, otherwise only the file name
+    current = json.loads(json.dumps(file_signature(path))) if os.path.isfile(path) else {'file': os.path.basename(path)}
+    if any(existing.get(key) != value for key, value in current.items()):
+        raise Exception(f"The {import_type.upper()} data in schema '{schema}' was imported from a different file ({existing}, "
+                        f"for case '{case_id}', {imported_at:%Y-%m-%d %H:%M}) than given in the import settings ({current}). "
+                        "Please run the import step (again).")
 
 
 # --- coverage of source data (WKT polygon in WGS84) ---

@@ -219,6 +219,31 @@ def get_stored_aoi_srid(db_settings: DbSettings):
         db.close()
 
 
+# unpacked / converted GIP files are only reused if they were created from the current source file (e.g. not if the
+# zip file was replaced by a newer GIP export with the same name)
+GIP_CACHE_MARKER = '.netascore_source.json'
+
+
+def gip_cache_valid(directory: str, source_path: str) -> bool:
+    """True if the files in the directory were created from the source file (marker file written by write_gip_cache_marker)."""
+    try:
+        with open(os.path.join(directory, GIP_CACHE_MARKER), encoding='utf-8') as f:
+            return json.load(f) == registry.file_signature(source_path)
+    except (OSError, ValueError):
+        return False
+
+
+def write_gip_cache_marker(directory: str, source_path: str) -> None:
+    with open(os.path.join(directory, GIP_CACHE_MARKER), 'w', encoding='utf-8') as f:
+        json.dump(registry.file_signature(source_path), f)
+
+
+def remove_gip_cache(directory: str, filenames: List[str]) -> None:
+    """Removes the marker and the given files (created by NetAScore) from the directory - other files are kept."""
+    for filename in [GIP_CACHE_MARKER] + filenames:
+        _remove_file(os.path.join(directory, filename))
+
+
 class GipImporter(DbStep):
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
@@ -244,37 +269,54 @@ class GipImporter(DbStep):
             {'filename': 'ReferenceObject.txt', 'table': 'gip_referenceobject', 'columns': ['refobj_id']},
         ]
 
+        zip_path = os.path.join(directory, settings['filename'])
+        if not os.path.isfile(zip_path):
+            raise Exception(f"The provided GIP input file could not be found: '{zip_path}'")
+        extract_dir = os.path.join(directory, os.path.splitext(settings['filename'])[0])
+        source = registry.file_signature(zip_path)
+
         # open database connection
         h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
 
-        # extract zip files
+        if not registry.gip_import_needed(db, schema, 'gip', [file['table'] for file in files_A], settings['on_existing'], source):
+            db.close()
+            return
+        registry.start_gip_import(db, schema, 'gip')
+
+        # extract zip files and convert them to CSV / SQL (reused if created from the same zip file)
         h.logBeginTask('extract zip files')
-        with zipfile.ZipFile(os.path.join(directory, settings['filename']), 'r') as zf:
+        if gip_cache_valid(extract_dir, zip_path):
+            h.log(f"using the files already extracted to '{extract_dir}'")
+        else:
+            stems = [os.path.splitext(file['filename'])[0] for file in files_A]
+            remove_gip_cache(extract_dir, [f"{stem}{ext}" for stem in stems for ext in ('.txt', '.csv', '.sql')])
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                for file in files_A:
+                    zf.extract(file['filename'], extract_dir)
             for file in files_A:
-                if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename'])[0], file['filename'])):
-                    zf.extract(file['filename'], os.path.join(directory, os.path.splitext(settings['filename'])[0]))
+                create_csv(os.path.join(extract_dir, file['filename']))
+                create_sql(os.path.join(extract_dir, file['filename']))
+            write_gip_cache_marker(extract_dir, zip_path)
         h.logEndTask()
 
         # create tables from files_A
         for file in files_A:
             h.logBeginTask(f"create table \"{file['table']}\"")
-            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.csv")):
-                create_csv(os.path.join(directory, os.path.splitext(settings['filename'])[0], file['filename']))
-            if not os.path.isfile(os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.sql")):
-                create_sql(os.path.join(directory, os.path.splitext(settings['filename'])[0], file['filename']))
-
+            stem = os.path.splitext(file['filename'])[0]
             db.drop_table(file['table'], schema=schema)
-            db.execute_sql_from_file(f"{os.path.splitext(file['filename'])[0]}", os.path.join(directory, os.path.splitext(settings['filename'])[0]))
+            db.execute_sql_from_file(stem, extract_dir)
             db.commit()
 
-            import_csv(db.connection_string, os.path.join(directory, os.path.splitext(settings['filename'])[0], f"{os.path.splitext(file['filename'])[0]}.csv"), schema, table=file['table'], env=db.tool_env())
+            import_csv(db.connection_string, os.path.join(extract_dir, f"{stem}.csv"), schema, table=file['table'], env=db.tool_env())
 
             db.add_primary_key(file['table'], file['columns'], schema=schema)
             db.commit()
             h.logEndTask()
+
+        registry.record_gip_import(db, schema, 'gip', source)
 
         # close database connection
         h.debugLog('closing database connection')
@@ -408,30 +450,36 @@ def resolve_gip2_idf_path(directory: str, filename: str) -> str:
     if filename.lower().endswith('.zip'):
         stem = os.path.splitext(filename)[0]
         sibling_txt = os.path.join(directory, stem + '.txt')
-        if os.path.isfile(sibling_txt):
-            h.log(f"using already extracted IDF '{sibling_txt}'")
-            return sibling_txt
-
         extract_dir = os.path.join(directory, stem)
-        os.makedirs(extract_dir, exist_ok=True)
         with zipfile.ZipFile(source_path, 'r') as zf:
-            txt_members = [name for name in zf.namelist() if name.lower().endswith('.txt')]
+            txt_members = [info for info in zf.infolist() if info.filename.lower().endswith('.txt')]
             if not txt_members:
                 raise Exception(f"No .txt IDF found inside '{source_path}'")
             member = txt_members[0]
-            extracted = os.path.join(extract_dir, os.path.basename(member))
-            if not os.path.isfile(extracted):
-                h.log(f"extracting '{member}' from '{filename}'")
-                source = zf.open(member)
-                try:
-                    with open(extracted, 'wb') as target:
-                        while True:
-                            chunk = source.read(1024 * 1024 * 8)
-                            if not chunk:
-                                break
-                            target.write(chunk)
-                finally:
-                    source.close()
+            # an IDF extracted next to the zip file (e.g. by the user) is used if it has the size of the one in the zip file
+            if os.path.isfile(sibling_txt):
+                if os.path.getsize(sibling_txt) == member.file_size:
+                    h.log(f"using already extracted IDF '{sibling_txt}'")
+                    return sibling_txt
+                h.info(f"ignoring '{sibling_txt}': it differs from the IDF in '{filename}' (different size)")
+            extracted = os.path.join(extract_dir, os.path.basename(member.filename))
+            if gip_cache_valid(extract_dir, source_path) and os.path.isfile(extracted):
+                h.log(f"using the IDF already extracted to '{extracted}'")
+                return extracted
+            os.makedirs(extract_dir, exist_ok=True)
+            remove_gip_cache(extract_dir, [os.path.basename(member.filename)])
+            h.log(f"extracting '{member.filename}' from '{filename}'")
+            source = zf.open(member)
+            try:
+                with open(extracted, 'wb') as target:
+                    while True:
+                        chunk = source.read(1024 * 1024 * 8)
+                        if not chunk:
+                            break
+                        target.write(chunk)
+            finally:
+                source.close()
+            write_gip_cache_marker(extract_dir, source_path)
             return extracted
 
     raise Exception(f"GIP 2.0 import expects a .zip or .txt file, got '{filename}'")
@@ -452,12 +500,21 @@ class Gip2Importer(DbStep):
         schema = self.db_settings.entities.data_schema
         directory = GlobalSettings.data_directory
         filename = settings['filename']
+        source_path = os.path.join(directory, filename)
+        if not os.path.isfile(source_path):
+            raise Exception(f"The provided GIP 2.0 input file could not be found: '{source_path}'")
+        source = registry.file_signature(source_path)
 
         # open database connection
         h.debugLog('connecting to database...')
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.init_extensions_and_schema(schema)
+
+        if not registry.gip_import_needed(db, schema, 'gip2', [item['table'] for item in GIP2_IMPORT_TABLES], settings['on_existing'], source):
+            db.close()
+            return
+        registry.start_gip_import(db, schema, 'gip2')
 
         h.logBeginTask('resolve GIP 2.0 IDF')
         idf_path = resolve_gip2_idf_path(directory, filename)
@@ -466,18 +523,17 @@ class Gip2Importer(DbStep):
         h.log(f"split directory: {tables_dir}")
         h.logEndTask()
 
+        # CSV / SQL files are reused if they were created from the same IDF
         h.logBeginTask('split GIP 2.0 IDF into tables')
-        missing = [
-            item for item in GIP2_IMPORT_TABLES
-            if not os.path.isfile(os.path.join(tables_dir, f"{item['name'].lower()}.csv"))
-            or not os.path.isfile(os.path.join(tables_dir, f"{item['name'].lower()}.sql"))
-        ]
-        if missing:
-            h.log(f"creating CSV/SQL for: {', '.join(item['name'] for item in missing)}")
-            # Always rewrite all required tables together so a partial previous split cannot mix versions
-            split_gip2_idf(idf_path, tables_dir, GIP2_IMPORT_TABLES)
-        else:
+        table_files = [f"{item['name'].lower()}{ext}" for item in GIP2_IMPORT_TABLES for ext in ('.csv', '.sql')]
+        if gip_cache_valid(tables_dir, idf_path) and all(os.path.isfile(os.path.join(tables_dir, f)) for f in table_files):
             h.log('CSV/SQL files already exist, skipping split')
+        else:
+            h.log('creating CSV/SQL files')
+            # always rewrite all required tables together so a partial previous split cannot mix versions
+            remove_gip_cache(tables_dir, table_files)
+            split_gip2_idf(idf_path, tables_dir, GIP2_IMPORT_TABLES)
+            write_gip_cache_marker(tables_dir, idf_path)
         h.logEndTask()
 
         for item in GIP2_IMPORT_TABLES:
@@ -500,6 +556,8 @@ class Gip2Importer(DbStep):
                 db.add_index(item['table'], columns, schema=schema)
             db.commit()
             h.logEndTask()
+
+        registry.record_gip_import(db, schema, 'gip2', source)
 
         h.debugLog('closing database connection')
         db.close()

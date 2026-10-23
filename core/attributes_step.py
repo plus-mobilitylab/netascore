@@ -176,6 +176,7 @@ class GipAttributesStep(DbStep):
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.schema = schema
+        registry.check_gip_import(db, self.db_settings.entities.data_schema, 'gip', settings.get('filename') if settings else None)
 
         # create functions
         h.log('create functions')
@@ -218,6 +219,7 @@ class Gip2AttributesStep(DbStep):
         db = PostgresConnection.from_settings_object(self.db_settings)
         db.connect()
         db.schema = schema
+        registry.check_gip_import(db, self.db_settings.entities.data_schema, 'gip2', settings.get('filename') if settings else None)
 
         # create functions
         h.log('create functions')
