@@ -82,11 +82,12 @@ def _mismatches(db: PostgresConnection, schema: str, dataset: str, entry: dict, 
         covered = db.query_one(f"""SELECT ST_Covers(import_extent, ST_MakeEnvelope(%s, %s, %s, %s, 4326))
                                    FROM {schema}.{REGISTRY_TABLE} WHERE dataset = %s;""", (*extent, dataset))[0]
         if not covered:
-            reasons.append(("different area", "the existing data was imported for a different area that does not contain the current network extent"))
+            reasons.append(("different area", "the existing data was imported for a different area that does not cover the current one (network extent or area of interest)"))
     return reasons
 
 
-def check_import_conflicts(db: PostgresConnection, schema: str, datasets: list, on_existing: str, source: dict, options: dict) -> None:
+def check_import_conflicts(db: PostgresConnection, schema: str, datasets: list, on_existing: str, source: dict, options: dict,
+                           extent: tuple = None) -> None:
     """Checks whether prepare_import would stop for any of the datasets with the given 'on_existing' setting ('abort': dataset exists; 
     'reuse': existing dataset does not match) - raises an exception listing all of them. 
     Used before replacing data that other datasets depend on (e.g. the OSM tables)."""
@@ -101,7 +102,7 @@ def check_import_conflicts(db: PostgresConnection, schema: str, datasets: list, 
         if on_existing == 'abort':
             conflicts.append(f"'{dataset}' already exists")
         elif entry is not None:
-            reasons = _mismatches(db, schema, dataset, entry, source, options, None)
+            reasons = _mismatches(db, schema, dataset, entry, source, options, extent)
             if reasons:
                 conflicts.append(f"'{dataset}' does not match the current settings ({', '.join(s for s, _ in reasons)})")
     if conflicts:
