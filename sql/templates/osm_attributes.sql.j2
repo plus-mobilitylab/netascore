@@ -1083,7 +1083,8 @@ CREATE TABLE water_intersection AS (
            b.length AS edge_length,
            0.0::numeric AS area_contribution,
            0.0::numeric AS boundary_contribution,
-           ST_Length(ST_Intersection(ST_Difference(a.geom, c.geom), b.geom))::numeric AS length_contribution
+           -- part of the line outside water polygons (if no water polygons: union is NULL, whole line counts)
+           ST_Length(ST_Intersection(CASE WHEN c.geom IS NULL THEN a.geom ELSE ST_Difference(a.geom, c.geom) END, b.geom))::numeric AS length_contribution
     FROM {{ table_water | sqlsafe }} a
         JOIN network_buffer_30 b ON ST_Intersects(a.geom, b.geom)
         CROSS JOIN water_polygons_union c

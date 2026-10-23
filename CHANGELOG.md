@@ -70,6 +70,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - Reusing an existing AOI (`on_existing: reuse` / `reuse_or_overwrite`) no longer skips the OSM download: if no download file exists (e.g. because a previous run failed before or during the download), the OSM data is downloaded for the existing AOI.
 - OSM tag lookups for cycle-route scope, bicycle roads, unhewn cobblestone, and `sidewalk:right` / `sidewalk:both`.
 - Revised OSM max speed defaults. 
+- `water`: only line geometries (no polygons) in input data are now properly considered - previously resulted in value 0.
 - Noise re-import no longer duplicates values.
 - Fixed noise indicator for GIP data (Austria): edges within noise data coverage but outside any polygon are assigned numeric 0 instead of NULL (same logic as for OSM).
 - Settings paths may contain a backslash.
