@@ -1,7 +1,16 @@
+# Docker setup for development: builds the NetAScore image from the local code (for end-users: examples/docker-compose.yml).
+# To record the code state of NetAScore in the output metadata, build the image with the build script (macOS, Linux, Windows)
+# 'docker compose up' then uses this image (without --build):
+#   python scripts/build_docker_image.py --image plusmobilitylab/netascore
+# Alternatively, set NETASCORE_COMMIT when building with compose, e.g. (Linux / macOS):
+#   NETASCORE_COMMIT="$(git describe --tags --dirty --always)" docker compose up --build
 services:
   netascore:
     image: plusmobilitylab/netascore:latest
-    build: .
+    build:
+      context: .
+      args:
+        NETASCORE_COMMIT: ${NETASCORE_COMMIT:-}  # code state (empty if not set)
     stdin_open: true # docker run -i
     tty: true        # docker run -t
     environment:

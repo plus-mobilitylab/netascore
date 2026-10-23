@@ -14,8 +14,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV VIRTUAL_ENV=/opt/netascore
 ENV PATH="/opt/netascore/bin:${PATH}"
 ENV PROJ_DATA=/usr/share/proj
-# code state of NetAScore (logged and stored in the output metadata), e.g.:
-# docker build --build-arg NETASCORE_COMMIT="$(git rev-parse --abbrev-ref HEAD), $(git describe --tags --dirty --always)" .
+# code state of NetAScore (logged and stored in the output metadata) - set by scripts/build_docker_image.py, which builds
+# the image on macOS, Linux, and Windows (local build, or multi-platform release build with --push)
 ARG NETASCORE_COMMIT=""
 ENV NETASCORE_COMMIT=${NETASCORE_COMMIT}
 

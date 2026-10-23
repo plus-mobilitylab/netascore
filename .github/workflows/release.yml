@@ -7,6 +7,13 @@
 # Automatic releases on push are only enabled if the repository variable AUTO_RELEASE is 'true'
 # (Settings > Secrets and variables > Actions > Variables).
 # Manual runs (Actions > Release > Run workflow) are dry runs by default: they only show what would happen.
+#
+# Optional: publishing the Docker image of each new release to Docker Hub (job 'docker', scripts/build_docker_image.py,
+# platforms linux/amd64 and linux/arm64) - enabled if the repository variable DOCKER_PUBLISH is 'true'. Requires the
+# repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (access token of Docker Hub); image name: repository variable
+# DOCKER_IMAGE (default: plusmobilitylab/netascore). The tag 'latest' is set if the version is the highest release.
+# A manual run with 'publish_docker' publishes the image of the current version also if its release already exists
+# (e.g. to retry after a failed Docker build).
 name: Release
 
 on:
@@ -19,6 +26,10 @@ on:
         description: "Dry run: only show what would happen (no commit, tag, or release)"
         type: boolean
         default: true
+      publish_docker:
+        description: "Publish the Docker image of the version, also if its release already exists (requires DOCKER_PUBLISH; uncheck dry run)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -30,6 +41,10 @@ jobs:
   release:
     if: github.event_name == 'workflow_dispatch' || vars.AUTO_RELEASE == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      released: ${{ steps.create.outputs.released }}
+      dry_run: ${{ env.DRY_RUN }}
     env:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       GH_TOKEN: ${{ github.token }}
@@ -108,7 +123,44 @@ jobs:
           { echo "### Release notes"; cat "$RUNNER_TEMP/release_notes.md"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create GitHub release
+        id: create
         if: steps.version.outputs.release_exists == 'false' && env.DRY_RUN != 'true'
         run: |
           version="${{ steps.version.outputs.version }}"
           gh release create "v$version" --verify-tag --title "NetAScore $version" --notes-file "$RUNNER_TEMP/release_notes.md"
+          echo "released=true" >> "$GITHUB_OUTPUT"
+
+  # Docker image of the release (optional, see above)
+  docker:
+    needs: release
+    if: >-
+      vars.DOCKER_PUBLISH == 'true' && needs.release.outputs.dry_run != 'true' &&
+      (needs.release.outputs.released == 'true' || (github.event_name == 'workflow_dispatch' && inputs.publish_docker))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.release.outputs.version }}  # exactly the released state
+          fetch-depth: 0  # incl. tags (code state, highest release)
+
+      - uses: docker/setup-qemu-action@v3  # emulation for building linux/arm64 on amd64 runners
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        run: |
+          # 'latest' only for the highest release (not e.g. for a bug fix release of an older version)
+          highest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1)
+          latest=""; if [ "$highest" = "v$VERSION" ]; then latest="--latest"; fi
+          python3 scripts/build_docker_image.py --push $latest --image "${{ vars.DOCKER_IMAGE || 'plusmobilitylab/netascore' }}"
+          image="${{ vars.DOCKER_IMAGE || 'plusmobilitylab/netascore' }}"
+          { echo "### Docker image"; echo "Published: \`$image:$VERSION\`$([ -n "$latest" ] && echo " and \`$image:latest\`") (linux/amd64, linux/arm64)"; } >> "$GITHUB_STEP_SUMMARY"
