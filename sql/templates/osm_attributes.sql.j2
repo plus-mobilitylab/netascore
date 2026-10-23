@@ -739,10 +739,12 @@ ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
 
 DROP TABLE IF EXISTS width;
 CREATE TABLE width AS ( -- 2 s
+    -- number (at least one digit; decimal separator '.' or ',') in m, optionally with unit 'm' / 'meter' - other values
+    -- (e.g. 'm', '5 ft', '1,234.5') are ignored
     SELECT edge_id,
-           (regexp_matches(width, '^([0-9]*[.]?[0-9]*)([ ])?(m|meter)?$'))[1]::numeric AS width
+           replace((regexp_match(width, '^([0-9]+[.,]?[0-9]*|[.,][0-9]+) ?(m|meter)?$'))[1], ',', '.')::numeric AS width
     FROM network_edge
-    WHERE width ~ E'^([0-9]*[.]?[0-9]*)([ ])?(m|meter)?$'
+    WHERE width ~ '^([0-9]+[.,]?[0-9]*|[.,][0-9]+) ?(m|meter)?$'
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
