@@ -45,7 +45,7 @@ optional:
     #   "55-59": 57
     #   "60-64": 62
     # coverage: noise_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)
-  # the datasets 'building', 'crossing', 'facility', 'greenness', 'water', 'parking', and 'sights' are derived from the OSM data of the import
+  # the datasets 'building', 'crossing', 'facility', 'greenness', 'water', 'parking', and 'sights' are derived from the OSM data of the import - unless provided here as GeoPackage (e.g. 'building:' with 'filename: building.gpkg')
 
 index:
   compute_explanation: True # adds columns explaining the index values (set to False for a smaller output, e.g. for large networks)

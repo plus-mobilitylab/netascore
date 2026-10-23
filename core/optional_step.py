@@ -366,6 +366,7 @@ def run_optional_importers(db_settings: DbSettings, optional_importer_settings: 
         if import_type == 'osm':
             optional_importer.optional = True
             optional_importer.network_extent = extent if clip == 'network' else None
+            optional_importer.skip_datasets = import_step.osm_skip_datasets(optional_importer_settings)
         else:
             optional_importer.extent = extent if clip == 'network' else None
         optional_importer.run_step(settings)

@@ -567,6 +567,12 @@ class Gip2Importer(DbStep):
 OSM_DERIVED_DATASETS = ['building', 'crossing', 'facility', 'greenness', 'water', 'parking', 'sights']
 
 
+def osm_skip_datasets(optional_settings: dict) -> tuple:
+    """Datasets derived from OSM that are given as separate optional import (e.g. a GeoPackage for 'building') - these
+    take precedence: they are not derived from OSM (otherwise both imports would replace each other's data)."""
+    return tuple(dataset for dataset in OSM_DERIVED_DATASETS if isinstance(optional_settings, dict) and dataset in optional_settings)
+
+
 def bbox_area_km2(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> float:
     """Returns the area (km²) of a bounding box given in WGS84 (on a sphere with the mean earth radius)."""
     r = 6371.0088
@@ -613,9 +619,20 @@ class OsmImporter(DbStep):
     optional: bool = False
     # optional importer: extent of the network incl. margin (min lon, min lat, max lon, max lat) the OSM file is clipped to; None: no clipping
     network_extent: tuple = None
+    # datasets derived from OSM that are not created, as they are given as separate optional import (e.g. a GeoPackage) - see osm_skip_datasets
+    skip_datasets: tuple = ()
 
     def __init__(self, db_settings: DbSettings):
         super().__init__(db_settings)
+
+    def _prepare_dataset(self, db: PostgresConnection, schema: str, dataset: str, on_existing: str, source: dict, options: dict,
+                         extent: tuple) -> bool:
+        """Decides whether the dataset derived from OSM is created (see registry.prepare_import) - not if it is given as
+        separate optional import."""
+        if dataset in self.skip_datasets:
+            h.log(f"skipping dataset '{dataset}' - given as separate optional import")
+            return False
+        return registry.prepare_import(db, schema, dataset, [dataset], on_existing, source, options, extent)
 
     def _get_srid_for_AOI(self, data_con:PostgresConnection, aoi_name: str, aoi_table: str = "aoi", aoi_schema: str = "data", save_to_aoi_table: bool = True) -> int:
         data_con.execute_sql_from_file("determine_utmzone", "sql/functions")
@@ -1080,7 +1097,10 @@ class OsmImporter(DbStep):
             bbox = tuple(self.network_extent)
         # stop before the OSM tables (shared with other cases) are replaced if a dataset derived from them could not be
         # created with the current 'on_existing' setting
-        registry.check_import_conflicts(db, schema, OSM_DERIVED_DATASETS, on_existing, osm_source, osm_options, bbox)
+        derived_datasets = [dataset for dataset in OSM_DERIVED_DATASETS if dataset not in self.skip_datasets]
+        if self.skip_datasets:
+            h.info(f"dataset(s) {', '.join(self.skip_datasets)} given as separate optional import - not derived from OSM")
+        registry.check_import_conflicts(db, schema, derived_datasets, on_existing, osm_source, osm_options, bbox)
 
         # import osm file
         h.logBeginTask('import osm file')
@@ -1131,7 +1151,7 @@ class OsmImporter(DbStep):
 
         # create dataset "building"
         h.logBeginTask('create dataset "building"')
-        if registry.prepare_import(db, schema, 'building', ['building'], on_existing, osm_source, osm_options, bbox):
+        if self._prepare_dataset(db, schema, 'building', on_existing, osm_source, osm_options, bbox):
             db.execute('''
                 CREATE TABLE building AS ( -- 16 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
@@ -1147,7 +1167,7 @@ class OsmImporter(DbStep):
 
         # create dataset "crossing"
         h.logBeginTask('create dataset "crossing"')
-        if registry.prepare_import(db, schema, 'crossing', ['crossing'], on_existing, osm_source, osm_options, bbox):
+        if self._prepare_dataset(db, schema, 'crossing', on_existing, osm_source, osm_options, bbox):
             db.execute('''
                 CREATE TABLE crossing AS ( -- 4 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom FROM osm_point WHERE highway IN ('crossing') UNION ALL
@@ -1163,7 +1183,7 @@ class OsmImporter(DbStep):
 
         # create dataset "facility"
         h.logBeginTask('create dataset "facility"')
-        if registry.prepare_import(db, schema, 'facility', ['facility'], on_existing, osm_source, osm_options, bbox):
+        if self._prepare_dataset(db, schema, 'facility', on_existing, osm_source, osm_options, bbox):
             db.execute('''
                 CREATE TABLE facility AS ( -- 3 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom
@@ -1205,7 +1225,7 @@ class OsmImporter(DbStep):
 
         # create dataset "greenness"
         h.logBeginTask('create dataset "greenness"')
-        if registry.prepare_import(db, schema, 'greenness', ['greenness'], on_existing, osm_source, osm_options, bbox):
+        if self._prepare_dataset(db, schema, 'greenness', on_existing, osm_source, osm_options, bbox):
             db.execute('''
                 CREATE TABLE greenness AS ( -- 14 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Polygon, %(target_srid)s) AS geom
@@ -1223,7 +1243,7 @@ class OsmImporter(DbStep):
 
         # create dataset "water"
         h.logBeginTask('create dataset "water"')
-        if registry.prepare_import(db, schema, 'water', ['water'], on_existing, osm_source, osm_options, bbox):
+        if self._prepare_dataset(db, schema, 'water', on_existing, osm_source, osm_options, bbox):
             db.execute('''
                 CREATE TABLE water AS ( -- 10 s
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(LineString, %(target_srid)s) AS geom FROM osm_line WHERE (waterway IS NOT NULL OR "natural" = 'water') AND tunnel IS NULL UNION ALL
@@ -1238,7 +1258,7 @@ class OsmImporter(DbStep):
 
         # create dataset "parking"
         h.logBeginTask('create dataset "parking"')
-        if registry.prepare_import(db, schema, 'parking', ['parking'], on_existing, osm_source, osm_options, bbox):
+        if self._prepare_dataset(db, schema, 'parking', on_existing, osm_source, osm_options, bbox):
             db.execute('''
             CREATE TABLE parking AS (
             WITH road AS (
@@ -1293,7 +1313,7 @@ class OsmImporter(DbStep):
         
         # create dataset "sights"
         h.logBeginTask('create dataset "sights"')
-        if registry.prepare_import(db, schema, 'sights', ['sights'], on_existing, osm_source, osm_options, bbox):
+        if self._prepare_dataset(db, schema, 'sights', on_existing, osm_source, osm_options, bbox):
             db.execute('''
                 CREATE TABLE sights AS (
                     SELECT ST_Transform(way, %(target_srid)s)::geometry(Point, %(target_srid)s) AS geom, name, historic, tourism

@@ -38,7 +38,7 @@ optional:
     # NOTE: when providing an OSM file the datasets 'building', 'crossing', 'facility', 'greenness', 'water', 'parking', and 'sights' are extracted from OSM
     # on_existing: reuse # reuse (default), reuse_or_overwrite, overwrite, abort
     # clip: network # network (default): only import OSM data within the network extent (requires osmium); none: import the whole file
-  # alternatively (without OSM file), these datasets can be provided as GeoPackage - each with the optional settings on_existing, clip, and coverage:
+  # alternatively, these datasets can be provided as GeoPackage (instead of being derived from the OSM file) - each with the optional settings on_existing, clip, and coverage:
   # building:
   #   filename: building.gpkg # GeoPackage
   #   coverage: building_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)

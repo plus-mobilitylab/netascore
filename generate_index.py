@@ -8,7 +8,7 @@ import toolbox.helper as h
 from core.attributes_step import create_attributes_step
 from core.db_step import DbStep
 from core.export_step import create_exporter
-from core.import_step import create_importer, get_stored_aoi_srid
+from core.import_step import OsmImporter, create_importer, get_stored_aoi_srid, osm_skip_datasets
 from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
@@ -99,6 +99,9 @@ with settings_stream:
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         importer: DbStep = create_importer(db_settings, import_settings['type'])
+        if isinstance(importer, OsmImporter):
+            # datasets given as optional import (e.g. GeoPackage for 'building') are not derived from OSM
+            importer.skip_datasets = osm_skip_datasets(settings.get('optional'))
         importer.run_step(import_settings)
         metadata.record_import_file(db_settings, import_settings)
         metadata.complete_step(db_settings, 'import')

@@ -84,6 +84,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - GIP imports: files unpacked or converted from a GIP export are no longer reused after the zip file was replaced (e.g. by a newer GIP export with the same name). For GIP 2.0, an IDF file extracted next to the zip file is only used if it matches the size of the one in the zip file.
 - For GIP imports, a DEM given in the optional section is no longer imported and a warning is issued (gradients are computed from the elevation data contained in the GIP dataset, as before).
 - For OSM imports, an OSM file given in the optional section is no longer imported and a note is issued.
+- Datasets explicitly stated in the optional import section take precedence over default OSM derivation. 
 - AOI files (`aoi_filename`) in other coordinate systems than WGS84 are now transformed. AOI files without coordinate reference system report an error.
 - GeoPackage imports skip empty geometries (which could crash the PostGIS backend) and tables without geometry (e.g. QGIS layer styles).
 - Without `target_srid`, all steps use the SRID determined for the AOI of the case, also when the import step is skipped (previously fell back to EPSG:32633).
