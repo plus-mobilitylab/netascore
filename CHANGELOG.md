@@ -71,6 +71,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - OSM tag lookups for cycle-route scope, bicycle roads, unhewn cobblestone, and `sidewalk:right` / `sidewalk:both`.
 - Revised OSM max speed defaults. 
 - Noise re-import no longer duplicates values.
+- Fixed noise indicator for GIP data (Austria): edges within noise data coverage but outside any polygon are assigned numeric 0 instead of NULL (same logic as for OSM).
 - Settings paths may contain a backslash.
 - Settings files given without directory (e.g. `python generate_index.py settings.yml`): mode profiles were not found.
 - Database passwords and file names with special characters no longer break the import or export.

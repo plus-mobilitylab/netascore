@@ -786,10 +786,12 @@ CREATE TABLE noise_intersection AS ( -- 6 m 48 s
 
 DROP TABLE IF EXISTS noise_sum;
 CREATE TABLE noise_sum AS ( -- 2 s
+    -- all edges: edges within the coverage of the noise data but not intersecting any noise polygon get 0 (edges outside
+    -- the coverage: NULL, see below)
     SELECT b.edge_id,
-           sum(ST_Length(a.geom) / b.length * a.noise)::numeric AS noise
+           COALESCE(sum(ST_Length(a.geom) / b.length * a.noise), 0)::numeric AS noise
     FROM noise_intersection a
-        JOIN network_edge b USING (edge_id)
+        RIGHT JOIN network_edge b USING (edge_id)
     GROUP BY b.edge_id
 );
 
