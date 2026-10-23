@@ -5,7 +5,6 @@ import psycopg2 as psy
 import toolbox.helper as h
 from jinjasql import JinjaSql
 from typing import List
-import re
 
 
 class PostgresConnection:
@@ -207,19 +206,6 @@ class PostgresConnection:
         else:
             self._con.set_session(readonly=False, autocommit=False)
 
-    def vacuum(self, table, schema = None):
-        # need to enable auto-commit for VACUUM command - not possible in transaction mode
-        self.set_autocommit(True, pre_commit=True)
-        if schema == None:
-            self.ex("VACUUM FULL ANALYZE " + table)
-        else:
-            self.ex("VACUUM FULL ANALYZE " + schema + "." + table)
-        # reset to manual commit again
-        self.set_autocommit(False)
-
-    def helper_replace_vacuum_statements(self, sql_string) -> str:
-        return re.sub("vacuum full analyze", "ANALYZE", sql_string, flags=re.I)
-
     def geom_reproject(self, table, geomType, srid):
         h.log(f"reprojecting {geomType} geometry in table {table} to SRID {srid}", h.LOG_LEVEL_2_INFO)
         self.ex("""ALTER TABLE """ + table + """ 
@@ -315,9 +301,6 @@ class PostgresConnection:
         j = JinjaSql(param_style='pyformat')
         query, bind_params = j.prepare_query(template, template_params)
         h.log("query: " + str(query), h.LOG_LEVEL_4_DEBUG)
-        #dbg_file = open("debug_sql.sql", "w")
-        #n = dbg_file.write(query)
-        #dbg_file.close()
         h.log("bind params: " + str(bind_params), h.LOG_LEVEL_4_DEBUG)
         self.ex(query, bind_params)
         # TODO: error handling and reporting
@@ -327,13 +310,10 @@ class PostgresConnection:
         h.log(f"Loading SQL template from '{template_subdir}{template_file_name}.sql.j2'...")
         with open(f"{template_subdir}{template_file_name}.sql.j2", "r") as sqlfile:
             sql = sqlfile.read()
-        # current workaround for vacuum full analyze not working in multiple-statement SQL string: replace with ANALYZE
-        # see issue on Gitlab for further info
-        sql = self.helper_replace_vacuum_statements(sql) # TODO: remove in future
         # execute SQL
         h.debugLog("Executing SQL statements...")
         if autocommit:
-            self.set_autocommit(True, pre_commit=True) # set autocommit TRUE, so VACUUM can take place in SQL
+            self.set_autocommit(True, pre_commit=True) # each statement of the template is committed on its own
         self.execute_sql_template_string(sql, parameters, override_parameters)
         if autocommit:
             self.set_autocommit(False) # reset to manual commit mode

@@ -50,12 +50,7 @@ CREATE TABLE network_init AS ( -- 19 s, 2.162.218
                ELSE tunnel
            END AS tunnel
   FROM osm_line
-  WHERE osm_id >= 0
-    {% if clip_mode %}
-    -- only ways intersecting the clipping area
-    AND ST_Intersects(way, (SELECT ST_Transform(geom, 4326) FROM clip_area))
-    {% endif %}
-    AND (highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
+  WHERE (highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
                      'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link', 'living_street',
                      'service', 'pedestrian', 'track', 'bus_guideway', 'escape', 'road', 'footway', 'bridleway',
                      'steps', 'path', 'cycleway', 'construction', 'crossing', 'emergency_bay', 'platform') 
@@ -69,6 +64,10 @@ CREATE TABLE network_init AS ( -- 19 s, 2.162.218
             aerialway IN ('cable_car', 'gondola', 'mixed_lift', 'chair_lift', 'drag_lift', 't-bar', 'j-bar', 'platter')
         {% endif %}
     )
+    {% if clip_mode %}
+    -- only ways intersecting the clipping area
+    AND ST_Intersects(way, (SELECT ST_Transform(geom, 4326) FROM clip_area))
+    {% endif %}
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------

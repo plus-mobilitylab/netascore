@@ -642,33 +642,6 @@ DROP TABLE water_polygons_union, water_intersection, water_ratio;
 -- calculate indicator "parking"
 -- ---------------------------------------------------------------------------------------------------------------------
 
--- parking directional
-
--- ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS parking_ft;
--- ALTER TABLE network_edge_attributes DROP COLUMN IF EXISTS parking_tf;
-
--- DROP TABLE IF EXISTS network_edge_attributes_tmp;
--- CREATE TABLE network_edge_attributes_tmp AS (
---     SELECT a.*,
---            CASE
---                WHEN (tags -> 'lanes:forward') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes:forward')::numeric
---                WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN (tags -> 'lanes')::numeric -- TODO: may need improvement
---                WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes')::numeric * 0.5
---            END::numeric AS parking_ft,
---            CASE
---                WHEN (tags -> 'lanes:backward') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes:backward')::numeric
---                WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' AND oneway = 'yes' THEN 0::numeric -- TODO: may need improvement
---                WHEN (tags -> 'lanes') ~ E'^([0-9]{1,2})$' THEN (tags -> 'lanes')::numeric * 0.5
---            END::numeric AS parking_tf
---     FROM network_edge_attributes a
---         LEFT JOIN network_edge b USING (edge_id)
--- );
-
--- DROP TABLE network_edge_attributes;
--- ALTER TABLE network_edge_attributes_tmp RENAME TO network_edge_attributes;
-
-
-
 {% if table_parking %}
 CREATE TABLE IF NOT EXISTS network_buffer_2 AS (
     SELECT edge_id,

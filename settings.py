@@ -151,14 +151,7 @@ class DbEntitySettings:
         self.global_schema_prefix: str = "netascore_"
         self.schema_prefix: str = "case_"
         self.data_schema_suffix: str = "data"
-        self.table_net: str = "network"
-        self.table_net_nodes: str = "network_nodes"             # "network_vertices_pgr" for pgRouting-based workflow
-        self.table_net_attributes: str = "network_attributes"
-        self.table_net_indicators: str = "network_indicators"
-        self.table_net_index: str = "network_modes_index"       # output table with bike/walk/etc. index columns
         self.table_aoi: str = "aoi"
-        # self.table_osm_bicycle_routes: str = "osm_bicycle_route_network"
-        # self.table_osm_bicycle_routes_lines: str = "osm_bicycle_route_network_line"
         
         self._data_schema: str = None
         self._network_schema: str = None

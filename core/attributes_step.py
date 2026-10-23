@@ -188,7 +188,7 @@ class GipAttributesStep(DbStep):
         # execute "gip_attributes"
         h.logBeginTask('execute "gip_attributes')
         if db.handle_conflicting_output_tables(['network_edge_attributes', 'network_edge_export', 'network_node_attributes']):
-            params = {  # TODO: @CW: check hard-coded vs. dynamic table names -> settings; also preferably use common data schema - e.g. to avoid providing combined schema + table identifiers
+            params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
                 **prepare_input_datasets(db, schema, self.db_settings.entities.data_schema, skip=['dem']),  # GIP: elevation data from GIP
@@ -231,7 +231,7 @@ class Gip2AttributesStep(DbStep):
         # execute "gip2_attributes"
         h.logBeginTask('execute "gip2_attributes"')
         if db.handle_conflicting_output_tables(['network_edge_attributes', 'network_edge_export', 'network_node_attributes']):
-            params = {  # TODO: @CW: check hard-coded vs. dynamic table names -> settings; also preferably use common data schema - e.g. to avoid providing combined schema + table identifiers
+            params = {
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
                 **prepare_input_datasets(db, schema, self.db_settings.entities.data_schema, skip=['dem']),  # GIP: elevation data from GIP
@@ -279,7 +279,6 @@ class OsmAttributesStep(DbStep):
         h.logBeginTask('execute "osm_attributes"')
         if db.handle_conflicting_output_tables(['network_edge_attributes', 'network_edge_export', 'network_node_attributes']):
             params = {
-                # TODO: harmonize schema + load table names from dbEntitySettings (which are populated / overwritten by read values from settings file)
                 'schema_network': schema,
                 'schema_data': self.db_settings.entities.data_schema,
                 **prepare_input_datasets(db, schema, self.db_settings.entities.data_schema),

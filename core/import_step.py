@@ -117,7 +117,7 @@ def import_csv(connection_string: str, path: str, schema: str, table: str, env: 
         check=True, env=env)
 
 
-def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, target_srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None, extent: tuple = None, env: dict = None) -> None:  # TODO: @CW: extend error handling
+def import_geopackage(connection_string: str, path: str, schema: str, table: str, fid: str = None, target_srid: int = None, layers: List[str] = None,  attributes: List[str] = None, geometry_types: List[str] = None, extent: tuple = None, env: dict = None) -> None:
     """Takes in a path to a geopackage file and imports it to a database table."""
     if not os.path.exists(path):
         raise Exception(f"The provided input file could not be found. Please check file location and name for '{path}'")
@@ -173,7 +173,6 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
         result = subprocess.run(['ogr2ogr', '-f', 'PostgreSQL', f'PG:{connection_string}', *options, *layer_options, path, layer],
             check=True, env=env)
         h.debugLog(f"ogr2ogr returned code: {result.returncode}")
-        #h.debugLog(f"ogr2ogr stdout: {result.args}")
 
 
 def import_osm(connection_string: str, path: str, path_config: str, schema: str, prefix: str = None, env: dict = None) -> None:
