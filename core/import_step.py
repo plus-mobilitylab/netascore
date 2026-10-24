@@ -835,21 +835,10 @@ class OsmImporter(DbStep):
             {'clip_mode': h.get_clip_mode(settings), 'srid': srid, 'buffer': buffer, 'margin': margin, 'aoi_name': GlobalSettings.case_id})
 
     def _load_osm_data_for_aoi(self, db: PostgresConnection, data_schema: str, settings: dict):
-        # db settings
-        # first, set target schema
-        db.schema = data_schema
-        aoi_table = self.db_settings.entities.table_aoi
-        aoi_name = GlobalSettings.case_id
-
-        srid = GlobalSettings.get_target_srid()
-
-        # get BBox for network coverage (larger than chosen AOI -> prevent edge effects)
-        buffer = h.get_buffer(settings)
-        bbox = db.query_one("WITH a as (SELECT ST_Transform(ST_setSRID(ST_EXPAND(box2d(ST_Transform(geom, %s)),%s),%s), 4326) as bbox FROM " + 
-                                    aoi_table + """ WHERE name=%s) 
-                                    SELECT ST_YMIN(bbox), ST_XMIN(bbox), ST_YMAX(bbox), ST_XMAX(bbox) FROM a;""", 
-                                    (srid, buffer, srid, aoi_name,)
-                                )
+        # area of the download: the clip area of the network (AOI + buffer) incl. a margin - surrounding features (e.g.
+        # buildings, facilities) are also needed for edges at the boundary of the clip area (same area as the extract)
+        min_lon, min_lat, max_lon, max_lat = self._get_extract_bbox(db, data_schema, settings)
+        bbox = (min_lat, min_lon, max_lat, max_lon)
         h.debugLog(f"Determined Bounding box: {bbox}")
         # load OSM data from bounding box
         self._load_osm_data_from_bbox(bbox, settings)
@@ -875,10 +864,20 @@ class OsmImporter(DbStep):
         opener.addheaders = [('User-agent', GlobalSettings.overpass_api_user)]
         urllib.request.install_opener(opener)
         # set the bounding box as a global setting of the query to include it in response (element 'bounds')
+        # - nodes and ways within the bounding box: ways complete with all their nodes (without power lines and their
+        #   towers / poles - other power features, e.g. buildings of substations, are included)
+        # - multipolygon relations (e.g. water, landuse) complete with all member ways and nodes, also outside the bounding
+        #   box - otherwise their polygons cannot be assembled by osm2pgsql (e.g. lakes or rivers only partially within the aoi)
+        # - bicycle route relations without their members: only the ids of their member ways are used (using osm2pgsql flex
+        #   output) - their member ways within the bounding box are included; other relations are not used
         q_template: str = """
             [timeout:180][bbox:__bbox__];
-            nwr[!"boundary"][!"place"][!power]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"];
-            (._;>;);
+            (
+              nw[!"boundary"][!"place"]["power"!~"^(line|minor_line|cable|tower|pole|portal|insulator|catenary_mast)$"]["route"!="bus"]["route"!="road"]["route"!="ferry"]["route"!="power"]["route"!="train"]["route"!="railway"];
+              rel[type=multipolygon][!"boundary"][!"place"]["power"!~"^(line|minor_line|cable|tower|pole|portal|insulator|catenary_mast)$"];
+            ) -> .data;
+            rel[type=route][route=bicycle] -> .bicycle_routes;
+            (.data; .data >; .bicycle_routes;);
             out;"""
         net_file = f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}.xml"
         net_path = os.path.join(GlobalSettings.data_directory, net_file)
@@ -1123,7 +1122,7 @@ class OsmImporter(DbStep):
         extract_path = None
         if clip:
             h.log(f"extracting OSM data for bounding box {bbox}")
-            # a provided file may cover only parts of the area (downloads cover it, except the margin of the extract)
+            # a provided file may cover only parts of the area (downloads cover it)
             if not use_overpass_api:
                 check_osm_file_coverage(osm_path, bbox)
             extract_path = os.path.join(directory, f"{GlobalSettings.osm_download_prefix}_{GlobalSettings.case_id}_extract.osm.pbf")
