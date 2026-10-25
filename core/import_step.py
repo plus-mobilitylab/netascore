@@ -166,7 +166,9 @@ def import_geopackage(connection_string: str, path: str, schema: str, table: str
             # skip empty geometries (e.g. polygons with empty rings) - these can crash the PostGIS backend on insert
             conditions.append(f"ST_IsEmpty({geometry_column}) = 0")
         if geometry_types:
-            conditions.append(f"ST_GeometryType({geometry_column}) IN ({geometry_types})")
+            # GeoPackage: SQLite SQL; other formats (e.g. Shapefile, GeoJSON - often without geometry column name): OGR SQL
+            geometry_type = f"ST_GeometryType({geometry_column})" if is_gpkg and geometry_column else "OGR_GEOMETRY"
+            conditions.append(f"{geometry_type} IN ({geometry_types})")
         if conditions:
             layer_options += ['-where', ' AND '.join(conditions)]
 

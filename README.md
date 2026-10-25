@@ -93,6 +93,6 @@ conda env create -f environment.yml
 conda activate netascore
 ```
 
-`raster2pgsql` is only needed for DEM imports. On Linux and macOS you can add it to the environment with `conda install -n netascore -c conda-forge postgis`. On Windows (where PostGIS is not available via conda), use `raster2pgsql` of your PostGIS installation (e.g. installed with the Stack Builder of PostgreSQL).
+`raster2pgsql` is only needed for DEM imports. On Linux and macOS you can add it to the environment with `conda install -n netascore -c conda-forge postgis`. On Windows (where PostGIS is not available via conda), use `raster2pgsql` of your PostGIS installation (e.g. installed with the Stack Builder of PostgreSQL) - add its directory (the `bin` directory of PostgreSQL, e.g. `C:\Program Files\PostgreSQL\18\bin`) to the `PATH` environment variable.
 
 **Alternative: system packages and pip.** Install osm2pgsql, osmium, GDAL (incl. Python bindings), and the PostgreSQL / PostGIS client tools with the package manager of your system, then the Python libraries with `pip install -r requirements.txt` (this is how the Docker image is built). Note: the Python package `gdal` needs to match the GDAL version installed on your system (e.g. `pip install gdal==$(gdal-config --version)`).

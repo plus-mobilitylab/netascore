@@ -93,6 +93,7 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 - For OSM imports, an OSM file given in the optional section is no longer imported and a note is issued.
 - Datasets explicitly stated in the optional import section take precedence over default OSM derivation. 
 - AOI files (`aoi_filename`) in other coordinate systems than WGS84 are now transformed. AOI files without coordinate reference system report an error.
+- Fixed geometry type filter for optional vector imports from other formats than GeoPackage (e.g. Shapefile, GeoJSON).
 - GeoPackage imports skip empty geometries (which could crash the PostGIS backend) and tables without geometry (e.g. QGIS layer styles).
 - Without `target_srid`, all steps use the SRID determined for the AOI of the case, also when the import step is skipped (previously fell back to EPSG:32633).
 - Settings and mode profiles: missing or empty sections (e.g. `database`, `optional`) and missing keys no longer cause crashes. Mode profiles are validated when loading, indicators without a weight are not regarded in index computation, and unknown keys (e.g. typos) in settings files and mode profiles are reported as warnings. `bbox` accepts a list or a comma-separated string for OSM and GIP imports.
