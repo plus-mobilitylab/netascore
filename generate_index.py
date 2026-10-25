@@ -1,8 +1,10 @@
 import argparse
 import os
-import sys
-import yaml
 import re
+import subprocess
+import sys
+import traceback
+import yaml
 
 import toolbox.helper as h
 from core.attributes_step import create_attributes_step
@@ -36,6 +38,27 @@ base_path = os.path.dirname(settings_stream.name.replace("\\", "/")) or "."
 if args.loglevel:
     h.verbose_level = int(args.loglevel[0])
     h.majorInfo(f"using log level {h.verbose_level}")
+
+
+def handle_exception(exc_type, exc, tb):
+    """Reports errors that terminate NetAScore as one line - include the traceback from log level 3 on."""
+    detailed = h.get_current_log_level() >= h.LOG_LEVEL_3_DETAILED
+    if detailed:
+        traceback.print_exception(exc_type, exc, tb)
+    if issubclass(exc_type, KeyboardInterrupt):
+        h.majorInfo("Interrupted by user. Terminating.")
+        return
+    if issubclass(exc_type, subprocess.CalledProcessError):
+        tool = exc.cmd[0] if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd).split()[0]
+        message = f"the external tool '{os.path.basename(str(tool))}' failed (exit status {exc.returncode}) - see its output above"
+    elif exc_type is Exception:
+        message = re.sub(r"^error[:\s]+", "", str(exc).strip(), flags=re.IGNORECASE)  # messages raised by NetAScore
+    else:
+        message = f"{exc_type.__name__}: {exc}"  # unexpected errors (e.g. database or GDAL errors)
+    h.majorInfo(f"ERROR: {message}" + ("" if detailed else "\n(run with '--loglevel 3' to show details of the error)"))
+
+
+sys.excepthook = handle_exception
 
 h.majorInfo(f"Running NetAScore version {netascore_version_info()}")
 if netascore_code_url():

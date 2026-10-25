@@ -79,7 +79,7 @@ class PostgresConnection:
                 connect_timeout=3, keepalives=1, keepalives_idle=5, keepalives_interval=2, keepalives_count=2)       
         except psy.Error as e:
             h.majorInfo(f"ERROR while connecting to database '{self._dbname}' on {self._host}:{self._port}: {str(e).strip()}")
-            raise Exception("ERROR while connecting to database. Terminating.")
+            raise Exception("Could not connect to the database.") from None
         # retreive cursor
         self._cur:psy.cursor = self._con.cursor()
     
