@@ -10,7 +10,7 @@
 
 NetAScore provides a toolset and automated workflow for computing ***bikeability***, ***walkability*** and related indicators from publicly available network data sets. Currently, we provide common presets for assessing infrastructure suitability for cycling (*bikeability*) and walking (*walkability*). By editing settings files and mode profiles, additional modes or custom preferences can easily be modeled.
 
-For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'**, can be used if you work on an area of interest within Austria. 
+For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'** (OGD export including the new GIP 2.0), can be used if you work on an area of interest within Austria. 
 
 For citing NetAScore, please refer to following paper which introduces the software, its objectives, as well as the data and methods used: 
 Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., Zagel, B., & Loidl, M. (2025). NetAScore: An open and extendible software for segment-scale bikeability and walkability. *Environment and Planning B: Urban Analytics and City Science*, *52*(1), 265-274. [https://doi.org/10.1177/23998083241293177](https://doi.org/10.1177/23998083241293177). In case you want to refer to a specific version of the software implementation, you may add the respective Zenodo reference [doi.org/10.5281/zenodo.7695369](https://doi.org/10.5281/zenodo.7695369)
@@ -19,7 +19,7 @@ Details regarding the **bikeability assessment method** as well as results of an
 
 Details on the **walkability index** together with results from a large **evaluation study** are published Open Access: [doi.org/10.3390/su17083634](https://doi.org/10.3390/su17083634): Stutz, P., Kaziyeva, D., Traun, C., Werner, C. & Loidl, M. (2025). Walkability at Street Level: An Indicator-Based Assessment Model. *Sustainability*, *17(8)*, 3634.
 
-**Note on versions:** The publications above refer to NetAScore version 1.x. Version 2.0 changes parts of the processing workflow for better useability and indicator derivation (to reflect relevant changes in OSM/GIP input data). While tested for plausibility, results may differ. The changes are listed in the [CHANGELOG](CHANGELOG.md).
+**Note on versions:** The publications above refer to NetAScore version 1.x. Version 2.0 changes parts of the processing workflow for better usability and indicator derivation (to reflect relevant changes in OSM/GIP input data). While tested for plausibility, results may differ. The changes are listed in the [CHANGELOG](CHANGELOG.md).
 
 **Examples:** You find example output files of NetAScore at [doi.org/10.5281/zenodo.10886961](https://doi.org/10.5281/zenodo.10886961).
 
@@ -46,9 +46,9 @@ To get a better impression of what this toolset and workflow provides, you can q
 
 ### Easy quickstart: ready-made Docker image
 
-The easiest way to get started is running the ready-made Docker image. All you need for this to succeed is a [Docker installation](https://docs.docker.com/engine/install/), running Docker Desktop and internet connection. Then, follow these two steps:
+The easiest way to get started is running the ready-made Docker image. All you need for this to succeed is a [Docker installation](https://docs.docker.com/engine/install/), running Docker Desktop (macOS / Windows) or Docker Engine (Linux) and internet connection. Then, follow these two steps:
 
-- download the `docker-compose.yml` file from the `examples` ([ download the raw file](https://github.com/plus-mobilitylab/netascore/blob/main/examples/docker-compose.yml)) to an empty directory
+- download the `docker-compose.yml` file from the `examples` ([download the raw file](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/docker-compose.yml)) to an empty directory
 - from within this directory, execute the following command from a terminal:
   `docker compose run netascore`
 
@@ -60,7 +60,7 @@ NetAScore first loads an area of interest by place name from the Overpass API, t
 
 #### What the results look like:
 
-NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. It opens with a predefined style showing the index of the first mode profile (higher value of both directions). Styles for the other mode profiles are available by right-click on the `edge`layer(*Styles* > *index_<index_name>*). From version 1.0 onwards, an index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
+NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. It opens with a predefined style showing the index of the first mode profile (higher value of both directions). Styles for the other mode profiles are available by right-clicking the `edge` layer (*Styles* > *index_<profile_name>*, e.g. `index_walk`). From version 1.0 onwards, an index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
 
 This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
