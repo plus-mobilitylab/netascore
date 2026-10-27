@@ -4,11 +4,26 @@ Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/comp
 
 ## [2.0.0]
 
+NetAScore V 2.0 brings numerous improvements regarding interpretation of recent OSM mapping conventions as well as usability of the workflow. We improved error handling and log messages, consistency of settings, and fixed several bugs.
+
+**Key changes and improvements:**
+
+- **Defining your own area of interest:** define it by place name (improved name search), bounding box, or polygon file - NetAScore downloads the OSM data, determines a suitable coordinate system (UTM zone), and clips the network to the area. Local OSM extract files are clipped as well.
+- **Current OSM mapping conventions:** OSM import based on the osm2pgsql flex output, with revised derivation of bicycle and pedestrian infrastructure, access, one-way roads, road categories, and bicycle routes (per direction, directly from route relations).
+- **New and revised indicators:** new `parking` and `sights` indicators, `gradient` in %, `water` as relative share, and `facilities`, `crossings`, and `sights` per area.
+- **For Austria: GIP 2.0:** import of the new format of the Austrian authoritative GIP data.
+- **Transparent and reproducible results:** the output GeoPackage documents settings, mode profiles, input datasets, and NetAScore version (metadata layers) and contains ready-to-use QGIS layer styles. Edge ids are reproducible across runs.
+- **Reliable reuse of data:** shared datasets (e.g. OSM-derived data, noise, DEM) are only reused if they match the current settings and cover the area - otherwise they are imported again or an error is reported (`on_existing` setting).
+- **Easier installation:** conda environment for Windows, macOS, and Linux; updated Docker image (Python 3.13, PostGIS 18).
+- **QGIS layer styles inlcuded:** simply drag and drop the results geopackage into QGIS to visualize index values (applies a default color scheme to the first index computed - e.g. `index_bike`)
+
+**Upgrading from 1.x:** settings files and mode profiles require `version: 2.0` and some adaptations (e.g. `parking` values, `gradient` classes); see the example files. Run the import step again for existing data. Results may differ from version 1.x.
+
 ### Added
 
-- Place name, bounding box, and geofile (`aoi_filename`) as OSM download areas. Place names are now resolved with Nominatim for better results.
+- Place name, bounding box, and geofile (`aoi_filename`) as OSM download areas. Place names are now resolved with Nominatim for better results, and ordered by importance.
 - Overpass API downloads are limited to areas up to 1500 km² (import setting `max_download_area`). Larger areas require an OSM extract (e.g. from Geofabrik).
-- UTM zone of the area centroid when `target_srid` is omitted for those downloads.
+- UTM zone of the area centroid is computed when `target_srid` is omitted for downloads.
 - The UTM zone of a case created with an OSM file is now determined as mean position of imported ways if neither `target_srid` nor an area of interest are given and stored in the AOI table.
 - OSM network clipping to the area of interest (import setting `clip`: `bbox` (default), `aoi`, or `none`). Also available for OSM file imports when `place_name`, `bbox`, or `aoi_filename` is given. Only the relevant part of the OSM data is imported (requires osmium).
 - Parking indicator (`allowed`, `implicit`, `forbidden`), computed for OSM and GIP. In version 1.x, parking columns were placeholders. Mode profiles from 1.x need to map the new values.
