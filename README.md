@@ -48,7 +48,7 @@ To get a better impression of what this toolset and workflow provides, you can q
 
 The easiest way to get started is running the ready-made Docker image. All you need for this to succeed is a [Docker installation](https://docs.docker.com/engine/install/), running Docker Desktop (macOS / Windows) or Docker Engine (Linux) and internet connection. Then, follow these two steps:
 
-- download the `docker-compose.yml` file from the `examples` ([download the raw file](https://raw.githubusercontent.com/plus-mobilitylab/netascore/main/examples/docker-compose.yml)) to an empty directory
+- download the [`docker-compose.yml`](https://github.com/plus-mobilitylab/netascore/blob/main/examples/docker-compose.yml) file from the `examples` (use the button "Download raw file" on the GitHub page) to an empty directory
 - from within this directory, execute the following command from a terminal:
   `docker compose run netascore`
 
@@ -56,11 +56,11 @@ Docker will download the NetAScore image and PostgreSQL database image, setup th
 
 #### What it does (example case):
 
-NetAScore first loads an area of interest by place name from the Overpass API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node. These values represent the assessed suitability of a segment for cycling (*bikeability*) and walking (*walkability*).
+NetAScore first loads an area of interest by place name from the Overpass API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes the layer `edge` with *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node. These values represent the assessed suitability of a segment for cycling (*bikeability*) and walking (*walkability*).
 
 #### What the results look like:
 
-NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. It opens with a predefined style showing the index of the first mode profile (higher value of both directions). Styles for the other mode profiles are available by right-clicking the `edge` layer (*Styles* > *index_<profile_name>*, e.g. `index_walk`). From version 1.0 onwards, an index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
+NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. It opens with a predefined style showing the index of the first mode profile (higher value of both directions). Styles for the other mode profiles are available by right-clicking the `edge` layer (*Styles* > *index_<profile_name>*, e.g. `index_walk`). An index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
 
 This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
@@ -95,4 +95,4 @@ conda activate netascore
 
 `raster2pgsql` is only needed for DEM imports. On Linux and macOS you can add it to the environment with `conda install -n netascore -c conda-forge postgis`. On Windows (where PostGIS is not available via conda), use `raster2pgsql` of your PostGIS installation (e.g. installed with the Stack Builder of PostgreSQL) - add its directory (the `bin` directory of PostgreSQL, e.g. `C:\Program Files\PostgreSQL\18\bin`) to the `PATH` environment variable.
 
-**Alternative: system packages and pip.** Install osm2pgsql, osmium, GDAL (incl. Python bindings), and the PostgreSQL / PostGIS client tools with the package manager of your system, then the Python libraries with `pip install -r requirements.txt` (this is how the Docker image is built). Note: the Python package `gdal` needs to match the GDAL version installed on your system (e.g. `pip install gdal==$(gdal-config --version)`).
+**Alternative: system packages and pip.** Install osm2pgsql, osmium, GDAL (incl. Python bindings), and the PostgreSQL / PostGIS client tools with the package manager of your system (or individual installers), then the Python libraries with `pip install -r requirements.txt` (this is how the Docker image is built). Note: the Python package `gdal` needs to match the GDAL version installed on your system (e.g. `pip install gdal==$(gdal-config --version)`).
