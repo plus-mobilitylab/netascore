@@ -68,7 +68,7 @@ This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
 #### How to proceed?
 
-Most likely, you want to execute an analysis for a specific area of your interest - please have a look at the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Quickstart.html#run-netascore-for-your-own-area-of-interest) for how to achieve this with just changing one line in the settings file.
+Most likely, you want to execute an analysis for a specific area of your interest - please have a look at the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Quickstart.html#run-netascore-for-your-own-area-of-interest) for how to achieve this with just a few changes in the settings file.
 If you need more detailed instructions or want to know more about the project, please consult the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html).
 
 ### Running NetAScore locally (without Docker)
