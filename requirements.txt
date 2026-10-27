@@ -1,10 +1,9 @@
-gdal==3.2.2
-igraph
-pandas
-Flask==2.0.3
+# Python libraries only - external tools are not installed by pip: osm2pgsql (1.9 or newer), osmium,
+# GDAL tools (ogr2ogr, gdal_translate), psql, and raster2pgsql - install them with your system's package manager,
+# or use the conda environment (environment.yml) instead, which includes almost all of them.
+# gdal: requires the GDAL library installed on your system in the same version
+geopandas>=1.0
+geopy
+jinjasql2
 psycopg2
-Jinja2<3.1.0
-JinjaSql
-requests
-osm2geojson
-PyYaml
+pyyaml

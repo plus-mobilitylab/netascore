@@ -10,32 +10,35 @@
 
 NetAScore provides a toolset and automated workflow for computing ***bikeability***, ***walkability*** and related indicators from publicly available network data sets. Currently, we provide common presets for assessing infrastructure suitability for cycling (*bikeability*) and walking (*walkability*). By editing settings files and mode profiles, additional modes or custom preferences can easily be modeled.
 
-For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'**, can be used if you work on an area of interest within Austria. 
+For global coverage, we support **OpenStreetMap** data as input. Additionally, Austrian authoritative data, the **'GIP'** (OGD export including the new GIP 2.0), can be used if you work on an area of interest within Austria. 
 
 For citing NetAScore, please refer to following paper which introduces the software, its objectives, as well as the data and methods used: 
-Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., Zagel, B., & Loidl, M. (2024). NetAScore: An open and extendible software for segment-scale bikeability and walkability. *Environment and Planning B: Urban Analytics and City Science*, 0(0). [https://doi.org/10.1177/23998083241293177]. In case you want to refer to a specific version of the software implementation, you may add the respective Zenodo reference [doi.org/10.5281/zenodo.7695369](https://doi.org/10.5281/zenodo.7695369)
+Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., Zagel, B., & Loidl, M. (2025). NetAScore: An open and extendible software for segment-scale bikeability and walkability. *Environment and Planning B: Urban Analytics and City Science*, *52*(1), 265-274. [https://doi.org/10.1177/23998083241293177](https://doi.org/10.1177/23998083241293177). In case you want to refer to a specific version of the software implementation, you may add the respective Zenodo reference [doi.org/10.5281/zenodo.7695369](https://doi.org/10.5281/zenodo.7695369)
 
 Details regarding the **bikeability assessment method** as well as results of an **evaluation study** are provided in the following **scientific publication**, which is openly available via [doi.org/10.1016/j.jcmr.2024.100040](https://doi.org/10.1016/j.jcmr.2024.100040): Werner, C., van der Meer, L., Kaziyeva, D., Stutz, P., Wendel, R., & Loidl, M. (2024). Bikeability of road segments: An open, adjustable and extendible model. *Journal of Cycling and Micromobility Research*, *2*, 100040.
 
 Details on the **walkability index** together with results from a large **evaluation study** are published Open Access: [doi.org/10.3390/su17083634](https://doi.org/10.3390/su17083634): Stutz, P., Kaziyeva, D., Traun, C., Werner, C. & Loidl, M. (2025). Walkability at Street Level: An Indicator-Based Assessment Model. *Sustainability*, *17(8)*, 3634.
 
+**Note on versions:** The publications above refer to NetAScore version 1.x. Version 2.0 changes parts of the processing workflow for better usability and indicator derivation (to reflect relevant changes in OSM/GIP input data). While tested for plausibility, results may differ. The changes are listed in the [CHANGELOG](CHANGELOG.md).
+
 **Examples:** You find example output files of NetAScore at [doi.org/10.5281/zenodo.10886961](https://doi.org/10.5281/zenodo.10886961).
 
-You find **more information** on NetAScore in the **[wiki](https://github.com/plus-mobilitylab/netascore/wiki)**:
-
-* [About NetAScore](https://github.com/plus-mobilitylab/netascore/wiki)
-* [Quickstart-guide](https://github.com/plus-mobilitylab/netascore/wiki/Quickstart%E2%80%90Guide)
-* [The Workflow](https://github.com/plus-mobilitylab/netascore/wiki/The-workflow)
-* [How to run the Project...](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project)
-  * [...in a Docker environment](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project-in-a-Docker-environment)
-  * [...directly on your Machine (Python)](https://github.com/plus-mobilitylab/netascore/wiki/Run-NetAScore-manually-with-Python)
-* [Attributes & Indicators](https://github.com/plus-mobilitylab/netascore/wiki/Attributes-and-Indicators)
-  * [Attribute derivation from OSM](https://github.com/plus-mobilitylab/netascore/wiki/Attribute-derivation-from-OSM)
-  * [Attribute derivation from GIP](https://github.com/plus-mobilitylab/netascore/wiki/Attribute-derivation-from-GIP)
-* [Configuration of the Settings](https://github.com/plus-mobilitylab/netascore/wiki/Configuration-of-the-settings)
-* [Contribute to the Project!](https://github.com/plus-mobilitylab/netascore/wiki/How-to-contribute)
-* [Requirements and Limitations](https://github.com/plus-mobilitylab/netascore/wiki/Requirements-and-Limitations)
-* [Credits and License](https://github.com/plus-mobilitylab/netascore/wiki/Credits-and-license)
+More information can be found in the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html):
+* [About NetAScore](https://plus-mobilitylab.github.io/netascore-documentation/Home.html)
+* [Quickstart-guide](https://plus-mobilitylab.github.io/netascore-documentation/Quickstart.html)
+* [The Workflow](https://plus-mobilitylab.github.io/netascore-documentation/The-workflow.html)
+* [How to run the Project...](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project.html)
+  * [...in a Docker environment](https://plus-mobilitylab.github.io/netascore-documentation/How-to-run-the-project-in-a-Docker-environment.html)
+  * [...directly on your Machine (Python)](https://plus-mobilitylab.github.io/netascore-documentation/Run-NetAScore-manually-with-Python.html)
+* [Attributes & Indicators](https://plus-mobilitylab.github.io/netascore-documentation/Attributes-and-Indicators.html)
+  * [Attribute derivation from OSM](https://plus-mobilitylab.github.io/netascore-documentation/Attribute-derivation-from-OSM.html)
+  * [Attribute derivation from GIP](https://plus-mobilitylab.github.io/netascore-documentation/Attribute-derivation-from-GIP.html)
+* [Configuration of the Settings](https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html)
+* [Adapting the Mode profiles](https://plus-mobilitylab.github.io/netascore-documentation/Mode-profiles.html)
+* [Implementation details & how to contribute](https://plus-mobilitylab.github.io/netascore-documentation/How-to-contribute.html)
+* [Advanced docker customisations](https://plus-mobilitylab.github.io/netascore-documentation/advanced-docker.html)
+* [Requirements and Limitations](https://plus-mobilitylab.github.io/netascore-documentation/Requirements-and-Limitations.html)
+* [Credits and License](https://plus-mobilitylab.github.io/netascore-documentation/Credits-and-license.html)
 
 ## How to get started?
 
@@ -43,9 +46,9 @@ To get a better impression of what this toolset and workflow provides, you can q
 
 ### Easy quickstart: ready-made Docker image
 
-The easiest way to get started is running the ready-made Docker image. All you need for this to succeed is a [Docker installation](https://docs.docker.com/engine/install/), running Docker Desktop and internet connection. Then, follow these two steps:
+The easiest way to get started is running the ready-made Docker image. All you need for this to succeed is a [Docker installation](https://docs.docker.com/engine/install/), running Docker Desktop (macOS / Windows) or Docker Engine (Linux) and internet connection. Then, follow these two steps:
 
-- download the `docker-compose.yml` file from the `examples` ([ download the raw file](https://github.com/plus-mobilitylab/netascore/blob/main/examples/docker-compose.yml)) to an empty directory
+- download the [`docker-compose.yml`](https://github.com/plus-mobilitylab/netascore/blob/main/examples/docker-compose.yml) file from the `examples` (use the button "Download raw file" on the GitHub page) to an empty directory
 - from within this directory, execute the following command from a terminal:
   `docker compose run netascore`
 
@@ -53,11 +56,11 @@ Docker will download the NetAScore image and PostgreSQL database image, setup th
 
 #### What it does (example case):
 
-NetAScore first loads an area of interest by place name from Overpass Turbo API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node. These values represent the assessed suitability of a segment for cycling (*bikeability*) and walking (*walkability*).
+NetAScore first loads an area of interest by place name from the Overpass API, then downloads the respective OpenStreetMap data and afterwards imports, processes and exports the final dataset. A new subdirectory named `data` will be present after successful execution. Within this folder, the assessed network is stored in `netascore_salzburg.gpkg`. It includes the layer `edge` with *bikeability* in columns `index_bike_ft` and `index_bike_tf` and *walkability* in `index_walk_ft` and `index_walk_tf`. The extensions `ft` and `tf` refer to the direction along an edge: *from-to* or *to-from* node. These values represent the assessed suitability of a segment for cycling (*bikeability*) and walking (*walkability*).
 
 #### What the results look like:
 
-Currently, NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. Then in layer preferences define a symbology that visualizes one of the computed index values - e.g. `index_bike_ft` for *bikeability* (`_ft`: bikeability in forward-direction of each segment). Please note that from version 1.0 onwards, an index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
+NetAScore does not come with a built-in visualization module. However, you can easily visualize the *bikeability* and *walkability* index by loading the resulting geopackage in [QGIS](https://qgis.org). Simply drag and drop the geopackage into a new QGIS project and select the `edge` layer. It opens with a predefined style showing the index of the first mode profile (higher value of both directions). Styles for the other mode profiles are available by right-clicking the `edge` layer (*Styles* > *index_<profile_name>*, e.g. `index_walk`). An index value of `0` refers to unsuitable infrastructure, whereas `1` represents well suited infrastructure.
 
 This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
@@ -65,20 +68,31 @@ This is an exemplary visualization of *bikeability* for Salzburg, Austria:
 
 #### How to proceed?
 
-Most likely, you want to execute an analysis for a specific area of your interest - please see the [instructions in the wiki](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project-in-a-Docker-environment#run-netascore-for-your-own-area-of-interest) for how to achieve this with just changing one line in the settings file.
-If you need more detailled instructions or want to know more about the project, please consolidate the [wiki](https://github.com/plus-mobilitylab/netascore/wiki).
+Most likely, you want to execute an analysis for a specific area of your interest - please have a look at the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Quickstart.html#run-netascore-for-your-own-area-of-interest) for how to achieve this with just a few changes in the settings file.
+If you need more detailed instructions or want to know more about the project, please consult the [documentation](https://plus-mobilitylab.github.io/netascore-documentation/Home.html).
 
 ### Running NetAScore locally (without Docker)
 
-For running NetAScore without Docker you need several software packages and Python libraries installed on your machine. You find all details in the section ["How to run the project"](https://github.com/plus-mobilitylab/netascore/wiki/How-to-run-the-project).
+For running NetAScore without Docker you need a PostgreSQL database with PostGIS extension and several software packages and Python libraries on your machine. You find all details in the section ["Run NetAScore manually with Python"](https://plus-mobilitylab.github.io/netascore-documentation/Run-NetAScore-manually-with-Python.html).
 
 **NetAScore uses the following technologies:**
 
-- python 3
-- PostgreSQL with PostGIS extension
-- Docker (optional)
-- psql
-- ogr2ogr
-- osm2pgsql
-- raster2pgsql
-- [several python libraries](../main/requirements.txt)
+- Python 3.9 or newer (tested with 3.13) and [several Python libraries](requirements.txt)
+- PostgreSQL with PostGIS extension (database)
+- osm2pgsql (1.9 or newer) and osmium - for OSM imports
+- GDAL tools (`ogr2ogr`, `gdal_translate`) incl. the PostgreSQL driver
+- psql (PostgreSQL client)
+- raster2pgsql (part of PostGIS) - for importing a DEM (optional dataset `dem`)
+- git (optional) - to record the code state of NetAScore in the output metadata
+- Docker (optional) - see above
+
+**Recommended installation: conda environment.** [environment.yml](environment.yml) includes all of the above except the database and `raster2pgsql`:
+
+```
+conda env create -f environment.yml
+conda activate netascore
+```
+
+`raster2pgsql` is only needed for DEM imports. On Linux and macOS you can add it to the environment with `conda install -n netascore -c conda-forge postgis`. On Windows (where PostGIS is not available via conda), use `raster2pgsql` of your PostGIS installation (e.g. installed with the Stack Builder of PostgreSQL) - add its directory (the `bin` directory of PostgreSQL, e.g. `C:\Program Files\PostgreSQL\18\bin`) to the `PATH` environment variable.
+
+**Alternative: system packages and pip.** Install osm2pgsql, osmium, GDAL (incl. Python bindings), and the PostgreSQL / PostGIS client tools with the package manager of your system (or individual installers), then the Python libraries with `pip install -r requirements.txt` (this is how the Docker image is built). Note: the Python package `gdal` needs to match the GDAL version installed on your system (e.g. `pip install gdal==$(gdal-config --version)`).

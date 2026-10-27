@@ -8,6 +8,20 @@ SET search_path =
     public;
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- determine clipping area (bounding box of the AOI or AOI geometry, extended by the buffer)
+-- ---------------------------------------------------------------------------------------------------------------------
+{% if clip_mode %}
+DROP TABLE IF EXISTS clip_area;
+CREATE TABLE clip_area AS (
+    SELECT CASE
+               WHEN {{ clip_mode }} = 'aoi' THEN ST_Buffer(ST_Transform(geom, {{ target_srid }}), {{ clip_buffer }})
+               ELSE ST_SetSRID(ST_Expand(box2d(ST_Transform(geom, {{ target_srid }})), {{ clip_buffer }}), {{ target_srid }})
+           END AS geom
+    FROM {{ table_aoi | sqlsafe }}
+    WHERE name = {{ aoi_name }}
+);
+{% endif %}
+-- ---------------------------------------------------------------------------------------------------------------------
 -- calculate network with highways, railways and aerialways
 -- ---------------------------------------------------------------------------------------------------------------------
 
@@ -36,8 +50,7 @@ CREATE TABLE network_init AS ( -- 19 s, 2.162.218
                ELSE tunnel
            END AS tunnel
   FROM osm_line
-  WHERE osm_id >= 0
-    AND (highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
+  WHERE (highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'unclassified', 'residential',
                      'motorway_link', 'trunk_link', 'primary_link', 'secondary_link', 'tertiary_link', 'living_street',
                      'service', 'pedestrian', 'track', 'bus_guideway', 'escape', 'road', 'footway', 'bridleway',
                      'steps', 'path', 'cycleway', 'construction', 'crossing', 'emergency_bay', 'platform') 
@@ -51,6 +64,10 @@ CREATE TABLE network_init AS ( -- 19 s, 2.162.218
             aerialway IN ('cable_car', 'gondola', 'mixed_lift', 'chair_lift', 'drag_lift', 't-bar', 'j-bar', 'platter')
         {% endif %}
     )
+    {% if clip_mode %}
+    -- only ways intersecting the clipping area
+    AND ST_Intersects(way, (SELECT ST_Transform(geom, 4326) FROM clip_area))
+    {% endif %}
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -97,12 +114,19 @@ CREATE TABLE intersections_all AS ( -- 53 s, 1.673.203
     FROM link_points AS a,
          link_points AS b
     WHERE ST_Intersects(a.geom, b.geom)
-      AND NOT ST_Equals(a.geom_startpoint, b.geom_startpoint)
-      AND NOT ST_Equals(a.geom_startpoint, b.geom_endpoint)
-      AND NOT ST_Equals(a.geom_endpoint, b.geom_startpoint)
-      AND NOT ST_Equals(a.geom_endpoint, b.geom_endpoint)
       AND a.osm_id < b.osm_id
 );
+
+-- links touching themselves: start or end point on the link's own course (e.g. turning loops; closed rings excluded) -
+-- the link is split there, so that its end is connected
+INSERT INTO intersections_all
+SELECT e.geom,
+       a.osm_id, a.bridge, a.tunnel, a.escalator, a.indoor, a.layer, a.geom_startpoint, a.geom_endpoint,
+       a.osm_id, a.bridge, a.tunnel, a.escalator, a.indoor, a.layer, a.geom_startpoint, a.geom_endpoint
+FROM link_points a
+    CROSS JOIN LATERAL (VALUES (a.geom_startpoint), (a.geom_endpoint)) AS e(geom)
+WHERE NOT ST_Equals(a.geom_startpoint, a.geom_endpoint)
+  AND (SELECT count(*) FROM ST_DumpPoints(a.geom) d WHERE ST_Equals(d.geom, e.geom)) > 1;
 
 -- turn geometry collections and multipoints to points
 INSERT INTO intersections_all -- 1 s, 189
@@ -111,6 +135,14 @@ SELECT (ST_Dump(ST_CollectionExtract(geom, 1))).geom AS geom,
        osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2
 FROM intersections_all
 WHERE ST_GeometryType(geom) = 'ST_GeometryCollection';
+
+-- overlapping links (intersection is a line): the ends of the overlapping sections are intersections
+INSERT INTO intersections_all
+SELECT (ST_Dump(ST_Boundary(ST_CollectionExtract(geom, 2)))).geom AS geom,
+       osm_id_1, bridge_1, tunnel_1, escalator_1, indoor_1, layer_1, geom_startpoint_1, geom_endpoint_1,
+       osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2
+FROM intersections_all
+WHERE ST_GeometryType(geom) IN ('ST_LineString', 'ST_MultiLineString', 'ST_GeometryCollection');
 
 INSERT INTO intersections_all -- 1 s, 110.743
 SELECT (ST_Dump(geom)).geom AS geom,
@@ -126,11 +158,18 @@ WHERE ST_GeometryType(geom) = 'ST_GeometryCollection'
    OR ST_GeometryType(geom) = 'ST_MultiLineString'
    OR ST_GeometryType(geom) = 'ST_MultiPoint';
 
--- delete intersections that are at the same point
+-- links meeting at points where both of them end anyway do not need to be split
+DELETE FROM intersections_all
+WHERE (ST_Equals(geom, geom_startpoint_1) OR ST_Equals(geom, geom_endpoint_1))
+  AND (ST_Equals(geom, geom_startpoint_2) OR ST_Equals(geom, geom_endpoint_2))
+  AND osm_id_1 <> osm_id_2;
+
+-- intersections of all pairs of links (several pairs can intersect at the same point, e.g. a link ending at a crossing of
+-- two others): each pair is corrected separately below (bridges, layers, tunnels) and a link is split at a point if any
+-- of its pairs remains there (see "intersecting_links")
 DROP TABLE IF EXISTS intersections;
 CREATE TABLE intersections AS ( -- 15 s, 1.654.581
-    -- TODO: DISTINCT ON might not work here
-    SELECT DISTINCT ON (geom) row_number() OVER (ORDER BY geom, osm_id_1, bridge_1, tunnel_1, escalator_1, indoor_1, layer_1, geom_startpoint_1, geom_endpoint_1, osm_id_2, bridge_2, tunnel_2, escalator_2, indoor_2, layer_2, geom_startpoint_2, geom_endpoint_2) AS id, *
+    SELECT row_number() OVER (ORDER BY geom, osm_id_1, osm_id_2) AS id, *
     FROM intersections_all
 );
 
@@ -227,20 +266,33 @@ CREATE TABLE intersecting_links AS ( -- 12 s, 1.573.644
 -- split links at intersections and add the rest of the links to new table. osm_id will not stay unique.
 CREATE TABLE network_corrected AS ( -- 32 s, 3.876.291
     SELECT a.osm_id,
-           (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom::geometry(LineString, {{target_srid}}) AS geom,
+           s.geom,
            highway, railway, aerialway, access, addr_housename, addr_housenumber, addr_interpolation, admin_level,
            amenity, area, barrier, bicycle, boundary, brand, building, construction, covered, culvert, cutting,
            denomination, disused, embankment, foot, generator_source, harbour, historic, horse, intermittent, junction,
            landuse, layer, leisure, lock, man_made, military, motorcar, name, "natural", office, oneway, operator,
            place, population, power, power_source, public_transport, ref, religion, route, service, shop, sport,
            surface, tags, toll, tourism, tower_type, tracktype, water, way_area, wetland, width, wood, z_order, bridge,
-           tunnel
+           tunnel,
+           LEAST(s.start_pos, s.end_pos) AS seg_pos_lo,
+           GREATEST(s.start_pos, s.end_pos) AS seg_pos_hi
     FROM network_init a
         JOIN intersecting_links b USING (osm_id)
+        CROSS JOIN LATERAL (
+            SELECT seg.geom::geometry(LineString, {{target_srid}}) AS geom,
+                   ST_LineLocatePoint(a.geom, ST_StartPoint(seg.geom)) AS start_pos,
+                   ST_LineLocatePoint(a.geom, ST_EndPoint(seg.geom)) AS end_pos
+            -- each part is split again in reverse direction (and turned back): ST_Split does not split a line at a point
+            -- equal to its start point, even if the line passes this point again (links touching themselves)
+            FROM (SELECT ST_Reverse((ST_Dump(ST_Split(ST_Reverse(p.geom), b.intersection_geom))).geom) AS geom
+                  FROM (SELECT (ST_Dump(ST_Split(a.geom, b.intersection_geom))).geom AS geom) p) seg
+        ) s
 
     UNION
 
-    SELECT *
+    SELECT c.*,
+           0::double precision AS seg_pos_lo,
+           1::double precision AS seg_pos_hi
     FROM network_init c
     WHERE NOT exists(SELECT FROM intersecting_links d WHERE c.osm_id = d.osm_id)
 );
@@ -309,7 +361,7 @@ ALTER TABLE network_corrected DROP COLUMN IF EXISTS id;
 
 DROP TABLE IF EXISTS network_tmp;
 CREATE TABLE network_tmp AS ( -- 17 s, 3.875.173
-    SELECT row_number() OVER (ORDER BY osm_id) AS edge_id,
+    SELECT (osm_id::bigint * 10000 + row_number() OVER (PARTITION BY osm_id ORDER BY seg_pos_lo, seg_pos_hi, ST_Length(geom)))::bigint AS edge_id,
            osm_id, geom, highway, railway, aerialway, access, addr_housename, addr_housenumber, addr_interpolation,
            admin_level, amenity, area, barrier, bicycle, boundary, brand, building, construction, covered, culvert,
            cutting, denomination, disused, embankment, foot, generator_source, harbour, historic, horse, intermittent,
@@ -319,7 +371,11 @@ CREATE TABLE network_tmp AS ( -- 17 s, 3.875.173
            bridge, tunnel
     FROM network_corrected
 );
-
+{% if clip_mode %}
+-- remove edges outside the clipping area (edges crossing its boundary are kept as a whole)
+DELETE FROM network_tmp
+WHERE NOT ST_Intersects(geom, (SELECT geom FROM clip_area));
+{% endif %}
 -- ---------------------------------------------------------------------------------------------------------------------
 -- create tables "network_edge", "network_node"
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -353,7 +409,7 @@ CREATE TABLE network_edge AS ( -- 1 m 13 s, 3.875.334
     SELECT a.*,
            c.node_id as from_node,
            d.node_id as to_node,
-           ST_Length(a.geom) AS length
+           ST_Length(a.geom)::numeric AS length
     FROM network_tmp a
         JOIN network_point b ON a.edge_id = b.edge_id
         JOIN network_node c ON b.geom_startpoint = c.geom
@@ -366,8 +422,28 @@ CREATE INDEX network_edge_geom_idx ON network_edge USING gist(geom); -- 21 s
 DROP TABLE network_point;
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- create table "network_bicycle_route": bicycle route memberships of each segment (for indicator "designated_route")
+-- (copy of relevant parts of "osm_bicycle_route" - avoid replacement by later OSM imports in shared data schema)
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_bicycle_route;
+CREATE TABLE network_bicycle_route AS (
+    SELECT a.way_id AS osm_id, a.relation_id, a.route_level, a.direction, a.network, a.name, a.ref
+    FROM osm_bicycle_route a
+    WHERE EXISTS (SELECT FROM network_edge b WHERE b.osm_id = a.way_id)
+);
+
+CREATE INDEX network_bicycle_route_osm_id_idx ON network_bicycle_route (osm_id);
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS indoor_points, intersecting_links, intersections, intersections_all, link_points,
                      network_corrected, network_corrected_points, network_init, network_tmp;
+
+-- keep the clipping area (exported as metadata), remove the one of a previous run if the network is not clipped
+DROP TABLE IF EXISTS meta_clip_area;
+{% if clip_mode %}
+ALTER TABLE clip_area RENAME TO meta_clip_area;
+{% endif %}

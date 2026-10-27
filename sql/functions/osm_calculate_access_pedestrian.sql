@@ -1,7 +1,6 @@
 CREATE OR REPLACE FUNCTION calculate_access_pedestrian(
     access character varying,
     foot character varying,
-    footway character varying,
     sidewalk character varying,
     highway character varying
 )
@@ -9,12 +8,16 @@ RETURNS int AS $BODY$
 	DECLARE
 	    ped_access int;
 	BEGIN
+	    -- strict access matching; ignore sidewalks mapped as separate ways here (these are considered in "pedestrian_infrastructure")
 	    ped_access:=case
-	        -- check foot, footway, and sidewalk attributes
-	        when foot='yes' or footway='yes' or sidewalk='yes'
+	        -- check foot restrictions and permissions
+	        when foot='yes'
 	            then 1 -- allow access
-	        when foot='no' or footway='no'
+	        when foot='no'
 	            then 0 -- restrict access
+	        -- sidewalk on the way itself overrides general access restrictions
+	        when sidewalk='yes'
+	            then 1 -- allow access
 			-- check global access restrictions
 	        when access='no'
 	            then 0 -- restrict access

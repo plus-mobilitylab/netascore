@@ -25,8 +25,6 @@ def secondsToStr(t, detailed:bool = False):
             [(t,),60,60])
 
 line = "="*40
-lineT = "-"*40
-lineTime = "-"*11
 
 verbose_level = LOG_LEVEL_2_INFO
 
@@ -35,19 +33,35 @@ def log(msg: str, level=LOG_LEVEL_3_DETAILED, elapsed = None):
     if(verbose_level < level):
         return
     if(level < LOG_LEVEL_4_DEBUG):
-        # print (line)
-        print (secondsToStr(clock()), '-', msg)
+        print (dt.now().strftime('%H:%M:%S'), '-', msg)
     else:
         print(msg)
     if elapsed:
         print ("Elapsed time:", elapsed)
-    if(level < LOG_LEVEL_3_DETAILED):
-        print (line)
 
 # shorthand functions 
 
 def majorInfo(msg: str):
     log(msg, LOG_LEVEL_1_MAJOR_INFO)
+
+def section(msg: str):
+    """Logs the heading of a new section (e.g. processing step) with a separator line above."""
+    print (line)
+    majorInfo(msg)
+
+FILE_VERSION = 2.0
+
+def require_file_version(document: dict, filepath: str, example: str) -> None:
+    version = document.get("version") if isinstance(document, dict) else None
+    try:
+        current = float(version)
+    except (TypeError, ValueError):
+        current = None
+    if current is not None and current >= FILE_VERSION:
+        return
+    found = "missing" if version is None else version
+    majorInfo(f"{filepath}: version is {found}. NetAScore 2.0 requires version {FILE_VERSION}. See {example}.")
+    sys.exit(1)
 
 def info(msg: str):
     log(msg, LOG_LEVEL_2_INFO)
@@ -62,20 +76,14 @@ def logBeginTask(s, level = LOG_LEVEL_2_INFO):
     if(verbose_level < level):
         return
     taskS = s
-    print()
-    print(line)
-    print(">>> at", dt.now().strftime('%H:%M:%S'), ">>> ", s, "")
+    print(dt.now().strftime('%H:%M:%S'), '>>>', s)
     startT = clock()
 
 def logEndTask():
     global taskS, startT
     if taskS is None:
         return
-    print(">>> ", taskS, "completed.")
-    print(lineT)
-    print(lineTime, "took", secondsToStr(clock()-startT, detailed=True), lineTime)
-    print(line)
-    print()
+    print(dt.now().strftime('%H:%M:%S'), '<<<', taskS, f"completed (took {secondsToStr(clock()-startT, detailed=True)})")
     taskS = None
 
 def endlog():
@@ -85,7 +93,7 @@ def endlog():
     info(f"Program terminating after {secondsToStr(elapsed)} (hr:min:sec) at {dt.now().strftime('%H:%M:%S')}.")
 
 def now():
-    return secondsToStr(clock())
+    return dt.now().strftime('%H:%M:%S')
 
 def get_current_log_level():
     return verbose_level
@@ -103,7 +111,7 @@ def overrideParams(orig: dict, override: dict) -> dict:
     if orig == None:
         raise Exception("ERROR: original dict is None!")
     if override == None:
-        log("No override parameters given -> skipping.")
+        debugLog("No override parameters given -> skipping.")
         return orig
     result = orig.copy()
     log("Replacing default parameter values with given override values")
@@ -123,6 +131,10 @@ def require_keys(settings: dict, required_keys: List[str], error_message: str = 
         sys.exit(1)
 
 def has_keys(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
+    # empty settings sections (e.g. 'index:' without content) are loaded as None by YAML
+    if not isinstance(settings, dict):
+        log(f"keys {keys} not provided (settings section is empty).", loglevel)
+        return False
     for key in keys:
         if key not in settings:
             log(f"key '{key}' not provided.", loglevel)
@@ -130,11 +142,86 @@ def has_keys(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
     return True
 
 def has_any_key(settings: dict, keys: List[str], loglevel: int = 4) -> bool:
-    for key in keys:
-        if key in settings:
-            return True
+    if isinstance(settings, dict):
+        for key in keys:
+            if key in settings:
+                return True
     log(f"None of the following keys were provided: {keys}", loglevel)
     return False
+
+def get_section(settings: dict, key: str) -> dict:
+    """Returns the given settings section as dict (empty dict if the section is missing or empty)."""
+    if not isinstance(settings, dict):
+        return {}
+    section = settings.get(key)
+    return section if isinstance(section, dict) else {}
+
+def warn_unknown_keys(settings: dict, known_keys: List[str], context: str) -> None:
+    """Logs a warning for keys that are not known (e.g. typos), as these are ignored."""
+    if not isinstance(settings, dict):
+        return
+    for key in settings:
+        if key not in known_keys:
+            majorInfo(f"WARNING: unknown key '{key}' in {context} - it will be ignored. Known keys: {', '.join(known_keys)}")
+
+def parse_bbox(value, setting_name: str = "bbox") -> List[float]:
+    """Parses a bounding box given as list or comma-separated string in the order
+    min lat, min lon, max lat, max lon (WGS84), e.g. '47.75, 12.98, 47.86, 13.12' or [47.75, 12.98, 47.86, 13.12]."""
+    parts = value.split(",") if isinstance(value, str) else value
+    try:
+        bbox = [float(str(v).strip()) for v in parts]
+    except (TypeError, ValueError):
+        bbox = []
+    if len(bbox) != 4:
+        raise Exception(f"Unable to interpret the given '{setting_name}' value '{value}'. "
+                        "It needs to contain min lat, min lon, max lat, max lon (WGS84), e.g. '47.75, 12.98, 47.86, 13.12' or [47.75, 12.98, 47.86, 13.12].")
+    min_lat, min_lon, max_lat, max_lon = bbox
+    if not (-90 <= min_lat < max_lat <= 90 and -180 <= min_lon < max_lon <= 180):
+        raise Exception(f"Invalid '{setting_name}' value '{value}': expected min lat, min lon, max lat, max lon (in WGS84)")
+    return bbox
+
+# reuse: reuse existing data if it matches the settings of currently available data (otherwise error)
+# reuse_or_overwrite: reuse existing data if it matches the current settings (otherwise overwrite)
+# overwrite: always overwrite existing data, abort: stop if data exists
+# NOTE: data without a recorded origin, e.g. results of processing steps, is reused without checks (for 'reuse' and 'reuse_or_overwrite')
+ON_EXISTING_VALUES = ['reuse', 'reuse_or_overwrite', 'overwrite', 'abort']
+ON_EXISTING_ALIASES = {'skip': 'reuse', 'delete': 'overwrite'}  # names used before NetAScore 2.0
+
+def normalize_on_existing(value, context: str, default: str = 'abort') -> str:
+    """Returns the 'on_existing' value ('reuse', 'reuse_or_overwrite', 'overwrite', or 'abort'); old names ('skip', 'delete') are translated."""
+    if value is None or str(value).strip() == '':
+        return default
+    v = str(value).strip().lower()
+    if v in ON_EXISTING_ALIASES:
+        info(f"'on_existing: {v}' in {context} was renamed to '{ON_EXISTING_ALIASES[v]}' - please update your settings file.")
+        v = ON_EXISTING_ALIASES[v]
+    if v not in ON_EXISTING_VALUES:
+        majorInfo(f"error: invalid value '{value}' for 'on_existing' in {context}. Allowed values: {', '.join(ON_EXISTING_VALUES)}")
+        sys.exit(1)
+    return v
+
+def get_buffer(settings: dict) -> float:
+    """Returns the import setting 'buffer' (in m) around the area of interest - 0 if omitted or empty."""
+    value = settings.get('buffer') if isinstance(settings, dict) else None
+    if value is None or str(value).strip() == '':
+        return 0.0
+    try:
+        buffer = float(str(value).strip())
+    except ValueError:
+        raise Exception(f"Invalid value '{value}' for import setting 'buffer' - expected a number (in m).")
+    if buffer < 0:
+        raise Exception(f"Invalid value '{value}' for import setting 'buffer' - expected a number >= 0 (in m).")
+    return buffer
+
+
+def get_clip_mode(settings: dict) -> str:
+    """Returns the clip mode from the import settings: 'bbox' (default), 'aoi', or 'none'."""
+    clip_mode = 'bbox'
+    if settings and 'clip' in settings:
+        clip_mode = str(settings['clip']).strip().lower()
+    if clip_mode not in ['bbox', 'aoi', 'none']:
+        raise Exception(f"Invalid value '{clip_mode}' for import setting 'clip'. Allowed values: [bbox/aoi/none]")
+    return clip_mode
 
 
 # helper functions for parsing user input / settings values - sqlsafe
@@ -143,14 +230,14 @@ def is_numeric(value) -> bool:
     return type(value) in [int, float]
 
 def get_safe_name(value: str) -> str:
-    return re.sub("[^a-zA-Z0-9_]", "", value)
+    return re.sub(r"[^a-zA-Z0-9_]", "", value)
 
 def get_safe_string(value) -> str:
     v = str(value)
-    return re.sub("[^a-zA-Z0-9_.: \-]", "", v)
+    return re.sub(r"[^a-zA-Z0-9_.: \-]", "", v)
 
 def str_to_numeric(value: str, throw_error: bool = False):
-    v = re.sub("[^0-9.\-]", "", value) # extract value
+    v = re.sub(r"[^0-9.\-]", "", value) # extract value
     if v.find(".") > -1:
         return float(v)
     elif len(v) > 0:
@@ -160,4 +247,4 @@ def str_to_numeric(value: str, throw_error: bool = False):
     return None
 
 def str_is_numeric_only(value: str) -> bool:
-    return True if re.fullmatch("[ 0-9.\-]+" ,value) else False
+    return True if re.fullmatch(r"[ 0-9.\-]+" ,value) else False

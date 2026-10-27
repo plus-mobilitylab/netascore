@@ -1,5 +1,7 @@
+import copy
 import os
 import re
+import sys
 import yaml
 
 import toolbox.helper as h
@@ -17,6 +19,12 @@ class ProfileDefinition:
         self.filename = filename
 
 
+# indicators that can be defined in mode profiles (see sql/functions/calculate_index.sql.j2)
+INDICATORS = ['bicycle_infrastructure', 'pedestrian_infrastructure', 'designated_route', 'road_category', 'max_speed',
+              'max_speed_greatest', 'parking', 'pavement', 'width', 'gradient', 'number_lanes', 'facilities', 'crossings',
+              'buildings', 'greenness', 'water', 'sights', 'noise']
+
+
 class ModeProfile:
     profile_name: str
     profile: dict = {}
@@ -25,22 +33,78 @@ class ModeProfile:
     access_walk: False
 
     def __init__(self, base_path: str, definition: dict):
-        self.profile_name = definition.get('profile_name')
-        filename = os.path.join(base_path, definition.get('filename'))
+        h.require_keys(definition, ['profile_name', 'filename'],
+                       f"error: each entry in section 'profiles' needs a 'profile_name' and a 'filename'. Found: {definition}")
+        h.warn_unknown_keys(definition, ['profile_name', 'filename', 'filter_access_car', 'filter_access_bike', 'filter_access_walk'],
+                            f"profile definition '{definition.get('profile_name')}'")
+        self.profile_name = h.get_safe_name(str(definition.get('profile_name')))
+        filename = os.path.join(base_path, str(definition.get('filename')))
+        self.filename = filename
         self.access_car = h.has_keys(definition, ['filter_access_car']) and definition['filter_access_car']
         self.access_bike = h.has_keys(definition, ['filter_access_bike']) and definition['filter_access_bike']
         self.access_walk = h.has_keys(definition, ['filter_access_walk']) and definition['filter_access_walk']
         # if none of the mode access filters are set, then enable index computation for all modes
         if not (self.access_car or self.access_bike or self.access_walk):
             self.access_car = self.access_bike = self.access_walk = True
-        with open(filename) as file:
-            self.profile = yaml.safe_load(file)
+        if not os.path.isfile(filename):
+            h.majorInfo(f"error: mode profile file '{filename}' (profile '{self.profile_name}') not found.")
+            sys.exit(1)
+        # original text of the profile file (stored as metadata of the run - exact incl. comments)
+        with open(filename, encoding="utf-8") as file:
+            self.file_text = file.read()
+        self.profile = yaml.safe_load(self.file_text)
+        h.require_file_version(self.profile, filename, "examples/profile_bike.yml")
+        self._validate(filename)
+
+    def _validate(self, filename: str):
+        """Checks the profile structure when loading it (before any processing step runs)."""
+        h.warn_unknown_keys(self.profile, ['version', 'weights', 'overrides', 'indicator_mapping'], f"mode profile '{filename}'")
+        h.require_keys(self.profile, ['weights', 'indicator_mapping'],
+                       f"error: mode profile '{filename}' needs the sections 'weights' and 'indicator_mapping'. See examples/profile_bike.yml.")
+        # weights: indicators that are not listed are not used (NULL)
+        weights = self.profile.get('weights') if isinstance(self.profile.get('weights'), dict) else {}
+        h.warn_unknown_keys(weights, INDICATORS, f"section 'weights' of mode profile '{filename}'")
+        missing = [i for i in INDICATORS if i not in weights]
+        if missing:
+            h.info(f"mode profile '{filename}': no weight given for {', '.join(missing)} - these indicators are skipped for index calculation.")
+        self.profile['weights'] = {i: weights.get(i) for i in INDICATORS}
+        # indicator mappings and overrides need to name an indicator
+        mappings = self.profile.get('indicator_mapping') or []
+        overrides = self.profile.get('overrides') or []
+        if not isinstance(mappings, list) or not isinstance(overrides, list):
+            h.majorInfo(f"error: 'indicator_mapping' and 'overrides' in mode profile '{filename}' need to be lists.")
+            sys.exit(1)
+        for entry in mappings + overrides:
+            if not h.has_keys(entry, ['indicator']):
+                h.majorInfo(f"error: each entry in 'indicator_mapping' and 'overrides' of mode profile '{filename}' needs an 'indicator' key. Found: {entry}")
+                sys.exit(1)
+        self._check_gradient_classes(mappings + overrides, filename)
+        self.profile['indicator_mapping'] = mappings
+        self.profile['overrides'] = overrides
+
+    def _check_gradient_classes(self, entries: list, filename: str):
+        """The gradient is given in % (since NetAScore 2.0; previously classes -4 to 4) - value mappings of the gradient need
+        to use 'classes' (value ranges). A 'mapping' (exact values) would not match the gradient values, resulting in no index."""
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get('indicator') == 'gradient' and 'mapping' in entry:
+                h.majorInfo(f"error: mode profile '{filename}': the indicator 'gradient' is given in % (since NetAScore 2.0) - please use "
+                            "'classes' instead of 'mapping' for its value assignments (e.g. 'ge6: 0.25' for at least 6 % uphill). "
+                            "See examples/profile_bike.yml.")
+                sys.exit(1)
+            # nested value assignments (e.g. in overrides)
+            for key in ['mapping', 'classes']:
+                if isinstance(entry.get(key), dict):
+                    self._check_gradient_classes(list(entry[key].values()), filename)
 
 
 def load_profiles(base_path: str, profile_definitions: dict):
     return [ModeProfile(base_path, definition) for definition in profile_definitions]
 
 def _build_sql_overrides(overrides_yml: dict) -> str:
+    # work on a copy: keys are removed while compiling the SQL - keep the original to store it as metadata
+    overrides_yml = copy.deepcopy(overrides_yml)
     # load yml: extract output details and prepare target variable names
     indicator_name = h.get_safe_name(overrides_yml.get('indicator'))
     h.require_keys(overrides_yml, ["output"], f"No 'output' key provided in overrides definition for '{indicator_name}'.")
@@ -66,7 +130,7 @@ def _build_sql_overrides(overrides_yml: dict) -> str:
         assignment_sql += f"{a_target} := temp; \n"
     # delete output details and description from yml (for function compatibility)
     del overrides_yml['output']
-    del overrides_yml['description']
+    overrides_yml.pop('description', None)
     # compile value mappings
     value_assignments = _build_sql_indicator_mapping_internal_(overrides_yml, "", force_default_value = True, def_value = -1)
     # compile full indicator SQL around indicator mapping code
@@ -170,6 +234,8 @@ def _build_sql_indicator_mapping_internal_(indicator_yml: dict, name_hierarchy: 
     return value_assignments
 
 def _build_sql_indicator_mapping(indicator_yml: dict) -> str:
+    # work on a copy: keys are removed while compiling the SQL - keep the original to store it as metadata
+    indicator_yml = copy.deepcopy(indicator_yml)
     indicator_name = h.get_safe_name(indicator_yml.get('indicator'))
     value_assignments = _build_sql_indicator_mapping_internal_(indicator_yml)
     # compile full indicator SQL around indicator mapping code
@@ -187,11 +253,11 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
     schema = db_settings.entities.network_schema
 
     # open database connection
-    h.info('open database connection')
+    h.debugLog('open database connection')
     db = PostgresConnection.from_settings_object(db_settings)
 
     # set search path
-    h.log('set search path')
+    h.debugLog('set search path')
     db.schema = schema
 
     # create functions
@@ -204,20 +270,20 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
             profile_name = p.profile_name
             indicator_weights = p.profile['weights']
             # parse profile definition: generate SQL for indicator value assignments
-            h.info(f'parsing indicator value mapping for profile "{profile_name}"...')
+            h.log(f'parsing indicator value mapping for profile "{profile_name}"...')
             indicator_mapping_sql = ""
             for indicator in p.profile['indicator_mapping']:
                 indicator_mapping_sql += _build_sql_indicator_mapping(indicator)
             h.debugLog(f"compiled indicator mapping SQL: \n\n{indicator_mapping_sql}")
             # parse profile definition: generate SQL for overrides (indicator weights or index)
-            h.info(f'parsing value overrides for profile "{profile_name}"...')
+            h.log(f'parsing value overrides for profile "{profile_name}"...')
             overrides_sql = ""
-            for override in p.profile['overrides']:
+            for override in (p.profile.get('overrides') or []):
                 overrides_sql += _build_sql_overrides(override)
             h.debugLog(f"compiled overrides SQL: \n\n{overrides_sql}")
             
             # profile-specific function registration
-            h.info(f'register index function for profile "{profile_name}"...')
+            h.log(f'register index function for profile "{profile_name}"...')
             f_params = {
                 'compute_explanation': settings and h.has_keys(settings, ['compute_explanation']) and settings['compute_explanation'],
                 'indicator_mappings': indicator_mapping_sql,
@@ -235,7 +301,7 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
                 'access_walk': p.access_walk,
             }
             params.update(indicator_weights)
-            print(params)
+            h.debugLog(f"index parameters: {params}")
             db.execute_template_sql_from_file("index", params)
     h.logEndTask()
 
@@ -307,5 +373,5 @@ def generate_index(db_settings: DbSettings, profiles: List[ModeProfile], setting
     # db.commit()
 
     # close database connection
-    h.log('close database connection')
+    h.debugLog('close database connection')
     db.close()

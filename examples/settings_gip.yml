@@ -1,36 +1,65 @@
-version: 1.2
-# this part is optional: if not specified, the internal Postgres-DB will be used (inside Docker container)
+version: 2.0
+# documentation of all settings: https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html
+
+# global settings that are relevant across processing steps
+global:
+  case_id: gip # unique id (name) - useful for working with different datasets / areas of interest
+  # target_srid: 31287 # optional: coordinate system of the processing and output (only metric currently supported); default: 32633 (UTM zone 33N)
+
+# using an existing database on the host machine, accessed from within a Docker container
 database:
   host: gateway.docker.internal
   port: 5432
   dbname: netascore
-  on_existing: abort # skip, delete, abort
-  # user and password to be specified as ENV variables
-# -- end of optional db part --
+  # username and password: preferably given as environment variables DB_USERNAME and DB_PASSWORD
+
 import:
   type: gip
-  filename_A: A_routingexport_ogd_split.zip # triggers unzip + db import (following standard file structure of GIP files)
+  filename: A_routingexport_ogd_split.zip # triggers unzip + db import (following standard file structure of GIP files)
+  # on_existing: reuse # reuse (default), reuse_or_overwrite, overwrite, abort
+  # regional_code: AT5% # optional: Gemeindekennzahl; % is a wildcard; Stadt Salzburg: AT50101; List: [AT50101, AT50338]
+  # bbox: [47.75, 12.98, 47.86, 13.12] # optional: [min lat, min lon, max lat, max lon] (WGS84)
+
 optional:
+  # defaults: # optional - settings for all optional imports (can be overridden for each dataset)
+  #   on_existing: reuse # reuse (default), reuse_or_overwrite, overwrite, abort
+  #   clip: network # network (default): only import data within the network extent; none: import the whole file
   noise:
     filename: noise.gpkg # GeoPackage
-    # column_noise: noise # TODO: set from settings file
-  osm:
-    filename: austria-latest.osm.pbf # required mainly for walkability indicators
-    # NOTE: if an OSM file is provided, the layers 'building', 'crossing', 'facility', 'greennesss' and 'water' are extracted from OSM
+    # layer: noise_lden # name of the layer to import - required if the file contains more than one layer with geometry
+    # column_noise: noise # optional: name of the column containing noise values (default: noise)
+    # value_mapping: # optional: map (non-numeric) values of the noise column to numeric noise values (dB) - unmapped values are ignored
+    #   "55-59": 57
+    #   "60-64": 62
+    # coverage: noise_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)
+
+  osm: # required mainly for walkability indicators
+    filename: austria-latest.osm.pbf # OSM file (required), e.g. from https://download.geofabrik.de
+    # NOTE: when providing an OSM file the datasets 'building', 'crossing', 'facility', 'greenness', 'water', 'parking', and 'sights' are extracted from OSM
+    # on_existing: reuse # reuse (default), reuse_or_overwrite, overwrite, abort
+    # clip: network # network (default): only import OSM data within the network extent (requires osmium); none: import the whole file
+  # alternatively, these datasets can be provided as GeoPackage (instead of being derived from the OSM file) - each with the optional settings on_existing, clip, and coverage:
   # building:
-    # filename: building.gpkg # GeoPackage
+  #   filename: building.gpkg # GeoPackage
+  #   coverage: building_coverage.gpkg # optional: polygon(s) of the area covered by the data (default: extent of the data)
   # crossing:
-    # filename: crossing.gpkg # GeoPackage
+  #   filename: crossing.gpkg # GeoPackage
   # facility:
-    # filename: facility.gpkg # GeoPackage
+  #   filename: facility.gpkg # GeoPackage
   # greenness:
-    # filename: greenness.gpkg # GeoPackage
+  #   filename: greenness.gpkg # GeoPackage
   # water:
-    # filename: water.gpkg # GeoPackage
+  #   filename: water.gpkg # GeoPackage
+  # parking:
+  #   filename: parking.gpkg # GeoPackage
+  # sights:
+  #   filename: sights.gpkg # GeoPackage
+
 index:
-  compute_explanation: False
+  compute_explanation: False # True: adds columns explaining the index values (False here: smaller output for the whole of Austria)
+
 profiles:
-  - 
+  -
     profile_name: bike
     filename: profile_bike.yml
     filter_access_bike: True
@@ -38,6 +67,14 @@ profiles:
     profile_name: walk
     filename: profile_walk.yml
     filter_access_walk: True
+  # -
+  #   profile_name: bike_incwalk # bikeability incl. segments only accessible on foot (e.g. push the bike) - for routing purposes
+  #   filename: profile_bike.yml
+  #   filter_access_bike: True
+  #   filter_access_walk: True
+
 export:
   type: geopackage
-  filename: gip_network.gpkg # GeoPackage: here two layers are included: "edge" including attributes and indexes; "node" including attributes
+  filename: netascore_<case_id>.gpkg # GeoPackage with layers "edge" and "node", as well as metadata tables "meta_*"
+  # include_source_attributes: True  # optional: add GIP source attributes to the edge export (these receive the prefix 'gip_')
+  #                                    True: predefined set of columns / list of column names, e.g. [funcroadclass, formofway]

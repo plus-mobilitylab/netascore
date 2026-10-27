@@ -1,0 +1,267 @@
+-- ---------------------------------------------------------------------------------------------------------------------
+-- gip2_network
+-- ---------------------------------------------------------------------------------------------------------------------
+
+SET search_path =
+    {{ schema_network | sqlsafe }},
+    {{ schema_data | sqlsafe }},
+    public;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create tables "gip2_network_tmp", "gip2_link_width", "gip2_link_tmp", "gip2_linkuse_tmp", "gip2_node_tmp"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+{% if bbox %}
+DROP TABLE IF EXISTS gip2_bbox_link;
+CREATE TABLE gip2_bbox_link AS (
+    SELECT short_id
+    FROM (
+        SELECT a.short_id, b.x, b.y
+        FROM gip2_link a
+            JOIN gip2_node b ON a.node_from_short_id = b.short_id
+        UNION ALL
+        SELECT link_short_id AS short_id, x, y
+        FROM gip2_linkcoordinate
+        UNION ALL
+        SELECT a.short_id, b.x, b.y
+        FROM gip2_link a
+            JOIN gip2_node b ON a.node_to_short_id = b.short_id
+    ) p
+    GROUP BY short_id
+    HAVING min(x) <= {{ bbox_xmax }} AND max(x) >= {{ bbox_xmin }}
+       AND min(y) <= {{ bbox_ymax }} AND max(y) >= {{ bbox_ymin }}
+);
+{% endif %}
+
+DROP TABLE IF EXISTS gip2_network_tmp;
+CREATE TABLE gip2_network_tmp AS (
+    WITH count AS (
+        SELECT a.short_id, 1 AS "order", NULL::integer AS seq, b.x, b.y
+        FROM gip2_link a JOIN gip2_node b ON a.node_from_short_id = b.short_id
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regional_code::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}]){% else %}TRUE{% endif %}
+            {% if bbox %}AND a.short_id IN (SELECT short_id FROM gip2_bbox_link){% endif %}
+        {% endif %}
+
+        UNION ALL
+
+        SELECT link_short_id AS short_id, 2 AS "order", sequence AS seq, x, y
+        FROM gip2_linkcoordinate
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}])){% else %}TRUE{% endif %}
+            {% if bbox %}AND link_short_id IN (SELECT short_id FROM gip2_bbox_link){% endif %}
+        {% endif %}
+
+        UNION ALL
+
+        SELECT a.short_id, 3 AS "order", NULL::integer AS seq, b.x, b.y
+        FROM gip2_link a JOIN gip2_node b ON a.node_to_short_id = b.short_id
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regional_code::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}]){% else %}TRUE{% endif %}
+            {% if bbox %}AND a.short_id IN (SELECT short_id FROM gip2_bbox_link){% endif %}
+        {% endif %}
+    )
+    SELECT short_id,
+           ST_SetSRID(ST_MakeLine(ST_MakePoint(x, y) ORDER BY "order", seq), 4326)::geometry(LineString, 4326) AS geom
+    FROM count
+    GROUP BY short_id
+);
+
+-- LINK.WIDTH was removed in GIP 2.0; use LINEAR_USE_PART widths instead.
+DROP TABLE IF EXISTS gip2_link_width;
+CREATE TABLE gip2_link_width AS (
+    SELECT link_short_id AS short_id,
+           MAX(width_average) FILTER (WHERE base_type = 1 AND width_average > 0) AS width_carriageway,
+           MAX(width_average) FILTER (WHERE width_average > 0) AS width_any
+    FROM gip2_linear_use_part
+    {% if regional_codes or bbox %}
+    WHERE
+        {% if regional_codes %}link_short_id IN (SELECT short_id FROM gip2_link WHERE regional_code::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}])){% else %}TRUE{% endif %}
+        {% if bbox %}AND link_short_id IN (SELECT short_id FROM gip2_bbox_link){% endif %}
+    {% endif %}
+    GROUP BY link_short_id
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_link_tmp;
+CREATE TABLE gip2_link_tmp AS (
+    SELECT a.short_id,
+           ST_Transform(a.geom, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
+           b.name_text_hr, b.short_name_hr, b.name_text_additional,
+           b.node_from_short_id AS from_node, b.node_to_short_id AS to_node,
+           b.speed_tow_car, b.speed_bkw_car, b.maxspeed_tow_car, b.maxspeed_bkw_car,
+           b.access_tow, b.access_bkw, b.functional_class,
+           b.lanes_tow_max, b.lanes_bkw_max, b.lanes_tow_min, b.lanes_bkw_min,
+           b.form_of_way, b.abutter_car, b.urban, b.level_intermediate, b.construction_state,
+           b.toll, b.subnet,
+           COALESCE(w.width_carriageway, w.width_any) AS width,
+           b.oneway_car, b.edge_category, b.sustainer, b.regional_code, b.connector, b.owner,
+           b.oneway_pedestrian, b.oneway_bike, b.oneway_bus
+    FROM gip2_network_tmp a
+        JOIN gip2_link b ON a.short_id = b.short_id
+        LEFT JOIN gip2_link_width w ON w.short_id = b.short_id
+    WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian (LSB bits 0-2)
+      AND b.form_of_way <> 7 -- Parkgarage
+      {% if regional_codes %}
+      AND b.regional_code::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}])
+      {% endif %}
+      {% if bbox %}
+      AND ST_Intersects(a.geom, ST_MakeEnvelope({{ bbox_xmin }}, {{ bbox_ymin }}, {{ bbox_xmax }}, {{ bbox_ymax }}, 4326))
+      {% endif %}
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_linkuse_tmp;
+CREATE TABLE gip2_linkuse_tmp AS (
+    SELECT a.short_id,
+           b.short_id AS lup_short_id,
+           b.offset_average AS lup_offset_average,
+           b.width_average AS lup_width_average,
+           b.width_minimal AS lup_width_minimal,
+           b.link_percentage_from AS lup_link_percentage_from,
+           b.link_percentage_to AS lup_link_percentage_to,
+           b.base_type AS lup_base_type,
+           b.access_tow AS lup_access_tow,
+           b.access_bkw AS lup_access_bkw,
+           b.surface AS lup_surface,
+           b.electric AS lup_electric,
+           b.oneway_pedestrian AS lup_oneway_pedestrian,
+           b.oneway_bike AS lup_oneway_bike,
+           b.oneway_car AS lup_oneway_car,
+           b.oneway_bus AS lup_oneway_bus,
+           c.access_tow AS bh_access_tow,
+           c.access_bkw AS bh_access_bkw,
+           c.surface AS bh_surface,
+           c.bike_signed_tow AS bh_bike_signed_tow,
+           c.bike_signed_bkw AS bh_bike_signed_bkw,
+           c.bike_recommendation_tow AS bh_bike_recommendation_tow,
+           c.bike_recommendation_bkw AS bh_bike_recommendation_bkw,
+           c.bike_feature_tow AS bh_bike_feature_tow,
+           c.bike_feature_bkw AS bh_bike_feature_bkw,
+           c.walk_feature_tow AS bh_walk_feature_tow,
+           c.walk_feature_bkw AS bh_walk_feature_bkw,
+           c.bike_difficulty_tow AS bh_bike_difficulty_tow,
+           c.bike_difficulty_bkw AS bh_bike_difficulty_bkw,
+           c.oneway_pedestrian AS bh_oneway_pedestrian,
+           c.oneway_bike AS bh_oneway_bike
+    FROM gip2_link_tmp a
+        JOIN gip2_linear_use_part b ON b.link_short_id = a.short_id
+        LEFT JOIN gip2_bikehike c ON c.short_id = b.short_id
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_node_tmp;
+CREATE TABLE gip2_node_tmp AS (
+    SELECT short_id AS node_id,
+           ST_Transform(ST_SetSRID(ST_MakePoint(x, y), 4326), {{target_srid}})::geometry(Point, {{target_srid}}) AS geom,
+           z::numeric AS elevation
+    FROM gip2_node
+);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create table "network_edge"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_edge;
+CREATE TABLE network_edge AS (
+    WITH gip2_linkuse_tmp_agg AS (
+        SELECT short_id,
+               -- Same ORDER BY on every aggregate so the semicolon lists stay aligned.
+               array_to_string(array_agg(lup_short_id ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_short_id,
+               array_to_string(array_agg(lup_base_type ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_base_type,
+               array_to_string(array_agg(lup_access_tow ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_access_tow,
+               array_to_string(array_agg(lup_access_bkw ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_access_bkw,
+               array_to_string(array_agg(lup_surface ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_surface,
+               array_to_string(array_agg(lup_electric ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_electric,
+               array_to_string(array_agg(lup_oneway_pedestrian ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_oneway_pedestrian,
+               array_to_string(array_agg(lup_oneway_bike ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_oneway_bike,
+               array_to_string(array_agg(lup_oneway_car ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_oneway_car,
+               array_to_string(array_agg(lup_oneway_bus ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_oneway_bus,
+               array_to_string(array_agg(lup_offset_average ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_offset_average,
+               array_to_string(array_agg(lup_width_average ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_width_average,
+               array_to_string(array_agg(lup_width_minimal ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_width_minimal,
+               array_to_string(array_agg(lup_link_percentage_from ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_link_percentage_from,
+               array_to_string(array_agg(lup_link_percentage_to ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS lup_link_percentage_to,
+               array_to_string(array_agg(bh_access_tow ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_access_tow,
+               array_to_string(array_agg(bh_access_bkw ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_access_bkw,
+               array_to_string(array_agg(bh_surface ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_surface,
+               array_to_string(array_agg(bh_bike_signed_tow ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_signed_tow,
+               array_to_string(array_agg(bh_bike_signed_bkw ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_signed_bkw,
+               array_to_string(array_agg(bh_bike_recommendation_tow ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_recommendation_tow,
+               array_to_string(array_agg(bh_bike_recommendation_bkw ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_recommendation_bkw,
+               array_to_string(array_agg(bh_bike_feature_tow ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_feature_tow,
+               array_to_string(array_agg(bh_bike_feature_bkw ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_feature_bkw,
+               array_to_string(array_agg(bh_walk_feature_tow ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_walk_feature_tow,
+               array_to_string(array_agg(bh_walk_feature_bkw ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_walk_feature_bkw,
+               array_to_string(array_agg(bh_bike_difficulty_tow ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_difficulty_tow,
+               array_to_string(array_agg(bh_bike_difficulty_bkw ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_bike_difficulty_bkw,
+               array_to_string(array_agg(bh_oneway_pedestrian ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_oneway_pedestrian,
+               array_to_string(array_agg(bh_oneway_bike ORDER BY lup_link_percentage_from, lup_short_id), ';', '*') AS bh_oneway_bike
+        FROM gip2_linkuse_tmp
+        GROUP BY short_id)
+    SELECT a.short_id AS edge_id,
+           a.*,
+           ST_Length(a.geom)::numeric AS length,
+           b.lup_short_id,
+           b.lup_base_type,
+           b.lup_access_tow,
+           b.lup_access_bkw,
+           b.lup_surface,
+           b.lup_electric,
+           b.lup_oneway_pedestrian,
+           b.lup_oneway_bike,
+           b.lup_oneway_car,
+           b.lup_oneway_bus,
+           b.lup_offset_average,
+           b.lup_width_average,
+           b.lup_width_minimal,
+           b.lup_link_percentage_from,
+           b.lup_link_percentage_to,
+           b.bh_access_tow,
+           b.bh_access_bkw,
+           b.bh_surface,
+           b.bh_bike_signed_tow,
+           b.bh_bike_signed_bkw,
+           b.bh_bike_recommendation_tow,
+           b.bh_bike_recommendation_bkw,
+           b.bh_bike_feature_tow,
+           b.bh_bike_feature_bkw,
+           b.bh_walk_feature_tow,
+           b.bh_walk_feature_bkw,
+           b.bh_bike_difficulty_tow,
+           b.bh_bike_difficulty_bkw,
+           b.bh_oneway_pedestrian,
+           b.bh_oneway_bike
+    FROM gip2_link_tmp a
+        LEFT JOIN gip2_linkuse_tmp_agg b USING (short_id)
+);
+
+ALTER TABLE network_edge ADD PRIMARY KEY (edge_id);
+CREATE INDEX network_edge_geom_idx ON network_edge USING gist(geom);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- create table "network_node"
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS network_node;
+CREATE TABLE network_node AS (
+    SELECT *
+    FROM gip2_node_tmp
+    WHERE node_id IN (SELECT from_node AS node_id FROM network_edge UNION
+                      SELECT to_node AS node_id FROM network_edge)
+);
+
+ALTER TABLE network_node ADD PRIMARY KEY (node_id);
+CREATE INDEX network_node_geom_idx ON network_node USING gist(geom);
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- drop tables
+-- ---------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS gip2_bbox_link, gip2_network_tmp, gip2_link_width, gip2_link_tmp, gip2_linkuse_tmp, gip2_node_tmp;

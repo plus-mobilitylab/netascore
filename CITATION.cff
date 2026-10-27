@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as follows:"
+message: "If you use this software, please cite the associated article as below."
 authors:
 - family-names: "Werner"
   given-names: "Christian"
@@ -24,6 +24,42 @@ authors:
   given-names: "Martin"
   orcid: "https://orcid.org/0000-0003-0474-3234"
 title: "NetAScore"
+version: 1.1.1
 doi: 10.5281/zenodo.7695369
-date-released: 2023-03-31
-url: "https://doi.org/10.5281/zenodo.7695369"
+date-released: 2024-03-28
+url: "https://github.com/plus-mobilitylab/netascore"
+license: MIT
+preferred-citation:
+  type: article
+  authors:
+  - family-names: "Werner"
+    given-names: "Christian"
+    orcid: "https://orcid.org/0000-0001-9406-9284"
+  - family-names: "Wendel"
+    given-names: "Robin"
+    orcid: "https://orcid.org/0000-0001-9270-2883"
+  - family-names: "Kaziyeva"
+    given-names: "Dana"
+    orcid: "https://orcid.org/0000-0001-9616-009X"
+  - family-names: "Stutz"
+    given-names: "Petra"
+  - family-names: "van der Meer"
+    given-names: "Lucas"
+    orcid: "https://orcid.org/0000-0001-6336-8628"
+  - family-names: "Effertz"
+    given-names: "Lea"
+  - family-names: "Zagel"
+    given-names: "Bernhard"
+    orcid: "https://orcid.org/0000-0003-4134-0039"
+  - family-names: "Loidl"
+    given-names: "Martin"
+    orcid: "https://orcid.org/0000-0003-0474-3234"
+  doi: "10.1177/23998083241293177"
+  journal: "Environment and Planning B: Urban Analytics and City Science"
+  month: 1
+  start: 265 # First page number
+  end: 274 # Last page number
+  title: "NetAScore: An open and extendible software for segment-scale bikeability and walkability"
+  issue: 1
+  volume: 52
+  year: 2025

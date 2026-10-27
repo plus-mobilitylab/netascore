@@ -1,27 +1,44 @@
-FROM python:3.8.17-bullseye AS buildstage
+FROM debian:trixie
 
 WORKDIR /usr/src/netascore
 
-# COPY generate_index.py .
 COPY *.py ./
 COPY core core/
 COPY resources resources/
 COPY sql sql/
 COPY toolbox toolbox/
 COPY examples examples/
-# COPY settings settings/
 COPY requirements.txt .
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && \
-    apt install -y \
-    gdal-bin \
-    libgdal-dev \
-    postgresql-client-common \
-    postgresql-client-13 \
-    osm2pgsql && \
-    rm -rf /var/lib/apt/lists/*
+ENV VIRTUAL_ENV=/opt/netascore
+ENV PATH="/opt/netascore/bin:${PATH}"
+ENV PROJ_DATA=/usr/share/proj
+# code state of NetAScore (logged and stored in the output metadata) - set by scripts/build_docker_image.py, which builds
+# the image on macOS, Linux, and Windows (local build, or multi-platform release build with --push)
+ARG NETASCORE_COMMIT=""
+ENV NETASCORE_COMMIT=${NETASCORE_COMMIT}
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        python-is-python3 \
+        gdal-bin \
+        python3-gdal \
+        python3-geopandas \
+        python3-geopy \
+        python3-psycopg2 \
+        python3-yaml \
+        postgresql-client \
+        postgis \
+        osm2pgsql \
+        osmium-tool \
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    python3 -m venv --system-site-packages /opt/netascore
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-ENTRYPOINT [ "python", "./generate_index.py" ]
+ENTRYPOINT ["python", "./generate_index.py"]

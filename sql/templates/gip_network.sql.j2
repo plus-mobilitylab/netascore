@@ -11,21 +11,58 @@ SET search_path =
 -- create tables "gip_network_tmp", "gip_link_tmp", "gip_linkuse_tmp", "gip_node_tmp"
 -- ---------------------------------------------------------------------------------------------------------------------
 
+{% if bbox %}
+DROP TABLE IF EXISTS gip_bbox_link;
+CREATE TABLE gip_bbox_link AS (
+    SELECT link_id
+    FROM (
+        SELECT a.link_id, b.x, b.y
+        FROM gip_link a
+            JOIN gip_node b ON a.from_node = b.node_id
+        UNION ALL
+        SELECT link_id, x, y
+        FROM gip_linkcoordinate
+        UNION ALL
+        SELECT a.link_id, b.x, b.y
+        FROM gip_link a
+            JOIN gip_node b ON a.to_node = b.node_id
+    ) p
+    GROUP BY link_id
+    HAVING min(x) <= {{ bbox_xmax }} AND max(x) >= {{ bbox_xmin }}
+       AND min(y) <= {{ bbox_ymax }} AND max(y) >= {{ bbox_ymin }}
+);
+{% endif %}
+
 DROP TABLE IF EXISTS gip_network_tmp;
 CREATE TABLE gip_network_tmp AS ( -- 22 s, 1.947.374
     WITH count AS (
         SELECT a.link_id, 1 AS "order", NULL AS count, b.x, b.y
         FROM gip_link a JOIN gip_node b ON a.from_node = b.node_id
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}]){% else %}TRUE{% endif %}
+            {% if bbox %}AND a.link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
+        {% endif %}
 
         UNION ALL
 
         SELECT link_id, 2 AS "order", count, x, y
         FROM gip_linkcoordinate
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}link_id IN (SELECT link_id FROM gip_link WHERE regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}])){% else %}TRUE{% endif %}
+            {% if bbox %}AND link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
+        {% endif %}
 
         UNION ALL
 
         SELECT a.link_id, 3 AS "order", NULL AS count, b.x, b.y
         FROM gip_link a JOIN gip_node b ON a.to_node = b.node_id
+        {% if regional_codes or bbox %}
+        WHERE
+            {% if regional_codes %}a.regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}]){% else %}TRUE{% endif %}
+            {% if bbox %}AND a.link_id IN (SELECT link_id FROM gip_bbox_link){% endif %}
+        {% endif %}
     )
     SELECT link_id,
            ST_SetSRID(ST_MakeLine(ST_MakePoint(x, y) ORDER BY "order", count), 4326)::geometry(LineString, 4326) AS geom
@@ -39,22 +76,59 @@ DROP TABLE IF EXISTS gip_link_tmp;
 CREATE TABLE gip_link_tmp AS ( -- 14 s, 1.894.917
     SELECT a.link_id,
            ST_Transform(a.geom, {{target_srid}})::geometry(LineString, {{target_srid}}) AS geom,
-           b.name1, b.from_node, b.to_node, b.speed_tow_car, b.speed_bkw_car, b.speed_tow_truck, b.speed_bkw_truck,
-           b.maxspeed_tow_car, b.maxspeed_bkw_car, b.maxspeed_tow_truck, b.maxspeed_bkw_truck, b.access_tow,
-           b.access_bkw, b.funcroadclass, b.lanes_tow, b.lanes_bkw, b.formofway, b.width, b.oneway, b.streetcat
+           b.name1, b.name2, b.from_node, b.to_node,
+           b.speed_tow_car, b.speed_bkw_car, b.speed_tow_truck, b.speed_bkw_truck,
+           b.maxspeed_tow_car, b.maxspeed_bkw_car, b.maxspeed_tow_truck, b.maxspeed_bkw_truck,
+           b.access_tow, b.access_bkw, b.funcroadclass, b.cap_tow, b.cap_bkw, b.lanes_tow, b.lanes_bkw,
+           b.formofway, b.brunnel, b.maxheight, b.maxwidth, b.maxpressure, b.abutter_car, b.abutter_lorry,
+           b.u_turn, b.slope, b.urban, b.width, b.level, b.baustatus, b.toll, b.subnet_id, b.oneway,
+           b.blt, b.blb, b.streetcat, b.agg_typ, b.sustainer, b.regcode, b.dbcon
     FROM gip_network_tmp a
         JOIN gip_link b USING (link_id)
     WHERE (b.access_tow::bit(8) | b.access_bkw::bit(8) & '00000111'::bit(8))::int > 0 -- access = car, bicycle, pedestrian
       AND b.formofway <> 7 -- Parkgarage
+      {% if regional_codes %}
+      AND b.regcode::text LIKE ANY (ARRAY[{% for code in regional_codes %}{{ code }}{% if not loop.last %}, {% endif %}{% endfor %}])
+      {% endif %}
+      {% if bbox %}
+      AND ST_Intersects(a.geom, ST_MakeEnvelope({{ bbox_xmin }}, {{ bbox_ymin }}, {{ bbox_xmax }}, {{ bbox_ymax }}, 4326))
+      {% endif %}
 );
 
 -- ---------------------------------------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS gip_linkuse_tmp;
 CREATE TABLE gip_linkuse_tmp AS ( -- 17 s, 2.306.250
-    SELECT b.*,
-           ST_LineSubstring(ST_OffsetCurve(a.geom, b.offset_), b.from_percent / 100, b.to_percent / 100) AS geom,
-           c.bikeenvironment, c.bikesignedtow, c.bikesignedbkw, c.bikefeaturetow, c.bikefeaturebkw
+    SELECT b.link_id,
+           b.use_id AS lu_use_id,
+           b.count AS lu_count,
+           b.offset_ AS lu_offset,
+           b.width AS lu_width,
+           b.minwidth AS lu_minwidth,
+           b.from_percent AS lu_from_percent,
+           b.to_percent AS lu_to_percent,
+           b.basetype AS lu_basetype,
+           b.use_access_tow AS lu_use_access_tow,
+           b.use_access_bkw AS lu_use_access_bkw,
+           b.surface AS lu_surface,
+           b.electric AS lu_electric,
+           c.use_access_tow AS bh_use_access_tow,
+           c.use_access_bkw AS bh_use_access_bkw,
+           c.bikeenvironment AS bh_bikeenvironment,
+           c.bikequalitytow AS bh_bikequalitytow,
+           c.bikequalitybkw AS bh_bikequalitybkw,
+           c.bikedirecttow AS bh_bikedirecttow,
+           c.bikedirectbkw AS bh_bikedirectbkw,
+           c.bikesignedtow AS bh_bikesignedtow,
+           c.bikesignedbkw AS bh_bikesignedbkw,
+           c.bikerecommtow AS bh_bikerecommtow,
+           c.bikerecommbkw AS bh_bikerecommbkw,
+           c.bikewithfoottow AS bh_bikewithfoottow,
+           c.bikewithfootbkw AS bh_bikewithfootbkw,
+           c.bikefeaturetow AS bh_bikefeaturetow,
+           c.bikefeaturebkw AS bh_bikefeaturebkw,
+           c.walkfeaturetow AS bh_walkfeaturetow,
+           c.walkfeaturebkw AS bh_walkfeaturebkw
     FROM gip_link_tmp a
         JOIN gip_linkuse b USING (link_id)
         LEFT JOIN gip_bikehike c USING (use_id)
@@ -78,27 +152,70 @@ DROP TABLE IF EXISTS network_edge;
 CREATE TABLE network_edge AS ( -- 20 s, 1.894.917
     WITH gip_linkuse_tmp_agg AS (
         SELECT link_id,
-               array_to_string(array_agg(use_id), ';', '*') AS use_id,
-               array_to_string(array_agg(basetype), ';', '*') AS basetype,
-               array_to_string(array_agg(offset_), ';', '*') AS offset_,
-               array_to_string(array_agg(bikeenvironment), ';', '*') AS bikeenvironment,
-               array_to_string(array_agg(bikesignedtow), ';', '*') AS bikesignedtow,
-               array_to_string(array_agg(bikesignedbkw), ';', '*') AS bikesignedbkw,
-               array_to_string(array_agg(bikefeaturetow), ';', '*') AS bikefeaturetow,
-               array_to_string(array_agg(bikefeaturebkw), ';', '*') AS bikefeaturebkw
+               -- Same ORDER BY on every aggregate so the semicolon lists stay aligned.
+               array_to_string(array_agg(lu_use_id ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_use_id,
+               array_to_string(array_agg(lu_count ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_count,
+               array_to_string(array_agg(lu_offset ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_offset,
+               array_to_string(array_agg(lu_width ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_width,
+               array_to_string(array_agg(lu_minwidth ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_minwidth,
+               array_to_string(array_agg(lu_from_percent ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_from_percent,
+               array_to_string(array_agg(lu_to_percent ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_to_percent,
+               array_to_string(array_agg(lu_basetype ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_basetype,
+               array_to_string(array_agg(lu_use_access_tow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_use_access_tow,
+               array_to_string(array_agg(lu_use_access_bkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_use_access_bkw,
+               array_to_string(array_agg(lu_surface ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_surface,
+               array_to_string(array_agg(lu_electric ORDER BY lu_from_percent, lu_use_id), ';', '*') AS lu_electric,
+               array_to_string(array_agg(bh_use_access_tow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_use_access_tow,
+               array_to_string(array_agg(bh_use_access_bkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_use_access_bkw,
+               array_to_string(array_agg(bh_bikeenvironment ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikeenvironment,
+               array_to_string(array_agg(bh_bikequalitytow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikequalitytow,
+               array_to_string(array_agg(bh_bikequalitybkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikequalitybkw,
+               array_to_string(array_agg(bh_bikedirecttow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikedirecttow,
+               array_to_string(array_agg(bh_bikedirectbkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikedirectbkw,
+               array_to_string(array_agg(bh_bikesignedtow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikesignedtow,
+               array_to_string(array_agg(bh_bikesignedbkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikesignedbkw,
+               array_to_string(array_agg(bh_bikerecommtow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikerecommtow,
+               array_to_string(array_agg(bh_bikerecommbkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikerecommbkw,
+               array_to_string(array_agg(bh_bikewithfoottow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikewithfoottow,
+               array_to_string(array_agg(bh_bikewithfootbkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikewithfootbkw,
+               array_to_string(array_agg(bh_bikefeaturetow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikefeaturetow,
+               array_to_string(array_agg(bh_bikefeaturebkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_bikefeaturebkw,
+               array_to_string(array_agg(bh_walkfeaturetow ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_walkfeaturetow,
+               array_to_string(array_agg(bh_walkfeaturebkw ORDER BY lu_from_percent, lu_use_id), ';', '*') AS bh_walkfeaturebkw
         FROM gip_linkuse_tmp
         GROUP BY link_id)
     SELECT a.link_id AS edge_id,
            a.*,
-           ST_Length(a.geom) AS length,
-           b.use_id,
-           b.basetype,
-           b.offset_,
-           b.bikeenvironment,
-           b.bikesignedtow,
-           b.bikesignedbkw,
-           b.bikefeaturetow,
-           b.bikefeaturebkw
+           ST_Length(a.geom)::numeric AS length,
+           b.lu_use_id,
+           b.lu_count,
+           b.lu_offset,
+           b.lu_width,
+           b.lu_minwidth,
+           b.lu_from_percent,
+           b.lu_to_percent,
+           b.lu_basetype,
+           b.lu_use_access_tow,
+           b.lu_use_access_bkw,
+           b.lu_surface,
+           b.lu_electric,
+           b.bh_use_access_tow,
+           b.bh_use_access_bkw,
+           b.bh_bikeenvironment,
+           b.bh_bikequalitytow,
+           b.bh_bikequalitybkw,
+           b.bh_bikedirecttow,
+           b.bh_bikedirectbkw,
+           b.bh_bikesignedtow,
+           b.bh_bikesignedbkw,
+           b.bh_bikerecommtow,
+           b.bh_bikerecommbkw,
+           b.bh_bikewithfoottow,
+           b.bh_bikewithfootbkw,
+           b.bh_bikefeaturetow,
+           b.bh_bikefeaturebkw,
+           b.bh_walkfeaturetow,
+           b.bh_walkfeaturebkw
     FROM gip_link_tmp a
         LEFT JOIN gip_linkuse_tmp_agg b USING (link_id)
 );
@@ -125,4 +242,4 @@ CREATE INDEX network_node_geom_idx ON network_node USING gist(geom); -- 7 s
 -- drop tables
 -- ---------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE IF EXISTS gip_network_tmp, gip_link_tmp, gip_linkuse_tmp, gip_node_tmp;
+DROP TABLE IF EXISTS gip_bbox_link, gip_network_tmp, gip_link_tmp, gip_linkuse_tmp, gip_node_tmp;

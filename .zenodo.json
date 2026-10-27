@@ -1,0 +1,28 @@
+{
+  "title": "NetAScore",
+  "upload_type": "software",
+  "creators": [
+    {"name": "Werner, Christian", "orcid": "0000-0001-9406-9284"},
+    {"name": "Wendel, Robin", "orcid": "0000-0001-9270-2883"},
+    {"name": "Kaziyeva, Dana", "orcid": "0000-0001-9616-009X"},
+    {"name": "Stutz, Petra"},
+    {"name": "van der Meer, Lucas", "orcid": "0000-0001-6336-8628"},
+    {"name": "Effertz, Lea"},
+    {"name": "Zagel, Bernhard", "orcid": "0000-0003-4134-0039"},
+    {"name": "Loidl, Martin", "orcid": "0000-0003-0474-3234"}
+  ],
+  "license": "mit",
+  "access_right": "open",
+  "communities": [
+    {"identifier": "netascore"}
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.1177/23998083241293177",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-article",
+      "scheme": "doi"
+    }
+  ],
+  "notes": "<p>If you use this software, please cite it as follows (APA-Style):</p>\n<p>Werner, C., Wendel, R., Kaziyeva, D., Stutz, P., van der Meer, L., Effertz, L., Zagel, B., &amp; Loidl, M. (2025). NetAScore: An open and extendible software for segment-scale bikeability and walkability. <em>Environment and Planning B: Urban Analytics and City Science</em>, <em>52</em>(1), 265-274. <a href=\"https://doi.org/10.1177/23998083241293177\">https://doi.org/10.1177/23998083241293177</a></p>\n<p>For specific software versions you may refer to the respective Zenodo entry with its DOI.</p>"
+}

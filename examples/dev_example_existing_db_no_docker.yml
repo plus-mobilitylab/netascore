@@ -1,12 +1,31 @@
-version: 1.0
-# for local execution without docker container and PostgresDB on localhost
+version: 2.0
+# development example: NetAScore running locally without Docker, using existing PostgreSQL database on the local machine
+# - see https://plus-mobilitylab.github.io/netascore-documentation/Run-NetAScore-manually-with-Python.html
+# all settings and options: https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html
+global:
+  case_id: dev_salzburg
 database:
   host: localhost
-  port: 5432              # port of existing PostgreSQL server on localhost
+  port: 5432              # port of the PostgreSQL server
   dbname: postgres        # target database
-  username: postgres      # local postgres user
+  username: postgres      # preferably given as environment variables DB_USERNAME and DB_PASSWORD instead
   password: postgres
-  on_existing: abort # skip, delete, abort
 import:
-  type: gip
-  filename_A: A_routingexport_ogd_split.zip
+  type: osm
+  on_existing: reuse_or_overwrite # reuse (default), reuse_or_overwrite, overwrite, abort
+  place_name: Salzburg  # OSM download for the area of interest (Overpass API)
+  interactive: False
+  buffer: 1000
+  clip: bbox
+profiles:
+  -
+    profile_name: bike
+    filename: profile_bike.yml
+    filter_access_bike: True
+  -
+    profile_name: walk
+    filename: profile_walk.yml
+    filter_access_walk: True
+export:
+  type: geopackage
+  filename: netascore_<case_id>.gpkg

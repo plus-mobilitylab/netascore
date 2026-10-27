@@ -1,127 +1,186 @@
 import argparse
-import sys
-import yaml
+import os
 import re
-from typing import List
+import subprocess
+import sys
+import traceback
+import yaml
 
 import toolbox.helper as h
 from core.attributes_step import create_attributes_step
 from core.db_step import DbStep
 from core.export_step import create_exporter
-from core.import_step import create_importer
+from core.import_step import OsmImporter, create_importer, get_stored_aoi_srid, osm_skip_datasets
 from core.index_step import generate_index, load_profiles
 from core.network_step import create_network_step
 from core.optional_step import run_optional_importers
-from settings import DbSettings, GlobalSettings
+from core import metadata
+from settings import DbSettings, GlobalSettings, netascore_code_pushed, netascore_code_url, netascore_version_info, warn_unknown_settings
 
-parser = argparse.ArgumentParser(description='TODO: add description')
+parser = argparse.ArgumentParser(description='NetAScore: Network Assessment Score Toolbox for Sustainable Mobility',
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,  # epilog: URL not wrapped
+                                 epilog="documentation of the settings:\n"
+                                        "  https://plus-mobilitylab.github.io/netascore-documentation/Configuration-of-the-settings.html")
 parser.add_argument('settings_file', type=argparse.FileType('r', encoding='utf-8'),
-                    help='TODO: write detailed description here')
-parser.add_argument('--skip', nargs='+', choices=['import', 'optional', 'network', 'attributes', 'index', 'export'],
-                    help='skip one or more of these steps - e.g. "--skip import optional"')
+                    help="""file that contains all settings (input data, referenced mode profiles,...) - e.g.
+                    examples/settings_osm_query.yml (example for Salzburg, Austria - its database settings are for the Docker setup)""")
+parser.add_argument('--skip', nargs='+', choices=['import', 'network', 'optional', 'attributes', 'index', 'export'],
+                    help='skip one or more of these steps (in order of execution) - e.g. "--skip import network"')
 parser.add_argument('--loglevel', nargs=1, choices=["1", "2", "3", "4"],
                     help="Sets the level of debug outputs on the console: 1=MajorInfo, 2=Info, 3=Detailed, 4=Debug")
 
 args = parser.parse_args()
 settings_stream = args.settings_file
 skip_steps = args.skip or []
-base_path = settings_stream.name.rsplit('/', 1)[0]
+# directory of the settings file (mode profiles are referenced relative to it); backslashes are accepted as separator
+# on all systems; no directory given (e.g. 'settings.yml'): current directory
+base_path = os.path.dirname(settings_stream.name.replace("\\", "/")) or "."
 if args.loglevel:
     h.verbose_level = int(args.loglevel[0])
     h.majorInfo(f"using log level {h.verbose_level}")
 
+
+def handle_exception(exc_type, exc, tb):
+    """Reports errors that terminate NetAScore as one line - include the traceback from log level 3 on."""
+    detailed = h.get_current_log_level() >= h.LOG_LEVEL_3_DETAILED
+    if detailed:
+        traceback.print_exception(exc_type, exc, tb)
+    if issubclass(exc_type, KeyboardInterrupt):
+        h.majorInfo("Interrupted by user. Terminating.")
+        return
+    if issubclass(exc_type, subprocess.CalledProcessError):
+        tool = exc.cmd[0] if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd).split()[0]
+        message = f"the external tool '{os.path.basename(str(tool))}' failed (exit status {exc.returncode}) - see its output above"
+    elif exc_type is Exception:
+        message = re.sub(r"^error[:\s]+", "", str(exc).strip(), flags=re.IGNORECASE)  # messages raised by NetAScore
+    else:
+        message = f"{exc_type.__name__}: {exc}"  # unexpected errors (e.g. database or GDAL errors)
+    h.majorInfo(f"ERROR: {message}" + ("" if detailed else "\n(run with '--loglevel 3' to show details of the error)"))
+
+
+sys.excepthook = handle_exception
+
+h.majorInfo(f"Running NetAScore version {netascore_version_info()}")
+if netascore_code_url():
+    h.info(f"code: {netascore_code_url()}" + (" (commit not pushed yet)" if netascore_code_pushed() is False else ""))
 h.info(f'loading {settings_stream.name}')
 h.info(f'skip steps: {str(skip_steps)}')
 
-def require_allowed_value(setting_value: str, setting_name: str, allowed: List[str]):
-    for value in allowed:
-        if value == setting_value:
-            return
-
-    h.majorInfo(setting_name + ': ' + setting_value + ' is not one of the allowed values: ' + ' '.join(allowed))
-    sys.exit(1)
-
-
 def require_on_existing_setting(settings: dict):
     if 'on_existing' not in settings:
-        h.info('defaulting \'on_existing\' to \'skip\'')
-        settings['on_existing'] = 'skip'
-    require_allowed_value(settings['on_existing'], 'on_existing', ['skip', 'delete', 'abort'])
+        h.info('defaulting \'on_existing\' to \'reuse\'')
+    settings['on_existing'] = h.normalize_on_existing(settings.get('on_existing'), "section 'import'", default='reuse')
 
 
 with settings_stream:
     settings: dict = yaml.safe_load(settings_stream)
+    h.require_file_version(settings, settings_stream.name, "examples/settings_osm_query.yml")
+    warn_unknown_settings(settings)
 
     # process global settings if given
     if h.has_keys(settings, ['global']):
-        global_settings: dict = settings['global']
+        global_settings: dict = h.get_section(settings, 'global')
         if h.has_keys(global_settings, ['target_srid']):
             GlobalSettings.custom_srid = h.str_to_numeric(re.sub("[^0-9]", "", str(global_settings['target_srid'])))
             h.info(f"Set the target SRID to {GlobalSettings.get_target_srid()}")
         if h.has_keys(global_settings, ['case_id']):
             GlobalSettings.case_id = re.sub("[^a-zA-Z0-9_]", "", str(global_settings['case_id']))
+            # the case_id names the AOI (max. 40 characters) and the database schema of the case
+            if len(GlobalSettings.case_id) > 40:
+                raise Exception(f"The case_id '{GlobalSettings.case_id}' is too long ({len(GlobalSettings.case_id)} characters). "
+                                "Please use a case_id with at most 40 characters (letters, digits, and underscores).")
     
     db_settings: DbSettings = DbSettings.from_dict(settings.get('database'))
+
+    # without a custom target SRID, re-use the SRID determined for the AOI of this case in a previous import
+    # (keeps the same CRS for all steps, e.g. when skipping the import step); otherwise the default SRID is used
+    if GlobalSettings.custom_srid is None:
+        aoi_srid = get_stored_aoi_srid(db_settings)
+        if aoi_srid:
+            GlobalSettings.default_srid = aoi_srid
+            GlobalSettings.stored_aoi_srid = aoi_srid
+            h.info(f"using the target SRID determined for case '{GlobalSettings.case_id}' in a previous import: EPSG:{aoi_srid}")
 
     # check if all required sections are present first before taking any actions
     if 'import' not in skip_steps:
         h.require_keys(settings, ['import'], 'error: section missing:')
     if 'export' not in skip_steps:
         h.require_keys(settings, ['export'], 'error: section missing:')
+    profiles = None
     if 'index' not in skip_steps:
         h.require_keys(settings, ['profiles'], 'error: section missing:')
+        if not isinstance(settings['profiles'], list) or len(settings['profiles']) == 0:
+            h.majorInfo("error: section 'profiles' needs to contain a list of mode profiles (each with 'profile_name' and 'filename').")
+            sys.exit(1)
+        profiles = load_profiles(base_path, settings['profiles'])
+
+    # record information on this run (exported as metadata to the output)
+    metadata.start_run(db_settings, settings, os.path.basename(settings_stream.name), skip_steps)
 
     # execute processing steps
     if 'import' not in skip_steps:
-        h.majorInfo(' === importing ===')
+        h.section('=== importing ===')
+        metadata.start_step('import')
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         importer: DbStep = create_importer(db_settings, import_settings['type'])
+        if isinstance(importer, OsmImporter):
+            # datasets given as optional import (e.g. GeoPackage for 'building') are not derived from OSM
+            importer.skip_datasets = osm_skip_datasets(settings.get('optional'))
         importer.run_step(import_settings)
+        metadata.record_import_file(db_settings, import_settings)
+        metadata.complete_step(db_settings, 'import')
     else:
-        h.majorInfo(' === skipping import ===')
-
-    if 'optional' not in skip_steps and 'optional' in settings:
-        h.majorInfo(' === running optional importers ===')
-        run_optional_importers(db_settings, settings.get('optional'))
+        h.section('=== skipping import ===')
 
     if 'network' not in skip_steps and 'import' in settings:
-        # TODO: specify settings key that is needed by the network step
-        h.majorInfo(' === running network step ===')
-        # TODO: add error handling for import_settings
-        # TODO: code repetition
+        h.section('=== running network step ===')
+        metadata.start_step('network')
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         network_step: DbStep = create_network_step(db_settings, import_settings['type'])
         network_step.run_step(import_settings)
+        metadata.complete_step(db_settings, 'network')
+
+    # optional import runs after the network step in V2.0 to allow for clipping optional imports 
+    # to the spatial extent of the imported network
+    if 'optional' not in skip_steps and 'optional' in settings:
+        h.section('=== running optional importers ===')
+        metadata.start_step('optional')
+        run_optional_importers(db_settings, h.get_section(settings, 'optional'), h.get_section(settings, 'import').get('type'))
+        metadata.complete_step(db_settings, 'optional')
 
     if 'attributes' not in skip_steps and 'import' in settings:
-        # TODO: specify settings key that is needed by the attributes step
-        h.majorInfo(' === running attributes step ===')
-        # TODO: add error handling for import_settings
-        # TODO: code repetition
+        h.section('=== running attributes step ===')
+        metadata.start_step('attributes')
         import_settings: dict = settings['import']
         h.require_keys(import_settings, ['type'], 'error: import section is missing:')
         require_on_existing_setting(import_settings)
         attributes_step: DbStep = create_attributes_step(db_settings, import_settings['type'])
-        attributes_step.run_step(import_settings)
+        attributes_step.run_step(import_settings, settings.get('export'))
+        metadata.complete_step(db_settings, 'attributes')
 
     if 'index' not in skip_steps:
-        h.majorInfo(' === generating index ===')
-        mode_profile_settings: dict = settings['profiles']
-        profiles = load_profiles(base_path, mode_profile_settings)
+        h.section('=== generating index ===')
+        metadata.start_step('index')
         index_settings: dict = None
         if h.has_keys(settings, ['index']):
             index_settings = settings['index']
         generate_index(db_settings, profiles, index_settings)
+        metadata.record_profiles(db_settings, profiles)
+        metadata.complete_step(db_settings, 'index')
 
     if 'export' not in skip_steps:
-        h.majorInfo(' === exporting ===')
+        h.section('=== exporting ===')
+        metadata.start_step('export')
         export_settings: dict = settings['export']
         h.require_keys(export_settings, ['type'], 'error: export section is missing:')
         exporter: DbStep = create_exporter(db_settings, export_settings['type'])
         exporter.run_step(export_settings)
     else:
         h.majorInfo('skipping export (as listed in skip_steps)')
+
+    metadata.record_run_duration(db_settings)
+    metadata.print_run_summary(db_settings)

@@ -1,0 +1,16 @@
+name: netascore
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - gdal
+  - geopandas>=1.0
+  - geopy
+  - libgdal-pg  # PostgreSQL driver of GDAL (plugin); not 'libgdal' (all GDAL plugins): conflicts with osm2pgsql
+  - osm2pgsql>=1.9  # flex output
+  - osmium-tool
+  - psycopg2
+  - pyyaml
+  - pip
+  - pip:
+    - jinjasql2

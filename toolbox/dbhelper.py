@@ -1,8 +1,10 @@
+import os
+from urllib.parse import quote
+
 import psycopg2 as psy
 import toolbox.helper as h
 from jinjasql import JinjaSql
 from typing import List
-import re
 
 
 class PostgresConnection:
@@ -11,17 +13,16 @@ class PostgresConnection:
     # creates a PostgresConnection object from settings object instead of individual params
     def from_settings_object(settings_object):
         return PostgresConnection(settings_object.dbname, settings_object.username, settings_object.password, 
-                settings_object.host or None, settings_object.port or None, settings_object.on_existing)
+                settings_object.host or None, settings_object.port or None)
 
     # constructor
-    def __init__(self, dbname: str, user: str = "postgres", pw: str = "postgres", host: str = "localhost", port: int = 5432, on_existing: str = "abort"):
+    def __init__(self, dbname: str, user: str = "postgres", pw: str = "postgres", host: str = "localhost", port: int = 5432):
         self._dbname = dbname
         self._user = user
         self._pw = pw
         self._host = host
         self._port = port
         self._schema = "public"
-        self._on_existing = on_existing
         
     _con = None
     _cur = None
@@ -46,31 +47,39 @@ class PostgresConnection:
     def dbname(self):
         return self._dbname
 
-    # read-only connection string
+    # connection strings for external tools without password - it is passed as env var PGPASSWORD
     def get_connection_string(self) -> str:
-        return f"postgresql://{self.user}:{self.pw}@{self.host}:{str(self.port)}/{self.dbname}"
+        """Connection URI (user and database name URL-encoded)."""
+        user = f"{quote(str(self.user), safe='')}@" if self.user else ""
+        return f"postgresql://{user}{self.host}:{str(self.port)}/{quote(str(self.dbname), safe='')}"
     connection_string: str = property(get_connection_string)
 
     def get_connection_string_old(self) -> str:
-        if self.pw:
-            return f"dbname='{self.dbname}' host='{self.host}' port='{str(self.port)}' user='{self.user}' password='{self.pw}'"
-        else:
-            return f"dbname='{self.dbname}' host='{self.host}' port='{str(self.port)}' user='{self.user}'"
+        """Key/value connection string (e.g. for ogr2ogr 'PG:...'; values quoted, backslashes and quotes escaped)."""
+        value = lambda v: "'" + str(v).replace("\\", "\\\\").replace("'", "\\'") + "'"
+        return f"dbname={value(self.dbname)} host={value(self.host)} port={value(self.port)} user={value(self.user)}"
     connection_string_old: str = property(get_connection_string_old)
+
+    def tool_env(self) -> dict:
+        """Environment for external tools connecting to the database"""
+        env = dict(os.environ)
+        if self.pw:
+            env["PGPASSWORD"] = str(self.pw)
+        return env
 
     def connect(self):
         # skip if already connected
         if self._con:
             return
         # connect
-        h.log(f"connecting to database '{self._dbname}' on {self._host}:{self._port}...")
+        h.debugLog(f"connecting to database '{self._dbname}' on {self._host}:{self._port}...")
         # create db connection
         try:
             self._con:psy.connection = psy.connect(dbname = self._dbname, host = self._host, port = self._port, user = self._user, password = self._pw,
                 connect_timeout=3, keepalives=1, keepalives_idle=5, keepalives_interval=2, keepalives_count=2)       
         except psy.Error as e:
-            h.log(f"ERROR while connecting to database: Error {e.pgcode} - {e.pgerror}")
-            raise Exception("ERROR while connecting to database. Terminating.")
+            h.majorInfo(f"ERROR while connecting to database '{self._dbname}' on {self._host}:{self._port}: {str(e).strip()}")
+            raise Exception("Could not connect to the database.") from None
         # retreive cursor
         self._cur:psy.cursor = self._con.cursor()
     
@@ -108,7 +117,7 @@ class PostgresConnection:
     # define extended setters and getters
 
     def set_working_schema(self, schema: str):
-        print(f"setting working schema to: {schema}, public")
+        h.log(f"setting working schema to: {schema}, public")
         self.ex(f"SET search_path = {schema}, public")
         self._schema = schema
 
@@ -138,27 +147,24 @@ class PostgresConnection:
             if commit_before_close:
                 self._con.commit()
             self._con.close()
-            print("DB connection closed.")
+            h.debugLog("DB connection closed.")
             self._con = None
             self._cur = None
         else:
-            print("ERROR closing connection: no connection available.")
+            h.debugLog("closing connection: no connection available.")
 
     # own methods
 
     def init_extensions_and_schema(self, schema):
         # create extensions
-        h.log('create extensions')
         self.create_extension("postgis", "public")
         self.create_extension("postgis_raster", "public")
         self.create_extension("hstore", "public")
 
         # create schema
-        h.log("create schema '{schema}' if not exists")
         self.create_schema(schema)
 
         # set search path
-        h.log('set search path')
         self.schema = schema
         self.commit()
 
@@ -167,9 +173,8 @@ class PostgresConnection:
     def exists(self, entity: str, schema: str = None) -> bool:
         if schema == None:
             schema = self.schema
-        h.log(f"Checking whether entity exists: SELECT to_regclass('{schema + '.' + entity}');", h.LOG_LEVEL_4_DEBUG)
         result = self.query_one(f"SELECT to_regclass('{schema + '.' + entity}');")[0] != None
-        h.log(f"...returned {result}")
+        h.debugLog(f"entity '{schema}.{entity}' exists: {result}")
         return result
     
     def use_if_exists(self, entity: str, schema: str = None) -> str:
@@ -201,19 +206,6 @@ class PostgresConnection:
         else:
             self._con.set_session(readonly=False, autocommit=False)
 
-    def vacuum(self, table, schema = None):
-        # need to enable auto-commit for VACUUM command - not possible in transaction mode
-        self.set_autocommit(True, pre_commit=True)
-        if schema == None:
-            self.ex("VACUUM FULL ANALYZE " + table)
-        else:
-            self.ex("VACUUM FULL ANALYZE " + schema + "." + table)
-        # reset to manual commit again
-        self.set_autocommit(False)
-
-    def helper_replace_vacuum_statements(self, sql_string) -> str:
-        return re.sub("vacuum full analyze", "ANALYZE", sql_string, flags=re.I)
-
     def geom_reproject(self, table, geomType, srid):
         h.log(f"reprojecting {geomType} geometry in table {table} to SRID {srid}", h.LOG_LEVEL_2_INFO)
         self.ex("""ALTER TABLE """ + table + """ 
@@ -223,7 +215,7 @@ class PostgresConnection:
         self.commit()
 
     def create_extension(self, extension: str, schema: str = None):
-        h.log(f"creating extension: {extension}")
+        h.debugLog(f"creating extension: {extension}")
         if schema != None and len(schema) > 0:
             self.ex(f"CREATE EXTENSION IF NOT EXISTS {extension} WITH SCHEMA {schema};")
         else:
@@ -242,9 +234,16 @@ class PostgresConnection:
         else:
             self.ex(f"ALTER TABLE {schema}.{table} ADD PRIMARY KEY ({', '.join(columns)});")
 
+    def add_index(self, table: str, columns: List[str], name: str = None, schema: str = None):
+        if name is None:
+            name = f"{table}_{'_'.join(columns)}_idx"
+        qualified = f"{schema}.{table}" if schema else table
+        h.log(f"Creating index {name} on {qualified} ({', '.join(columns)})")
+        self.ex(f"CREATE INDEX IF NOT EXISTS {name} ON {qualified} ({', '.join(columns)});")
+
     def drop_table(self, table, cascade: bool = True, schema: str = None):
         casc = "CASCADE" if cascade else ""
-        h.log(f"Dropping table {table} if exists {casc}")
+        h.debugLog(f"Dropping table {table} if exists {casc}")
         if schema == None:
             self.ex(f"DROP TABLE IF EXISTS {table} {casc};")
         else:
@@ -267,26 +266,17 @@ class PostgresConnection:
                 raise Exception(
                     f"ERROR: at least one of the input tables does not exist. Please resolve issue and try again. Table: '{schema}.{table}'")
     
-    def handle_conflicting_output_tables(self, tables: List[str], schema: str = None, on_existing:str = None)->bool:
-        # returns True if tables were dropped or are not existing and process can continue normally, False if step should be skipped
-        if on_existing is None:
-            on_existing = self._on_existing
-        t_exists:bool = False
-        for table in tables:
-            if self.exists(table, schema):
-                t_exists = True
-        if not t_exists:
-            return True # no conflicts -> all good
-        if on_existing == "skip":
-            return False # return False, calling code needs to handle skipping of step
-        if on_existing == "delete":
-            for table in tables:
-                if self.exists(table, schema):
-                    self.drop_table(table, cascade=True, schema = schema)
+    def handle_conflicting_output_tables(self, tables: List[str], schema: str = None) -> bool:
+        """Prepares the output tables of a processing step: existing tables are replaced (dropped), as running a step
+        means creating its outputs (steps can be skipped with the command line option '--skip' if needed).
+        Always returns True (process can continue normally)."""
+        existing = [table for table in tables if self.exists(table, schema)]
+        for table in existing:
+            self.drop_table(table, cascade=True, schema=schema)
+        if existing:
             self.commit()
-            return True
-        # case "abort" / in general: throw Error
-        raise Exception("Output table(s) already exist. Please resolve conflict manually or specify 'on_existing' parameter to delete or skip existing tables.")
+            h.log(f"replaced existing output table(s): {', '.join(existing)}")
+        return True
 
     def execute_sql_from_file(self, script_file_name, subdir:str="sql/"):
         if not subdir.endswith("/") or subdir.endswith("\\"):
@@ -311,9 +301,6 @@ class PostgresConnection:
         j = JinjaSql(param_style='pyformat')
         query, bind_params = j.prepare_query(template, template_params)
         h.log("query: " + str(query), h.LOG_LEVEL_4_DEBUG)
-        #dbg_file = open("debug_sql.sql", "w")
-        #n = dbg_file.write(query)
-        #dbg_file.close()
         h.log("bind params: " + str(bind_params), h.LOG_LEVEL_4_DEBUG)
         self.ex(query, bind_params)
         # TODO: error handling and reporting
@@ -323,13 +310,10 @@ class PostgresConnection:
         h.log(f"Loading SQL template from '{template_subdir}{template_file_name}.sql.j2'...")
         with open(f"{template_subdir}{template_file_name}.sql.j2", "r") as sqlfile:
             sql = sqlfile.read()
-        # current workaround for vacuum full analyze not working in multiple-statement SQL string: replace with ANALYZE
-        # see issue on Gitlab for further info
-        sql = self.helper_replace_vacuum_statements(sql) # TODO: remove in future
         # execute SQL
-        h.log("Executing SQL statements...")
+        h.debugLog("Executing SQL statements...")
         if autocommit:
-            self.set_autocommit(True, pre_commit=True) # set autocommit TRUE, so VACUUM can take place in SQL
+            self.set_autocommit(True, pre_commit=True) # each statement of the template is committed on its own
         self.execute_sql_template_string(sql, parameters, override_parameters)
         if autocommit:
             self.set_autocommit(False) # reset to manual commit mode

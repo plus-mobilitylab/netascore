@@ -48,7 +48,7 @@ CREATE TABLE network_edge_index_tmp AS (
             b.road_category, {{ road_category }},
             b.max_speed_ft, {{ max_speed }},
             b.max_speed_greatest, {{ max_speed_greatest }},
-            b.parking_ft, {{ parking }},
+            b.parking, {{ parking }},
             b.pavement, {{ pavement }},
             b.width, {{ width }},
             b.gradient_ft, {{ gradient }},
@@ -58,6 +58,7 @@ CREATE TABLE network_edge_index_tmp AS (
             b.buildings, {{ buildings }},
             b.greenness, {{ greenness }},
             b.water, {{ water }},
+            b.sights, {{ sights }},
             b.noise, {{ noise }}
         ) ft,
         LATERAL calculate_index(
@@ -67,7 +68,7 @@ CREATE TABLE network_edge_index_tmp AS (
             b.road_category, {{ road_category }},
             b.max_speed_tf, {{ max_speed }},
             b.max_speed_greatest, {{ max_speed_greatest }},
-            b.parking_tf, {{ parking }},
+            b.parking, {{ parking }},
             b.pavement, {{ pavement }},
             b.width, {{ width }},
             b.gradient_tf, {{ gradient }},
@@ -77,6 +78,7 @@ CREATE TABLE network_edge_index_tmp AS (
             b.buildings, {{ buildings }},
             b.greenness, {{ greenness }},
             b.water, {{ water }},
+            b.sights, {{ sights }},
             b.noise, {{ noise }}
         ) tf
     WHERE 
