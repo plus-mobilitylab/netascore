@@ -1,8 +1,8 @@
 # Changelog
 
-Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/compare/v1.1.1...dev-main).
+Changes since release [1.1.1](https://github.com/plus-mobilitylab/netascore/compare/v1.1.1...v2.0.0).
 
-## [2.0.0]
+## [2.0.0] - 2026-10-27
 
 NetAScore V 2.0 brings numerous improvements regarding interpretation of recent OSM mapping conventions as well as usability of the workflow. We improved error handling and log messages, consistency of settings, and fixed several bugs.
 

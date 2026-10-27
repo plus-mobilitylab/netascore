@@ -24,9 +24,9 @@ authors:
   given-names: "Martin"
   orcid: "https://orcid.org/0000-0003-0474-3234"
 title: "NetAScore"
-version: 1.1.1
+version: 2.0.0
 doi: 10.5281/zenodo.7695369
-date-released: 2024-03-28
+date-released: 2026-10-27
 url: "https://github.com/plus-mobilitylab/netascore"
 license: MIT
 preferred-citation:
